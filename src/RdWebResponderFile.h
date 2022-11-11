@@ -10,7 +10,7 @@
 
 #ifndef ESP8266
 
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include <Logger.h>
 #include <ArduinoTime.h>
 #include "RdWebResponder.h"

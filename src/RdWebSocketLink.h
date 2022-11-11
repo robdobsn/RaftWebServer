@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 #include <vector>
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include "RdWebSocketDefs.h"
 #include "RdWebConnDefs.h"
 

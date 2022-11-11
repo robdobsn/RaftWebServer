@@ -12,7 +12,7 @@
 #include "RdWebConnManager.h"
 #include "RdWebResponder.h"
 #include <Logger.h>
-#include <Utils.h>
+#include <RaftUtils.h>
 #include <ArduinoTime.h>
 #include <RdJson.h>
 #include <functional>
@@ -265,7 +265,7 @@ void RdWebConnection::service()
     if (_isClearPending)
     {
         // Check for timeout
-        if (Utils::isTimeout(millis(), _clearPendingStartMs, CONNECTION_CLEAR_PENDING_TIME_MS))
+        if (Raft::isTimeout(millis(), _clearPendingStartMs, CONNECTION_CLEAR_PENDING_TIME_MS))
         {
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
             LOG_I(MODULE_PREFIX, "service conn cleared - clear was pending");
@@ -276,8 +276,8 @@ void RdWebConnection::service()
     }
 
     // Check timeout
-    if (_timeoutActive && (Utils::isTimeout(millis(), _timeoutStartMs, _timeoutDurationMs) ||
-                    Utils::isTimeout(millis(), _timeoutLastActivityMs, _timeoutOnIdleDurationMs)))
+    if (_timeoutActive && (Raft::isTimeout(millis(), _timeoutStartMs, _timeoutDurationMs) ||
+                    Raft::isTimeout(millis(), _timeoutLastActivityMs, _timeoutOnIdleDurationMs)))
     {
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
         uint32_t debugTimeOutHandlerStartMs = millis();
@@ -342,7 +342,7 @@ void RdWebConnection::service()
 #endif
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
         String debugStr;
-        Utils::getHexStrFromBytes(pData, dataLen, debugStr);
+        Raft::getHexStrFromBytes(pData, dataLen, debugStr);
         LOG_I(MODULE_PREFIX, "connId %d RX: %s", _pClientConn->getClientId(), debugStr.c_str());
 #endif
     }
@@ -467,7 +467,7 @@ bool RdWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataLen
 #ifdef DEBUG_WEB_REQUEST_HEADER_DETAIL
     {
         String rxStr;
-        Utils::strFromBuffer(pRxData, dataLen, rxStr);
+        Raft::strFromBuffer(pRxData, dataLen, rxStr);
         LOG_I(MODULE_PREFIX, "req data:\n%s", rxStr.c_str());
     }
 #endif
@@ -693,7 +693,7 @@ bool RdWebConnection::handleHeaderData(const uint8_t* pRxData, uint32_t dataLen,
 
         // Extract string
         String newStr;
-        Utils::strFromBuffer(pRxData + pos, lfFoundPos - pos, newStr);
+        Raft::strFromBuffer(pRxData + pos, lfFoundPos - pos, newStr);
         newStr.trim();
 
         // Add to parse header string
@@ -928,7 +928,7 @@ String RdWebConnection::decodeURL(const String &inURL) const
         // Check for % escaping
         if ((*pCh == '%') && *(pCh+1) && *(pCh+2))
         {
-            char newCh = Utils::getHexFromChar(*(pCh+1)) * 16 + Utils::getHexFromChar(*(pCh+2));
+            char newCh = Raft::getHexFromChar(*(pCh+1)) * 16 + Raft::getHexFromChar(*(pCh+2));
             outURL.concat(newCh);
             pCh += 3;
         }
@@ -975,7 +975,7 @@ RdWebConnSendRetVal RdWebConnection::rawSendOnConn(const uint8_t* pBuf, uint32_t
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
     String debugStr;
-    Utils::getHexStrFromBytes(pBuf, bufLen, debugStr);
+    Raft::getHexStrFromBytes(pBuf, bufLen, debugStr);
     LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d TX: %s", _pClientConn->getClientId(), debugStr.c_str());
 #endif
 

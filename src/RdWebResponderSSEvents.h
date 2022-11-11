@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include "RdWebResponder.h"
 #include <RdWebRequestParams.h>
 #include <RdWebConnection.h>

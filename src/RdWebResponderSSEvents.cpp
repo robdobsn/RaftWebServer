@@ -11,7 +11,7 @@
 #include "RaftWebServerSettings.h"
 #include "RdWebConnDefs.h"
 #include <Logger.h>
-#include <Utils.h>
+#include <RaftUtils.h>
 
 // #define DEBUG_RESPONDER_EVENTS
 #define WARN_EVENTS_SEND_APP_DATA_FAIL
@@ -73,7 +73,7 @@ bool RdWebResponderSSEvents::handleData(const uint8_t *pBuf, uint32_t dataLen)
 {
 #ifdef DEBUG_RESPONDER_EVENTS
     String outStr;
-    Utils::strFromBuffer(pBuf, dataLen, outStr, false);
+    Raft::strFromBuffer(pBuf, dataLen, outStr, false);
     LOG_I(MODULE_PREFIX, "handleData len %d %s", dataLen, outStr.c_str());
 #endif
     return true;

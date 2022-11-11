@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include <Logger.h>
 #include <ArduinoTime.h>
-#include <Utils.h>
+#include <RaftUtils.h>
 #include "RdWebResponder.h"
 #include <RdWebRequestParams.h>
 #include <RdWebConnection.h>

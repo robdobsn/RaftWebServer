@@ -11,7 +11,7 @@
 #include "RdClientConnSockets.h"
 #include "RdWebInterface.h"
 #include "ArduinoTime.h"
-#include "Utils.h"
+#include "RaftUtils.h"
 #include <Logger.h>
 #include "lwip/api.h"
 #include "lwip/sockets.h"
@@ -69,7 +69,7 @@ RdWebConnSendRetVal RdClientConnSockets::write(const uint8_t* pBuf, uint32_t buf
         {
             if (errno == EAGAIN)
             {
-                if ((maxRetryMs == 0) || Utils::isTimeout(millis(), startMs, maxRetryMs))
+                if ((maxRetryMs == 0) || Raft::isTimeout(millis(), startMs, maxRetryMs))
                 {
                     if (maxRetryMs != 0)
                     {

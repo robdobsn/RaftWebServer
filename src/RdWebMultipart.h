@@ -9,7 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include <functional>
 #include <vector>
 

@@ -14,7 +14,7 @@
 #include "RdWebInterface.h"
 #include "RdWebHandlerWS.h"
 #include <Logger.h>
-#include <Utils.h>
+#include <RaftUtils.h>
 
 // Warn
 #define WARN_WS_SEND_APP_DATA_FAIL
@@ -101,7 +101,7 @@ bool RdWebResponderWS::handleData(const uint8_t* pBuf, uint32_t dataLen)
 #ifdef DEBUG_RESPONDER_WS
 #ifdef DEBUG_WS_SEND_APP_DATA_ASCII
     String outStr;
-    Utils::strFromBuffer(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
+    Raft::strFromBuffer(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
     LOG_I(MODULE_PREFIX, "handleData len %d %s%s", dataLen, outStr.c_str(),
                 dataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
 #else
@@ -164,7 +164,7 @@ uint32_t RdWebResponderWS::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
     if (respLen > 0) {
 #ifdef DEBUG_WS_SEND_APP_DATA_ASCII
     String outStr;
-    Utils::strFromBuffer(pBuf, respLen, outStr, false);
+    Raft::strFromBuffer(pBuf, respLen, outStr, false);
     LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d %s", respLen, _isActive, outStr.c_str());
 #else
     LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respLen, _isActive);
@@ -271,7 +271,7 @@ void RdWebResponderWS::webSocketCallback(RdWebSocketEventCode eventCode, const u
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC
             String msgText;
             if (pBuf)
-                Utils::strFromBuffer(pBuf, bufLen, msgText);
+                Raft::strFromBuffer(pBuf, bufLen, msgText);
 			LOG_I(MODULE_PREFIX, "webSocketCallback rx text len %i content %s", bufLen, msgText.c_str());
 #endif
 			break;
@@ -286,7 +286,7 @@ void RdWebResponderWS::webSocketCallback(RdWebSocketEventCode eventCode, const u
 #endif
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC_BINARY_DETAIL
             String rxDataStr;
-            Utils::getHexStrFromBytes(pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, rxDataStr);
+            Raft::getHexStrFromBytes(pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, rxDataStr);
 			LOG_I(MODULE_PREFIX, "webSocketCallback rx binary len %s%s", rxDataStr.c_str(),
                     bufLen < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
 #endif

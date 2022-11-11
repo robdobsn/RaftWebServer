@@ -9,7 +9,7 @@
 #pragma once
 
 #include <list>
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include <RdJson.h>
 #include <RdWebConnDefs.h>
 

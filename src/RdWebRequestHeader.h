@@ -9,7 +9,7 @@
 #pragma once
 
 #include <vector>
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 #include <RdJson.h>
 #include "RdWebInterface.h"
 

@@ -207,7 +207,7 @@ bool RdWebResponderRestAPI::leaveConnOpen()
 bool RdWebResponderRestAPI::readyForData()
 {
 #ifdef APPLY_MIN_GAP_BETWEEN_API_CALLS_MS
-    if (!Utils::isTimeout(millis(), _lastFileReqMs, APPLY_MIN_GAP_BETWEEN_API_CALLS_MS))
+    if (!Raft::isTimeout(millis(), _lastFileReqMs, APPLY_MIN_GAP_BETWEEN_API_CALLS_MS))
         return false;
     _lastFileReqMs = millis();
     LOG_I(MODULE_PREFIX, "readyForData time %d", _lastFileReqMs);

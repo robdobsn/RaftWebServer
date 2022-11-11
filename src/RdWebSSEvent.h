@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <WString.h>
+#include <ArduinoOrAlt.h>
 
 // SSEvent for tx queue
 class RdWebSSEvent

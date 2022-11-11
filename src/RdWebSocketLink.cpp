@@ -11,8 +11,8 @@
 #include "RdWebSocketLink.h"
 #include <stdint.h>
 #include <vector>
-#include <WString.h>
-#include <Utils.h>
+#include <ArduinoOrAlt.h>
+#include <RaftUtils.h>
 #include <ArduinoTime.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/base64.h>
@@ -88,7 +88,7 @@ void RdWebSocketLink::service()
     if (_upgradeRespSent && _pingIntervalMs != 0)
     {
         // Check if time to send ping
-        if (Utils::isTimeout(millis(), _pingTimeLastMs, _pingIntervalMs))
+        if (Raft::isTimeout(millis(), _pingTimeLastMs, _pingIntervalMs))
         {
 #ifdef DEBUG_WEBSOCKET_PING_PONG
             LOG_I(MODULE_PREFIX, "PING");
@@ -101,12 +101,12 @@ void RdWebSocketLink::service()
         // a first pong has been received - this is because older martypy versions did not
         // correctly handle the pong response
         if ((_disconnIfNoPongMs != 0) && (_pongRxLastMs != 0) &&
-                 Utils::isTimeout(millis(), _pongRxLastMs, _disconnIfNoPongMs))
+                 Raft::isTimeout(millis(), _pongRxLastMs, _disconnIfNoPongMs))
         {
             if (!_warnNoPongShown)
             {
                 LOG_W(MODULE_PREFIX, "service - no PONG received for %ldms (>%dms), link inactive",
-                        Utils::timeElapsed(millis(), _pongRxLastMs),
+                        Raft::timeElapsed(millis(), _pongRxLastMs),
                         _disconnIfNoPongMs);
                 _warnNoPongShown = true;
             }
@@ -139,22 +139,22 @@ void RdWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
     if (!_upgradeReqReceived)
     {
         // Check for header
-        if (Utils::findInBuf(pBuf, bufLen, UPGRADE_REQ_TEXT, sizeof(UPGRADE_REQ_TEXT)) < 0)
+        if (Raft::findInBuf(pBuf, bufLen, UPGRADE_REQ_TEXT, sizeof(UPGRADE_REQ_TEXT)) < 0)
             return;
 
         // Check for upgrade key
-        int keyPos = Utils::findInBuf(pBuf, bufLen, UPGRADE_REQ_KEY, sizeof(UPGRADE_REQ_KEY));
+        int keyPos = Raft::findInBuf(pBuf, bufLen, UPGRADE_REQ_KEY, sizeof(UPGRADE_REQ_KEY));
         if (keyPos < 0)
             return;
         keyPos += sizeof(UPGRADE_REQ_TEXT);
 
         // Find key length
-        int keyLen = Utils::findInBuf(pBuf + keyPos, bufLen - keyPos, HTTP_EOL_STR, sizeof(HTTP_EOL_STR));
+        int keyLen = Raft::findInBuf(pBuf + keyPos, bufLen - keyPos, HTTP_EOL_STR, sizeof(HTTP_EOL_STR));
         if (keyLen < 0)
             return;
 
         // Extract key
-        Utils::strFromBuffer(pBuf + keyPos, keyLen, _wsKey);
+        Raft::strFromBuffer(pBuf + keyPos, keyLen, _wsKey);
         _upgradeReqReceived = true;
 
         // Continue with any excess data
@@ -187,7 +187,7 @@ void RdWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 #endif
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
             String prevResidual;
-            Utils::getHexStrFromBytes(_rxDataToProcess.data(), 
+            Raft::getHexStrFromBytes(_rxDataToProcess.data(), 
                     _rxDataToProcess.size() < MAX_DEBUG_BIN_HEX_LEN ? _rxDataToProcess.size() : MAX_DEBUG_BIN_HEX_LEN,
                     prevResidual);
             LOG_I(MODULE_PREFIX, "handleRxData prevResidual len %d data %s%s", 
@@ -202,7 +202,7 @@ void RdWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
             bufLen = _rxDataToProcess.size();
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
             String dataToProc;
-            Utils::getHexStrFromBytes(_rxDataToProcess.data(), 
+            Raft::getHexStrFromBytes(_rxDataToProcess.data(), 
                     _rxDataToProcess.size() < MAX_DEBUG_BIN_HEX_LEN ? _rxDataToProcess.size() : MAX_DEBUG_BIN_HEX_LEN, 
                     dataToProc);
             LOG_I(MODULE_PREFIX, "handleRxData agg dataToProc len %d data %s%s", 
@@ -230,7 +230,7 @@ void RdWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 #endif
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
             String residualFinalStr;
-            Utils::getHexStrFromBytes(_rxDataToProcess.data(), 
+            Raft::getHexStrFromBytes(_rxDataToProcess.data(), 
                     _rxDataToProcess.size() < MAX_DEBUG_BIN_HEX_LEN ? _rxDataToProcess.size() : MAX_DEBUG_BIN_HEX_LEN,
                     residualFinalStr);
             LOG_I(MODULE_PREFIX, "handleRxData residual len %d data %s%s", 
@@ -249,7 +249,7 @@ void RdWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
         bufLen -= dataConsumed;
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
         String nextDataStr;
-        Utils::getHexStrFromBytes(pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, nextDataStr);
+        Raft::getHexStrFromBytes(pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, nextDataStr);
         LOG_I(MODULE_PREFIX, "handleRxData nextData len %d data %s%s", bufLen, nextDataStr.c_str(),
                 bufLen < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
 #endif
@@ -442,7 +442,7 @@ uint32_t RdWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t bufLe
     extractWSHeaderInfo(pBuf, bufLen);
 #ifdef DEBUG_WEBSOCKET_RX_DETAIL
     String outStr;
-    Utils::getHexStrFromBytes(pBuf, bufLen, outStr);
+    Raft::getHexStrFromBytes(pBuf, bufLen, outStr);
     LOG_I(MODULE_PREFIX, "handleRxPacketData header len %lld dataPos %d bufLen %d data %s", 
                 _wsHeader.len, _wsHeader.dataPos, bufLen, outStr.c_str());
 #endif
@@ -545,14 +545,14 @@ uint32_t RdWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t bufLe
 
 #ifdef DEBUG_WEBSOCKET_LINK_DATA_STR
             String cbStr;
-            Utils::strFromBuffer(_callbackData.data(), 
+            Raft::strFromBuffer(_callbackData.data(), 
                         _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? _callbackData.size() : MAX_DEBUG_TEXT_STR_LEN, 
                         cbStr, false);
             LOG_I(MODULE_PREFIX, "handleRxPacketData %s%s", cbStr.c_str(),
                         _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
 #endif
 #ifdef DEBUG_WEBSOCKET_LINK_DATA_BINARY
-            Utils::logHexBuf(_callbackData.data(), 
+            Raft::logHexBuf(_callbackData.data(), 
                         _callbackData.size() < MAX_DEBUG_BIN_HEX_LEN ? _callbackData.size() : MAX_DEBUG_BIN_HEX_LEN, 
                         MODULE_PREFIX, "handleRxPacketData");
 #endif

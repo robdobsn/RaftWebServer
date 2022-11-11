@@ -8,7 +8,7 @@
 
 #include <RdWebMultipart.h>
 #include <Logger.h>
-#include <Utils.h>
+#include <RaftUtils.h>
 #include <RdJson.h>
 
 static const char *MODULE_PREFIX = "RdMultipart";
@@ -112,7 +112,7 @@ bool RdWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 #ifdef DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
     // Debug
     String inStr;
-    Utils::strFromBuffer(buffer, bufLen, inStr);
+    Raft::strFromBuffer(buffer, bufLen, inStr);
     LOG_I(MODULE_PREFIX, "DATA START ---------------------------------------\n%s", inStr.c_str());
     LOG_I(MODULE_PREFIX, "DATA END ---------------------------------------");
 #endif
@@ -467,7 +467,7 @@ void RdWebMultipart::headerNameFound(const uint8_t *pBuf, uint32_t pos, uint32_t
     if (len == 0)
         _headerName.clear();
     else
-        Utils::strFromBuffer(pBuf + pos, len, _headerName);
+        Raft::strFromBuffer(pBuf + pos, len, _headerName);
 }
 
 void RdWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint32_t len)
@@ -475,7 +475,7 @@ void RdWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint32_
     if ((len == 0) || (_headerName.length() == 0))
         return;
     String headerValue;
-    Utils::strFromBuffer(pBuf + pos, len, headerValue);
+    Raft::strFromBuffer(pBuf + pos, len, headerValue);
 
     // Parse header value to get content
     if (_headerName.equalsIgnoreCase("Content-Disposition"))

@@ -14,7 +14,7 @@
 #include "RdWebResponder.h"
 #include <stdint.h>
 #include <string.h>
-#include <Utils.h>
+#include <RaftUtils.h>
 #ifdef ESP8266
 #include "ESP8266Utils.h"
 #endif
