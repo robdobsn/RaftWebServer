@@ -26,7 +26,8 @@ public:
 
     // Setup the web socket
     void setup(RdWebSocketCB webSocketCB, RdWebConnSendFn rawConnSendFn, 
-            uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs);
+            uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs, 
+            const String& contentType);
 
     // Service - called frequently
     void service();
@@ -66,6 +67,9 @@ public:
         }
         return "NONE";
     }
+
+    // Websocket Opcode to use by default
+    WebSocketOpCodes msgOpCodeDefault() { return _defaultContentOpCode; }
 
 private:
     // State
@@ -109,6 +113,9 @@ private:
     uint32_t _disconnIfNoPongMs;
     bool _warnNoPongShown = false;
     
+    // Default content opcode
+    WebSocketOpCodes _defaultContentOpCode;
+
     // Debug
     static const uint32_t MAX_DEBUG_TEXT_STR_LEN = 100;
     static const uint32_t MAX_DEBUG_BIN_HEX_LEN = 50;

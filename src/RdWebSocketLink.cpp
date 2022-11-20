@@ -65,7 +65,8 @@ RdWebSocketLink::~RdWebSocketLink()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void RdWebSocketLink::setup(RdWebSocketCB webSocketCB, RdWebConnSendFn rawConnSendFn,
-                uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs)
+                uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs,
+                const String& contentType)
 {
     _webSocketCB = webSocketCB;
     _rawConnSendFn = rawConnSendFn;
@@ -75,6 +76,7 @@ void RdWebSocketLink::setup(RdWebSocketCB webSocketCB, RdWebConnSendFn rawConnSe
     _disconnIfNoPongMs = disconnIfNoPongMs;
     _maskSentData = !roleIsServer;
     _isActive = true;
+    _defaultContentOpCode = contentType.equalsIgnoreCase("text") ? WEBSOCKET_OPCODE_TEXT : WEBSOCKET_OPCODE_BINARY;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

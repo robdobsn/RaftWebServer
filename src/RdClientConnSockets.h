@@ -15,7 +15,7 @@
 class RdClientConnSockets : public RdClientConnBase
 {
 public:
-    RdClientConnSockets(int client);
+    RdClientConnSockets(int client, bool traceConn);
     virtual ~RdClientConnSockets();
 
     // Client ID
@@ -37,6 +37,7 @@ public:
 private:
     int _client;
     uint8_t* _pDataBuf;
+    bool _traceConn;
 
 #ifdef CONFIG_LWIP_TCP_MSS
     static const uint32_t WEB_CONN_MAX_RX_BUFFER = CONFIG_LWIP_TCP_MSS;

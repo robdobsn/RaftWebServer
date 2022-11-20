@@ -58,11 +58,13 @@ public:
         String wsPath = _wsConfig.getString("pfix", "ws");
         wsPath = wsPath.startsWith("/") ? wsPath : "/" + wsPath;
 
+        // LOG_I("WebHandlerWS", "getNewResponder: req %s this prefix %s", requestHeader.URIAndParams.c_str(), wsPath.c_str());
+
         // Check for WS prefix
         if (!requestHeader.URL.startsWith(wsPath))
         {
-            LOG_W("WebHandlerWS", "getNewResponder unmatched ws req %s != expected %s", 
-                            requestHeader.URL.c_str(), wsPath.c_str());
+            // LOG_W("WebHandlerWS", "getNewResponder unmatched ws req %s != expected %s", 
+            //                 requestHeader.URL.c_str(), wsPath.c_str());
             // We don't change the status code here as we didn't find a match
             return NULL;
         }
@@ -80,17 +82,20 @@ public:
         if (wsConnIdxAvailable == UINT32_MAX)
         {
             statusCode = HTTP_STATUS_SERVICEUNAVAILABLE;
+            LOG_W("WebHandlerWS", "getNewResponder pfix %s no free connections", wsPath.c_str());
             return NULL;
         }
 
         // Looks like we can handle this so create a new responder object
+        uint32_t channelID = _channelIDUsage[wsConnIdxAvailable].channelID;
         RdWebResponder* pResponder = new RdWebResponderWS(this, params, requestHeader.URL, 
                     webServerSettings, _canAcceptRxMsgCB, _rxMsgCB, 
-                    _channelIDUsage[wsConnIdxAvailable].channelID,
+                    channelID,
                     _wsConfig.getLong("pktMaxBytes", 1000),
                     _wsConfig.getLong("txQueueMax", 10),
                     _wsConfig.getLong("pingMs", 2000),
-                    _wsConfig.getLong("noPongMs", 5000)
+                    _wsConfig.getLong("noPongMs", 5000),
+                    _wsConfig.getString("content", "binary")
                     );
 
         if (pResponder)
@@ -100,7 +105,8 @@ public:
         }
 
         // Debug
-        // LOG_I("WebHandlerWS", "getNewResponder constructed new responder %lx uri %s", (unsigned long)pResponder, requestHeader.URL.c_str());
+        LOG_I("WebHandlerWS", "getNewResponder constructed new responder %lx channelID %d uri %s", 
+                        (unsigned long)pResponder, channelID, requestHeader.URL.c_str());
 
         // Return new responder - caller must clean up by deleting object when no longer needed
         return pResponder;
@@ -122,10 +128,23 @@ public:
         uint32_t channelID = UINT32_MAX;
         if (pResponder->getChannelID(channelID))
         {
-            if (channelID < _channelIDUsage.size())
+            // Find the channelID slot
+            for (auto &channelIDUsage : _channelIDUsage)
             {
-                _channelIDUsage[channelID].isUsed = false;
+                if (channelIDUsage.isUsed && (channelIDUsage.channelID == channelID))
+                {
+                    channelIDUsage.isUsed = false;
+                    // Debug
+                    LOG_I("WebHandlerWS", "responderDelete deleted responder %p channelID %d OK", pResponder, channelID);
+                    return;
+                }
             }
+            // Debug
+            LOG_W("WebHandlerWS", "responderDelete %p channelID %d NOT FOUND", pResponder, channelID);
+        }
+        else
+        {
+            LOG_W("WebHandlerWS", "responderDelete responder %p channelID %d not available", pResponder, channelID);
         }
     }
 

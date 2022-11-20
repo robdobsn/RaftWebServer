@@ -282,7 +282,10 @@ void RdWebConnection::service()
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
         uint32_t debugTimeOutHandlerStartMs = millis();
 #endif
-        LOG_W(MODULE_PREFIX, "service timeout on connection connId %d", _pClientConn->getClientId());
+        LOG_W(MODULE_PREFIX, "service timeout on connection connId %d sinceStartMs %d sinceLastActivityMs %d", 
+                _pClientConn->getClientId(), 
+                Raft::timeElapsed(millis(), _timeoutStartMs),
+                Raft::timeElapsed(millis(), _timeoutLastActivityMs));
         clear();
 
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS

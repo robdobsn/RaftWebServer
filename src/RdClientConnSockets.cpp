@@ -25,14 +25,19 @@ static const char *MODULE_PREFIX = "RdClientConnSockets";
 // #define DEBUG_SOCKET_EAGAIN
 // #define DEBUG_SOCKET_SEND
 
-RdClientConnSockets::RdClientConnSockets(int client)
+RdClientConnSockets::RdClientConnSockets(int client, bool traceConn)
 {
     _client = client;
     _pDataBuf = nullptr;
+    _traceConn = traceConn;
 }
 
 RdClientConnSockets::~RdClientConnSockets()
 {
+    if (_traceConn)
+    {
+        LOG_I(MODULE_PREFIX, "RdClientConnSockets CLOSED client socketId %d", _client);
+    }
     // shutdown(_client, 0);
     close(_client);
     delete _pDataBuf;
@@ -96,7 +101,8 @@ RdWebConnSendRetVal RdClientConnSockets::write(const uint8_t* pBuf, uint32_t buf
                 continue;
             }
 #ifdef WARN_SOCKET_SEND_FAIL
-            LOG_I(MODULE_PREFIX, "write failed errno error %d conn %d bufLen %d", errno, getClientId(), bufLen);
+            LOG_W(MODULE_PREFIX, "write failed errno error %d conn %d bufLen %d totalMs %d", 
+                        errno, getClientId(), bufLen, Raft::timeElapsed(millis(), startMs));
 #endif
             return RdWebConnSendRetVal::WEB_CONN_SEND_FAIL;
         }

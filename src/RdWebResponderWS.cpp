@@ -41,7 +41,7 @@ RdWebResponderWS::RdWebResponderWS(RdWebHandlerWS* pWebHandler, const RdWebReque
             const String& reqStr, const RaftWebServerSettings& webServerSettings,
             RdWebSocketCanAcceptCB canAcceptMsgCB, RdWebSocketMsgCB sendMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
-            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs)
+            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, const String& contentType)
     :   _reqParams(params), _canAcceptMsgCB(canAcceptMsgCB), 
         _sendMsgCB(sendMsgCB), _txQueue(txQueueSize)
 {
@@ -54,7 +54,7 @@ RdWebResponderWS::RdWebResponderWS(RdWebHandlerWS* pWebHandler, const RdWebReque
     // Init socket link
     _webSocketLink.setup(std::bind(&RdWebResponderWS::webSocketCallback, this, 
                             std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                params.getWebConnRawSend(), pingIntervalMs, true, disconnIfNoPongMs);
+                params.getWebConnRawSend(), pingIntervalMs, true, disconnIfNoPongMs, contentType);
 }
 
 RdWebResponderWS::~RdWebResponderWS()
@@ -87,7 +87,7 @@ void RdWebResponderWS::service()
         LOG_W(MODULE_PREFIX, "service sendMsg len %d", frame.getLen());
 #endif
         // Send
-        if (!_webSocketLink.sendMsg(WEBSOCKET_OPCODE_BINARY, frame.getData(), frame.getLen()))
+        if (!_webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), frame.getData(), frame.getLen()))
             _isActive = false;
     }
 }

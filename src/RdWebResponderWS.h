@@ -31,7 +31,7 @@ public:
             const String& reqStr, const RaftWebServerSettings& webServerSettings,
             RdWebSocketCanAcceptCB canAcceptMsgCB, RdWebSocketMsgCB sendMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
-            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs);
+            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, const String& contentType);
     virtual ~RdWebResponderWS();
 
     // Service - called frequently

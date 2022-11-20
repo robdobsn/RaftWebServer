@@ -51,10 +51,11 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
 
         // Bind to IP and port
         int bind_err = bind(socketId, (struct sockaddr *)&bindAddr, sizeof(bindAddr));
+        int errorNumber = errno;
         if (bind_err != 0)
         {
-            LOG_W(MODULE_PREFIX, "socketListenerTask failed to bind on port %d errno %d",
-                                port, errno);
+            LOG_W(MODULE_PREFIX, "socketListenerTask (listenId %d) failed to bind on port %d errno %d",
+                                socketId, port, errorNumber);
             shutdown(socketId, 0);
             close(socketId);
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
@@ -63,37 +64,44 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
 
         // Listen for clients
         int listen_error = listen(socketId, numConnSlots);
+        errorNumber = errno;
         if (listen_error != 0)
         {
-            LOG_W(MODULE_PREFIX, "socketListenerTask failed to listen errno %d", errno);
+            LOG_W(MODULE_PREFIX, "socketListenerTask (listenId %d) failed to listen errno %d", socketId, errorNumber);
             shutdown(socketId, 0);
             close(socketId);
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
             continue;
         }
-        LOG_I(MODULE_PREFIX, "socketListenerTask listening");
+        LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d) listening on port %d", socketId, port);
 
         // Wait for connection
+        uint32_t consecErrorCount = 0;
         while (true)
         {
             // Client info
             struct sockaddr_storage clientInfo;
             socklen_t clientInfoLen = sizeof(clientInfo);
-            int sockClient = accept(socketId, (struct sockaddr *)&clientInfoLen, &clientInfoLen);
+            int sockClient = accept(socketId, (struct sockaddr *)&clientInfo, &clientInfoLen);
+            int errorNumber = errno;
             if(sockClient < 0)
             {
-                LOG_W(MODULE_PREFIX, "socketListenerTask failed to accept %d", errno);
+                LOG_W(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) failed to accept errno %d", socketId, port, errorNumber);
                 bool socketReconnNeeded = false;
-                switch(errno)
+                switch(errorNumber)
                 {
                     case ENETDOWN:
                     case EPROTO:
                     case ENOPROTOOPT:
                     case EHOSTDOWN:
+                    case ECONNABORTED:
+                    case ENOBUFS:
                     case EHOSTUNREACH:
                     case EOPNOTSUPP:
                     case ENETUNREACH:
+                    case ENFILE:
                         vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+                        consecErrorCount++;
                         break;
                     case EWOULDBLOCK:
                         break;
@@ -101,25 +109,52 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                         socketReconnNeeded = true;
                         break;
                 }
-                if (socketReconnNeeded)
+                if ((socketReconnNeeded) || (consecErrorCount > 50))
+                {
+                    LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) socket RECONN REQD error %d reconnNeeded %d consecErrCount %d", 
+                            socketId, port, errorNumber, socketReconnNeeded, consecErrorCount);
                     break;
+                }
                 continue;
             }
             else
             {
+                // Clear error count
+                consecErrorCount = 0;
     #ifdef DEBUG_NEW_CONNECTION
-                LOG_I(MODULE_PREFIX, "socketListenerTask newConn handle %d", sockClient);
+                {
+                    char ipAddrStr[INET6_ADDRSTRLEN > INET_ADDRSTRLEN ? INET6_ADDRSTRLEN : INET_ADDRSTRLEN] = "";
+                    switch(clientInfo.ss_family) {
+                        case AF_INET: {
+                            struct sockaddr_in *addr_in = (struct sockaddr_in *)&clientInfo;
+                            inet_ntop(AF_INET, &(addr_in->sin_addr), ipAddrStr, INET_ADDRSTRLEN);
+                            break;
+                        }
+                        case AF_INET6: {
+                            struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)&clientInfo;
+                            inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ipAddrStr, INET6_ADDRSTRLEN);
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                    LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) newConn clientId %d from %s", 
+                            socketId, port, sockClient, ipAddrStr);
+                }
+                static const bool TRACE_CONN = true;
+    #else
+                static const bool TRACE_CONN = false;
     #endif
 
                 // Construct an RdClientConnNetconn object
-                RdClientConnBase* pClientConn = new RdClientConnSockets(sockClient);
+                RdClientConnBase* pClientConn = new RdClientConnSockets(sockClient, TRACE_CONN);
 
                 // Hand off the connection to the connection manager via a callback
                 if (!(_handOffNewConnCB && _handOffNewConnCB(pClientConn)))
                 {
                     // Debug
     #ifdef DEBUG_NEW_CONNECTION
-                    LOG_I(MODULE_PREFIX, "listen NEW CONN REJECTED %p", pClientConn);
+                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED clientId %d pClient %p", socketId, port, sockClient, pClientConn);
     #endif
                     // No room so delete (which closes the connection)
                     delete pClientConn;
@@ -129,16 +164,16 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
 
                     // Debug
     #ifdef DEBUG_NEW_CONNECTION
-                    LOG_I(MODULE_PREFIX, "listen NEW CONN ACCEPTED %p", pClientConn);
+                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN ACCEPTED clientId %d pClient %p", socketId, port, sockClient, pClientConn);
     #endif
                 }
             }
         }
 
         // Listener exited
-        shutdown(socketId, 0);
+        // shutdown(socketId, 0);
         close(socketId);
-        LOG_E(MODULE_PREFIX,"socketListenerTask socket closed");
+        LOG_E(MODULE_PREFIX,"socketListenerTask (listenId %d port %d) listener stopped", socketId, port);
 
         // Delay hoping networking recovers
         vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
