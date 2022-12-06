@@ -516,6 +516,14 @@ bool RdWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataLen
             _header.reqConnType, _header.webSocketKey.c_str(), _header.webSocketVersion.c_str());
 #endif
 
+    // Check for pre-flight request
+    if (_header.extract.method == WEB_METHOD_OPTIONS)
+    {
+        // Send response
+        setHTTPResponseStatus(HTTP_STATUS_NOCONTENT);
+        return true;
+    }
+
     // Now find a responder
     RdHttpStatusCode statusCode = HTTP_STATUS_NOTFOUND;
     // Delete any existing responder - there shouldn't be one
@@ -1044,7 +1052,16 @@ bool RdWebConnection::sendStandardHeaders()
     LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
 
-    // Get the content type
+    // Send headers related to pre-flight checks
+    if (_header.extract.method == WEB_METHOD_OPTIONS)
+    {
+        // Header strings
+        static const char* preFlightRespHeaders = "Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE\r\nAccess-Control-Allow-Headers: *\r\nVary: Access-Control-Request-Headers\r\nContent-Length: 0\r\n";
+        if (rawSendOnConn((const uint8_t*)preFlightRespHeaders, strlen(preFlightRespHeaders), MAX_HEADER_SEND_RETRY_MS) != RdWebConnSendRetVal::WEB_CONN_SEND_OK)
+            return false;
+    }
+
+    // Send content type
     if (_pResponder && _pResponder->getContentType())
     {
         snprintf(respLine, sizeof(respLine), "Content-Type: %s\r\n", _pResponder->getContentType());
