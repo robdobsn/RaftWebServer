@@ -59,7 +59,7 @@ RdWebResponderFile::RdWebResponderFile(const String& filePath, RdWebHandler* pWe
         {
             addHeader("Content-Encoding", "gzip");
 #ifdef DEBUG_RESPONDER_FILE
-            LOG_I(MODULE_PREFIX, "constructor filePath %s", gzipFilePath.c_str());
+            LOG_I(MODULE_PREFIX, "filePath %s", gzipFilePath.c_str());
 #endif
         }
     }
@@ -71,7 +71,7 @@ RdWebResponderFile::RdWebResponderFile(const String& filePath, RdWebHandler* pWe
 #ifdef DEBUG_RESPONDER_FILE
         if (_isActive)
         {
-            LOG_I(MODULE_PREFIX, "constructor filePath %s", filePath.c_str());
+            LOG_I(MODULE_PREFIX, "filePath %s", filePath.c_str());
         }
 #endif
     }
@@ -79,7 +79,7 @@ RdWebResponderFile::RdWebResponderFile(const String& filePath, RdWebHandler* pWe
 #ifdef WARN_RESPONDER_FILE
     if (!_isActive)
     {
-        LOG_E(MODULE_PREFIX, "constructor failed to start filepath %s", filePath.c_str());
+        LOG_E(MODULE_PREFIX, "failed to start chunker - filepath %s", filePath.c_str());
     }
 #endif
 

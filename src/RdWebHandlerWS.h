@@ -17,6 +17,8 @@
 #include <ConfigBase.h>
 #include <vector>
 
+// #define DEBUG_WEB_HANDLER_WS_NEW_RESPONDER
+
 class RdWebRequest;
 
 class RdWebHandlerWS : public RdWebHandler
@@ -105,9 +107,10 @@ public:
         }
 
         // Debug
+#ifdef DEBUG_WEB_HANDLER_WS_NEW_RESPONDER
         LOG_I("WebHandlerWS", "getNewResponder constructed new responder %lx channelID %d uri %s", 
                         (unsigned long)pResponder, channelID, requestHeader.URL.c_str());
-
+#endif
         // Return new responder - caller must clean up by deleting object when no longer needed
         return pResponder;
     }
