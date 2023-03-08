@@ -1,6 +1,6 @@
 {
     "name": "RaftWebServer",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "description": "Reliable Web Server for ESP32 (with file/REST API/WebSocket/Server-Side-Events/etc)",
     "keywords": "web, server, webserver, esp32, websocket, sse",
     "repository":

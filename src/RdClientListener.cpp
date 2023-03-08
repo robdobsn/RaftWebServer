@@ -34,8 +34,8 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
 #ifdef WEB_CONN_USE_BERKELEY_SOCKETS
 
         // Create socket
-        int socketId = socket(AF_INET , SOCK_STREAM , 0);
-        if (socketId < 0)
+        int listenerSocketId = socket(AF_INET , SOCK_STREAM , 0);
+        if (listenerSocketId < 0)
         {
             LOG_W(MODULE_PREFIX, "socketListenerTask failed to create socket");
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
@@ -50,30 +50,30 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
         bindAddr.sin_port = htons(port);
 
         // Bind to IP and port
-        int bind_err = bind(socketId, (struct sockaddr *)&bindAddr, sizeof(bindAddr));
+        int bind_err = bind(listenerSocketId, (struct sockaddr *)&bindAddr, sizeof(bindAddr));
         int errorNumber = errno;
         if (bind_err != 0)
         {
-            LOG_W(MODULE_PREFIX, "socketListenerTask (listenId %d) failed to bind on port %d errno %d",
-                                socketId, port, errorNumber);
-            shutdown(socketId, 0);
-            close(socketId);
+            LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) failed to bind on port %d errno %d",
+                                listenerSocketId, port, errorNumber);
+            shutdown(listenerSocketId, 0);
+            close(listenerSocketId);
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
             continue;
         }
 
         // Listen for clients
-        int listen_error = listen(socketId, numConnSlots);
+        int listen_error = listen(listenerSocketId, numConnSlots);
         errorNumber = errno;
         if (listen_error != 0)
         {
-            LOG_W(MODULE_PREFIX, "socketListenerTask (listenId %d) failed to listen errno %d", socketId, errorNumber);
-            shutdown(socketId, 0);
-            close(socketId);
+            LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) failed to listen errno %d", listenerSocketId, errorNumber);
+            shutdown(listenerSocketId, 0);
+            close(listenerSocketId);
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
             continue;
         }
-        LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d) listening on port %d", socketId, port);
+        LOG_I(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) listening on port %d", listenerSocketId, port);
 
         // Wait for connection
         uint32_t consecErrorCount = 0;
@@ -82,11 +82,11 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
             // Client info
             struct sockaddr_storage clientInfo;
             socklen_t clientInfoLen = sizeof(clientInfo);
-            int sockClient = accept(socketId, (struct sockaddr *)&clientInfo, &clientInfoLen);
+            int sockClient = accept(listenerSocketId, (struct sockaddr *)&clientInfo, &clientInfoLen);
             int errorNumber = errno;
             if(sockClient < 0)
             {
-                LOG_W(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) failed to accept errno %d", socketId, port, errorNumber);
+                LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d port %d) failed to accept errno %d", listenerSocketId, port, errorNumber);
                 bool socketReconnNeeded = false;
                 switch(errorNumber)
                 {
@@ -112,7 +112,7 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                 if ((socketReconnNeeded) || (consecErrorCount > 50))
                 {
                     LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) socket RECONN REQD error %d reconnNeeded %d consecErrCount %d", 
-                            socketId, port, errorNumber, socketReconnNeeded, consecErrorCount);
+                            listenerSocketId, port, errorNumber, socketReconnNeeded, consecErrorCount);
                     break;
                 }
                 continue;
@@ -139,7 +139,7 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                             break;
                     }
                     LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) newConn clientId %d from %s", 
-                            socketId, port, sockClient, ipAddrStr);
+                            listenerSocketId, port, sockClient, ipAddrStr);
                 }
                 static const bool TRACE_CONN = true;
     #else
@@ -154,7 +154,7 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                 {
                     // Debug
     #ifdef DEBUG_NEW_CONNECTION
-                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED clientId %d pClient %p", socketId, port, sockClient, pClientConn);
+                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED clientId %d pClient %p", listenerSocketId, port, sockClient, pClientConn);
     #endif
                     // No room so delete (which closes the connection)
                     delete pClientConn;
@@ -164,16 +164,16 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
 
                     // Debug
     #ifdef DEBUG_NEW_CONNECTION
-                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN ACCEPTED clientId %d pClient %p", socketId, port, sockClient, pClientConn);
+                    LOG_I(MODULE_PREFIX, "listen (listenerSocketId %d port %d) NEW CONN ACCEPTED clientId %d pClient %p", listenerSocketId, port, sockClient, pClientConn);
     #endif
                 }
             }
         }
 
         // Listener exited
-        // shutdown(socketId, 0);
-        close(socketId);
-        LOG_E(MODULE_PREFIX,"socketListenerTask (listenId %d port %d) listener stopped", socketId, port);
+        // shutdown(listenerSocketId, 0);
+        close(listenerSocketId);
+        LOG_E(MODULE_PREFIX,"socketListenerTask (listenerSocketId %d port %d) listener stopped", listenerSocketId, port);
 
         // Delay hoping networking recovers
         vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
