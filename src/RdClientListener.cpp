@@ -56,7 +56,8 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
         {
             LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) failed to bind on port %d errno %d",
                                 listenerSocketId, port, errorNumber);
-            shutdown(listenerSocketId, 0);
+            shutdown(listenerSocketId, SHUT_RDWR);
+            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / 10 / portTICK_PERIOD_MS);
             close(listenerSocketId);
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
             continue;
@@ -68,7 +69,8 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
         if (listen_error != 0)
         {
             LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) failed to listen errno %d", listenerSocketId, errorNumber);
-            shutdown(listenerSocketId, 0);
+            shutdown(listenerSocketId, SHUT_RDWR);
+            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / 10 / portTICK_PERIOD_MS);
             close(listenerSocketId);
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
             continue;
@@ -138,7 +140,7 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                         default:
                             break;
                     }
-                    LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) newConn clientId %d from %s", 
+                    LOG_I(MODULE_PREFIX, "socketListenerTask (listenId %d port %d) newConn connId %d from %s", 
                             listenerSocketId, port, sockClient, ipAddrStr);
                 }
                 static const bool TRACE_CONN = true;
@@ -146,7 +148,7 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                 static const bool TRACE_CONN = false;
     #endif
 
-                // Construct an RdClientConnNetconn object
+                // Construct an RdClientConnSockets object
                 RdClientConnBase* pClientConn = new RdClientConnSockets(sockClient, TRACE_CONN);
 
                 // Hand off the connection to the connection manager via a callback
@@ -154,7 +156,8 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
                 {
                     // Debug
     #ifdef DEBUG_NEW_CONNECTION
-                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED clientId %d pClient %p", listenerSocketId, port, sockClient, pClientConn);
+                    LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED connId %d pClient %p", 
+                        listenerSocketId, port, sockClient, pClientConn);
     #endif
                     // No room so delete (which closes the connection)
                     delete pClientConn;
@@ -164,7 +167,8 @@ void RdClientListener::listenForClients(int port, uint32_t numConnSlots)
 
                     // Debug
     #ifdef DEBUG_NEW_CONNECTION
-                    LOG_I(MODULE_PREFIX, "listen (listenerSocketId %d port %d) NEW CONN ACCEPTED clientId %d pClient %p", listenerSocketId, port, sockClient, pClientConn);
+                    LOG_I(MODULE_PREFIX, "listen (listenerSocketId %d port %d) NEW CONN ACCEPTED connId %d pClient %p", 
+                        listenerSocketId, port, sockClient, pClientConn);
     #endif
                 }
             }

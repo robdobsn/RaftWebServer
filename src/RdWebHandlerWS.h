@@ -47,6 +47,10 @@ public:
     {
         return "HandlerWS";
     }
+    virtual String getBaseURL() override
+    {
+        return _wsConfig.getString("pfix", "ws");
+    }
     virtual RdWebResponder* getNewResponder(const RdWebRequestHeader& requestHeader, 
                 const RdWebRequestParams& params, 
                 const RaftWebServerSettings& webServerSettings,

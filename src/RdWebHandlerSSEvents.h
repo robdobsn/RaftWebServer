@@ -31,6 +31,10 @@ public:
     {
         return "HandlerSSEvents";
     }
+    virtual String getBaseURL() override
+    {
+        return _eventsPath;
+    }
     virtual RdWebResponder* getNewResponder(const RdWebRequestHeader& requestHeader, 
                 const RdWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
                 RdHttpStatusCode &statusCode) override final

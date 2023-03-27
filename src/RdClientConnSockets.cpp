@@ -30,15 +30,28 @@ RdClientConnSockets::RdClientConnSockets(int client, bool traceConn)
     _client = client;
     _pDataBuf = nullptr;
     _traceConn = traceConn;
+#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
+    _connOpenTimeMs = millis();
+    _bytesRead = 0;
+    _bytesWritten = 0;
+    _lastAccessTimeMs = 0;
+#endif
 }
 
 RdClientConnSockets::~RdClientConnSockets()
 {
     if (_traceConn)
     {
-        LOG_I(MODULE_PREFIX, "RdClientConnSockets CLOSED client socketId %d", _client);
+#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
+        double connOpenTimeSecs = Raft::timeElapsed(millis(), _connOpenTimeMs) / 1000.0;
+        LOG_I(MODULE_PREFIX, "RdClientConnSockets CLOSED client connId %d bytesRead %d bytesWritten %d connOpenTimeSecs %.2f",
+                    _client, _bytesRead, _bytesWritten, connOpenTimeSecs);
+#else
+        LOG_I(MODULE_PREFIX, "RdClientConnSockets CLOSED client connId %d", _client);
+#endif
     }
-    // shutdown(_client, 0);
+    shutdown(_client, SHUT_RDWR);
+    delay(20);
     close(_client);
     delete _pDataBuf;
 }
@@ -111,6 +124,12 @@ RdWebConnSendRetVal RdClientConnSockets::write(const uint8_t* pBuf, uint32_t buf
         LOG_I(MODULE_PREFIX, "write ok conn %d bufLen %d", getClientId(), bufLen);
 #endif
 
+        // Update stats
+#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
+        _bytesWritten += bufLen;
+        _lastAccessTimeMs = millis();
+#endif
+
         // Success
         return RdWebConnSendRetVal::WEB_CONN_SEND_OK;
     }
@@ -153,6 +172,12 @@ uint8_t* RdClientConnSockets::getDataStart(uint32_t& dataLen, bool& errorOccurre
         getDataEnd();
         return nullptr;
     }
+
+    // Stats
+#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
+    _bytesRead += bufLen;
+    _lastAccessTimeMs = millis();
+#endif
 
     // Return received data
     dataLen = bufLen;

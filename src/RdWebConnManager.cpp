@@ -247,8 +247,10 @@ RdWebResponder *RdWebConnManager::getNewResponder(const RdWebRequestHeader &head
                                                 _webServerSettings, statusCode);
 
 #ifdef DEBUG_NEW_RESPONDER
-            LOG_I(MODULE_PREFIX, "getNewResponder url %s handlerType %s result %s httpStatus %s",
-                  header.URL.c_str(), pHandler->getName(),
+            LOG_I(MODULE_PREFIX, "getNewResponder url %s handlerType %s handlerBaseURL %s result %s httpStatus %s",
+                  header.URL.c_str(), 
+                  pHandler->getName(),
+                  pHandler->getBaseURL().c_str(),
                   pResponder ? "OK" : "NoMatch",
                   RdWebInterface::getHTTPStatusStr(statusCode));
 #endif
@@ -393,7 +395,7 @@ bool RdWebConnManager::handleNewConnection(RdClientConnBase* pClientConn)
         if (!accommodateConnection(pClientConn))
         {
             // Debug
-            LOG_W(MODULE_PREFIX, "Can't handle conn clientId %d", pClientConn->getClientId());
+            LOG_W(MODULE_PREFIX, "Can't handle connId %d", pClientConn->getClientId());
             return false;
         }
     }

@@ -12,6 +12,8 @@
 
 #include "RdClientConnBase.h"
 
+#define RD_CLIENT_CONN_SOCKETS_CONN_STATS
+
 class RdClientConnSockets : public RdClientConnBase
 {
 public:
@@ -35,9 +37,16 @@ public:
     virtual void getDataEnd() override final;
 
 private:
-    int _client;
-    uint8_t* _pDataBuf;
-    bool _traceConn;
+    int _client = -1;
+    uint8_t* _pDataBuf = nullptr;
+    bool _traceConn = false;
+
+#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
+    uint64_t _connOpenTimeMs = 0;
+    uint32_t _bytesRead = 0;
+    uint32_t _bytesWritten = 0;
+    uint32_t _lastAccessTimeMs = 0;
+#endif
 
 #ifdef CONFIG_LWIP_TCP_MSS
     static const uint32_t WEB_CONN_MAX_RX_BUFFER = CONFIG_LWIP_TCP_MSS;

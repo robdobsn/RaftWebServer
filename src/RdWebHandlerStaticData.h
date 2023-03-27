@@ -51,6 +51,10 @@ public:
     {
         return "HandlerStaticData";
     }
+    virtual String getBaseURL() override
+    {
+        return _baseURI;
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Get a responder if we can handle this request

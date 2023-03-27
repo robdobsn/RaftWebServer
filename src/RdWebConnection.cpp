@@ -548,8 +548,12 @@ bool RdWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataLen
     {
         uint32_t channelID = 0;
         bool chanIdOk = _pResponder->getChannelID(channelID);
-        LOG_I(MODULE_PREFIX, "serviceConnHeader new responder type %s chanID %d%s responder %d", _pResponder->getResponderType(), 
-                            channelID, chanIdOk ? "" : " (INVALID)", (uint32_t)_pResponder);
+        LOG_I(MODULE_PREFIX, "serviceConnHeader new responder type %s chanID %d%s responder %x connId %d", 
+                _pResponder->getResponderType(), 
+                channelID, 
+                chanIdOk ? "" : " (INVALID)", 
+                (uint32_t)_pResponder,
+                _pClientConn ? _pClientConn->getClientId() : -1);
     } 
     else 
     {
@@ -1049,7 +1053,7 @@ bool RdWebConnection::sendStandardHeaders()
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
     // Debug
-    LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+    LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
 
     // Send headers related to pre-flight checks
@@ -1070,7 +1074,7 @@ bool RdWebConnection::sendStandardHeaders()
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
         // Debug
-        LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+        LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
     }
 
@@ -1086,7 +1090,7 @@ bool RdWebConnection::sendStandardHeaders()
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
             // Debug
-            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
         }
     }
@@ -1103,7 +1107,7 @@ bool RdWebConnection::sendStandardHeaders()
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
             // Debug
-            LOG_I(MODULE_PREFIX, "sendAdditionalHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+            LOG_I(MODULE_PREFIX, "sendAdditionalHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
         }
     }
@@ -1120,7 +1124,7 @@ bool RdWebConnection::sendStandardHeaders()
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
             // Debug
-            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
         }
     }
@@ -1134,7 +1138,7 @@ bool RdWebConnection::sendStandardHeaders()
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
         // Debug
-        LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s clientId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+        LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
     }
 
@@ -1164,7 +1168,7 @@ bool RdWebConnection::handleResponseChunk()
         {
         // Debug
 #ifdef DEBUG_RESPONDER_CONTENT_DETAIL
-            LOG_I(MODULE_PREFIX, "handleResponseChunk sendStandardHeaders failed clientId %d", _pClientConn ? _pClientConn->getClientId() : 0);
+            LOG_I(MODULE_PREFIX, "handleResponseChunk sendStandardHeaders failed connId %d", _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
             return false;
         }
@@ -1198,7 +1202,7 @@ bool RdWebConnection::handleResponseChunk()
 
             // Debug
 #ifdef DEBUG_RESPONDER_CONTENT_DETAIL
-            LOG_I(MODULE_PREFIX, "handleResponseChunk writing %d retVal %s clientId %d", 
+            LOG_I(MODULE_PREFIX, "handleResponseChunk writing %d retVal %s connId %d", 
                         respSize, RdWebConnDefs::getSendRetValStr(retVal), _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
 
@@ -1212,7 +1216,7 @@ bool RdWebConnection::handleResponseChunk()
     if (millis() - debugHdlRespChunkStartMs > DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS)
     {
         debugRawSendOnConnMs = millis() - debugTimingStartMs;
-        LOG_I(MODULE_PREFIX, "handleResponseChunk timing sendHeaders %dms getRespNext %dms sendOnConn %dms clientId %d respType %s", 
+        LOG_I(MODULE_PREFIX, "handleResponseChunk timing sendHeaders %dms getRespNext %dms sendOnConn %dms connId %d respType %s", 
                 debugSendHdrsMs, debugGetRespNextMs, debugRawSendOnConnMs, 
                 _pClientConn ? _pClientConn->getClientId() : 0,
                 _pResponder ? _pResponder->getResponderType() : "");

@@ -23,6 +23,10 @@ public:
             const char* pCacheControl, const char* pDefaultPath);
     virtual ~RdWebHandlerStaticFiles();
     virtual const char* getName() override;
+    virtual String getBaseURL() override
+    {
+        return _baseURI;
+    }
     virtual RdWebResponder* getNewResponder(const RdWebRequestHeader& requestHeader, 
                 const RdWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
                 RdHttpStatusCode &statusCode) override final;

@@ -37,6 +37,10 @@ public:
     {
         return NULL;
     }
+    virtual String getBaseURL()
+    {
+        return "<<NONE>>";
+    }
     virtual bool isFileHandler()
     {
         return false;

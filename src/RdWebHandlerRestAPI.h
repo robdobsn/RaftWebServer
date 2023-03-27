@@ -35,6 +35,10 @@ public:
     {
         return "HandlerRESTAPI";
     }
+    virtual String getBaseURL() override
+    {
+        return _restAPIPrefix;
+    }
     virtual RdWebResponder* getNewResponder(const RdWebRequestHeader& requestHeader, 
             const RdWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
             RdHttpStatusCode &statusCode) override final
