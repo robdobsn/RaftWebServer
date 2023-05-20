@@ -106,6 +106,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                         consecErrorCount++;
                         break;
                     case EWOULDBLOCK:
+                    case EINPROGRESS:
                         break;
                     default:
                         socketReconnNeeded = true;

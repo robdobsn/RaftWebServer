@@ -153,6 +153,7 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
         switch(errno)
         {
             case EWOULDBLOCK:
+            case EINPROGRESS:
                 break;
             default:
                 LOG_W(MODULE_PREFIX, "service read error %d", errno);
