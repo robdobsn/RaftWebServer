@@ -18,5 +18,6 @@ idf_component_register(
                   "src"
                 REQUIRES
                   raftcore-src
+                  mbedtls
                 )
 

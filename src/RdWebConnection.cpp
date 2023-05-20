@@ -312,23 +312,26 @@ void RdWebConnection::service()
     }
 
     // Check for new data if required
-    uint32_t dataLen = 0;
     bool closeRequired = false;
-    uint8_t* pData = nullptr;
     bool dataAvailable = false;
     bool errorOccurred = false;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> rxData;
     if (checkForNewData)
     {
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
         uint32_t getDataStartMs = millis();
 #endif
 
-        pData = _pClientConn->getDataStart(dataLen, errorOccurred, closeRequired);
-        dataAvailable = (pData != nullptr) && (dataLen != 0);
+        ClientConnRslt rxRslt = _pClientConn->getDataStart(rxData);
+        dataAvailable = rxData.size() > 0;
+        if (rxRslt == ClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED)
+            closeRequired = true;
+        else if (rxRslt == ClientConnRslt::CLIENT_CONN_RSLT_ERROR)
+            errorOccurred = true;
 
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
         debugServiceGetDataMs = millis() - getDataStartMs;
-        debugServiceDataLen = dataAvailable ? dataLen : 0;
+        debugServiceDataLen = dataAvailable ? rxData.size() : 0;
 #endif
     }
 
@@ -339,13 +342,13 @@ void RdWebConnection::service()
         _timeoutLastActivityMs = millis();
 
         // Update stats
-        _debugDataRxCount += dataLen;
+        _debugDataRxCount += rxData.size();
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "service got new data len %d rxTotal %d", dataLen, _debugDataRxCount);
+        LOG_I(MODULE_PREFIX, "service got new data len %d rxTotal %d", rxData.size(), _debugDataRxCount);
 #endif
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
         String debugStr;
-        Raft::getHexStrFromBytes(pData, dataLen, debugStr);
+        Utils::getHexStrFromBytes(pData, rxData.size(), debugStr);
         LOG_I(MODULE_PREFIX, "connId %d RX: %s", _pClientConn->getClientId(), debugStr.c_str());
 #endif
     }
@@ -358,7 +361,7 @@ void RdWebConnection::service()
         uint32_t debugConnHeaderStartMs = millis();
 #endif
 
-        if (!serviceConnHeader(pData, dataLen, bufPos))
+        if (!serviceConnHeader(rxData.data(), rxData.size(), bufPos))
         {
             LOG_W(MODULE_PREFIX, "service connHeader error closing connId %d", _pClientConn->getClientId());
             errorOccurred = true;
@@ -377,7 +380,7 @@ void RdWebConnection::service()
         uint32_t debugResponderStartMs = millis();
 #endif
 
-        if (!responderHandleData(pData, dataLen, bufPos))
+        if (!responderHandleData(rxData.data(), rxData.size(), bufPos))
         {
 #ifdef DEBUG_RESPONDER_PROGRESS
             LOG_I(MODULE_PREFIX, "service no longer sending so close connId %d", _pClientConn->getClientId());

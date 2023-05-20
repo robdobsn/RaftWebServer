@@ -47,7 +47,7 @@ public:
     virtual void setup(bool blocking) override final;
 
     // Data access
-    virtual uint8_t* getDataStart(uint32_t& dataLen, bool& errorOccurred, bool& connClosed) override final;
+    virtual ClientConnRslt getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf) override final;
     virtual void getDataEnd() override final;
 
 private:

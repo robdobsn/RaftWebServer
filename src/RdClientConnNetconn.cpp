@@ -52,14 +52,17 @@ RdWebConnSendRetVal RdClientConnNetconn::write(const uint8_t* pBuf, uint32_t buf
     return (err = ERR_OK) ? RdWebConnSendRetVal::WEB_CONN_SEND_OK : RdWebConnSendRetVal::WEB_CONN_SEND_FAIL;
 }
 
-uint8_t* RdClientConnNetconn::getDataStart(uint32_t& dataLen, bool& errorOccurred, bool& connClosed)
+ClientConnRslt RdClientConnNetconn::getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf)
 {
     // End any current data operation
     getDataEnd();
 
     // Check for data
-    dataLen = 0;
+    ClientConnRslt rslt = CLIENT_CONN_RSLT_OK;
+    bool connClosed = false;
     bool dataReady = getRxData(&_pInbuf, connClosed);
+    if (connClosed)
+        rslt = ClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
 
     // Get any found data
     uint8_t *pBuf = nullptr;
@@ -72,13 +75,12 @@ uint8_t* RdClientConnNetconn::getDataStart(uint32_t& dataLen, bool& errorOccurre
         {
             LOG_W(MODULE_PREFIX, "service netconn_data error %s buf %d connClient %d", 
                         RdWebInterface::espIdfErrToStr(err), (uint32_t)pBuf, getClientId());
-            errorOccurred = true;
-            return nullptr;
+            return ClientConnRslt::CLIENT_CONN_RSLT_ERROR;
         }
-        dataLen = bufLen;
-        return pBuf;
+        dataBuf.assign(pBuf, pBuf+bufLen);
+        return ClientConnRslt::CLIENT_CONN_RSLT_OK;
     }
-    return nullptr;
+    return rslt;
 }
 
 void RdClientConnNetconn::getDataEnd()

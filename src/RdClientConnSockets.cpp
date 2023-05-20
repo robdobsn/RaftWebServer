@@ -28,14 +28,7 @@ static const char *MODULE_PREFIX = "RdClientConnSockets";
 RdClientConnSockets::RdClientConnSockets(int client, bool traceConn)
 {
     _client = client;
-    _pDataBuf = nullptr;
     _traceConn = traceConn;
-#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
-    _connOpenTimeMs = millis();
-    _bytesRead = 0;
-    _bytesWritten = 0;
-    _lastAccessTimeMs = 0;
-#endif
 }
 
 RdClientConnSockets::~RdClientConnSockets()
@@ -53,7 +46,6 @@ RdClientConnSockets::~RdClientConnSockets()
     shutdown(_client, SHUT_RDWR);
     delay(20);
     close(_client);
-    delete _pDataBuf;
 }
 
 void RdClientConnSockets::setup(bool blocking)
@@ -64,9 +56,12 @@ void RdClientConnSockets::setup(bool blocking)
         // Set non-blocking socket
         int flags = fcntl(_client, F_GETFL, 0);
         if (flags != -1)
-        flags = flags | O_NONBLOCK;
+            flags = flags | O_NONBLOCK;
         fcntl(_client, F_SETFL, flags);
     }
+
+    // Set close on EXEC
+    fcntl(_client, F_SETFD, FD_CLOEXEC);
 }
 
 RdWebConnSendRetVal RdClientConnSockets::write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs)
@@ -135,42 +130,42 @@ RdWebConnSendRetVal RdClientConnSockets::write(const uint8_t* pBuf, uint32_t buf
     }
 }
 
-uint8_t* RdClientConnSockets::getDataStart(uint32_t& dataLen, bool& errorOccurred, bool& connClosed)
+ClientConnRslt RdClientConnSockets::getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf)
 {
     // End any current data operation
     getDataEnd();
 
-    // Create data buffer
-    _pDataBuf = new uint8_t[WEB_CONN_MAX_RX_BUFFER];
-    if (!_pDataBuf)
-    {
-        LOG_E(MODULE_PREFIX, "service failed to alloc %d", getClientId());
-        return nullptr;
-    }
+    // Resize data buffer to max size
+    dataBuf.resize(WEB_CONN_MAX_RX_BUFFER);
 
     // Check for data
-    int32_t bufLen = recv(_client, _pDataBuf, WEB_CONN_MAX_RX_BUFFER, MSG_DONTWAIT);
+    int32_t bufLen = recv(_client, dataBuf.data(), dataBuf.size(), MSG_DONTWAIT);
+
+    // Error handling
     if (bufLen < 0)
     {
+        dataBuf.clear();
+        ClientConnRslt connRslt = ClientConnRslt::CLIENT_CONN_RSLT_OK;
         switch(errno)
         {
             case EWOULDBLOCK:
-                bufLen = 0;
                 break;
             default:
                 LOG_W(MODULE_PREFIX, "service read error %d", errno);
-                errorOccurred = true;
+                connRslt = ClientConnRslt::CLIENT_CONN_RSLT_ERROR;
                 break;
         }
         getDataEnd();
-        return nullptr;
+        return connRslt;
     }
-    else if (bufLen == 0)
+    
+    // Check for connection closed
+    if (bufLen == 0)
     {
+        dataBuf.clear();
         LOG_W(MODULE_PREFIX, "service read conn closed %d", errno);
-        connClosed = true;
         getDataEnd();
-        return nullptr;
+        return ClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
     }
 
     // Stats
@@ -180,16 +175,12 @@ uint8_t* RdClientConnSockets::getDataStart(uint32_t& dataLen, bool& errorOccurre
 #endif
 
     // Return received data
-    dataLen = bufLen;
-    return _pDataBuf;
+    dataBuf.resize(bufLen);
+    return ClientConnRslt::CLIENT_CONN_RSLT_OK;
 }
 
 void RdClientConnSockets::getDataEnd()
 {
-    // Delete buffer
-    if (_pDataBuf)
-        delete _pDataBuf;
-    _pDataBuf = nullptr;
 }
 
 #endif

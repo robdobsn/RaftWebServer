@@ -33,12 +33,11 @@ public:
     virtual void setup(bool blocking) override final;
 
     // Data access
-    virtual uint8_t* getDataStart(uint32_t& dataLen, bool& errorOccurred, bool& connClosed) override final;
+    virtual ClientConnRslt getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf) override final;
     virtual void getDataEnd() override final;
 
 private:
     int _client = -1;
-    uint8_t* _pDataBuf = nullptr;
     bool _traceConn = false;
 
 #ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS

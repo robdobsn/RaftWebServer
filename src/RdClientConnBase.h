@@ -10,6 +10,15 @@
 
 #include "lwip/api.h"
 #include "RdWebConnDefs.h"
+#include <SpiramAwareAllocator.h>
+#include <vector>
+
+enum ClientConnRslt
+{
+    CLIENT_CONN_RSLT_OK,
+    CLIENT_CONN_RSLT_ERROR,
+    CLIENT_CONN_RSLT_CONN_CLOSED,
+};
 
 class RdClientConnBase
 {
@@ -39,12 +48,12 @@ public:
     }
 
     // Write
-    virtual RdWebConnSendRetVal write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs);
+    virtual RdWebConnSendRetVal write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs) = 0;
 
     // Setup
-    virtual void setup(bool blocking);
+    virtual void setup(bool blocking) = 0;
 
     // Data access
-    virtual uint8_t* getDataStart(uint32_t& dataLen, bool& errorOccurred, bool& connClosed);
-    virtual void getDataEnd();
+    virtual ClientConnRslt getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf) = 0;
+    virtual void getDataEnd() = 0;
 };

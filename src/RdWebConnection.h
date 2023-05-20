@@ -63,7 +63,7 @@ private:
 
     // Client connection
     RdClientConnBase* _pClientConn;
-    static const bool USE_BLOCKING_WEB_CONNECTIONS = true;
+    static const bool USE_BLOCKING_WEB_CONNECTIONS = false;
 
     // Header parse info
     String _parseHeaderStr;

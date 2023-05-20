@@ -423,7 +423,7 @@ String RdWebSocketLink::genMagicResponse(const String &wsKey, const String &wsVe
 
     // Base64 result can't be larger than 2x the input
     char base64Result[SHA1_RESULT_LEN * 2];
-    uint32_t outputLen = 0;
+    size_t outputLen = 0;
     mbedtls_base64_encode((uint8_t *)base64Result, sizeof(base64Result), &outputLen, sha1Result, SHA1_RESULT_LEN);
 
     // Terminate the string and return

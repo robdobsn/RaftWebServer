@@ -320,10 +320,10 @@ bool RdWebConnManager::sendMsg(const uint8_t* pBuf, uint32_t bufLen,
             bool debugChanIdOk = false;
             if (_webConnections[i].getResponder())
                 debugChanIdOk = _webConnections[i].getResponder()->getChannelID(debugChanId);
-            LOG_I(MODULE_PREFIX, "sendMsg webConn %d active %d responder %ld chanID %d ",
+            LOG_I(MODULE_PREFIX, "sendMsg webConn %d active %d responder %p chanID %d ",
                   i,
                   _webConnections[i].isActive(),
-                  (unsigned long)_webConnections[i].getResponder(),
+                  _webConnections[i].getResponder(),
                   debugChanIdOk ? debugChanId : -1);
         }
 #endif
