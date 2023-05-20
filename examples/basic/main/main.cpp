@@ -31,7 +31,7 @@ static const char* MODULE_PREFIX = "MainTask";
 #include <NetworkSystem.h>
 #include <FileSystem.h>
 #include <RaftWebServer.h>
-#include <RdWebHandlerStaticFiles.h>
+#include <RaftWebHandlerStaticFiles.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Entry Point
@@ -87,49 +87,19 @@ extern "C" void app_main(void)
             CommsCoreIF::CHANNEL_ID_REST_API);
     webServer.setup(settings);
 
-    // // API Endpoints
-    // RestAPIEndpointManager _restAPIEndpointManager;
-    // _sysModManager.setRestAPIEndpoints(_restAPIEndpointManager);
-
-    // // FileManager
-    // FileManager _fileManager("FileManager", defaultSystemConfig, &_sysTypeConfig, nullptr);
-
-    // NetworkManager
-    // NetworkManager _networkManager("NetMan", defaultSystemConfig, &_sysTypeConfig, nullptr, DEFAULT_HOSTNAME);
-
-    // // Log manager
-    // LogManager _LogManager("LogManager", defaultSystemConfig, &_sysTypeConfig, &_sysModMutableConfig);
-    
     // Log out system info
     ESP_LOGI(MODULE_PREFIX, "%s %s (built " __DATE__ " " __TIME__ ") Heap %d", 
                         SYSTEM_NAME, SYSTEM_VERSION, heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
-
-//     // SysTypeManager endpoints
-//     _sysTypeManager.addRestAPIEndpoints(_restAPIEndpointManager);
-
-//     // Initialise the system module manager here so that API endpoints are registered
-//     // before file system ones
-//     _sysModManager.setup();
-
     // Web server static files
     String baseUrl = "/";
     String baseFolder = ("/" + fileSystem.getDefaultFSRoot());
-    RdWebHandlerStaticFiles* pHandler = new RdWebHandlerStaticFiles(baseUrl.c_str(), baseFolder.c_str(), NULL, "index.html");
+    RaftWebHandlerStaticFiles* pHandler = new RaftWebHandlerStaticFiles(baseUrl.c_str(), baseFolder.c_str(), NULL, "index.html");
     bool handlerAddOk = webServer.addHandler(pHandler);
     LOG_I(MODULE_PREFIX, "serveStaticFiles url %s folder %s addResult %s", baseUrl.c_str(), baseFolder.c_str(), 
                 handlerAddOk ? "OK" : "FILE SERVER DISABLED");
     if (!handlerAddOk)
         delete pHandler;
-
-    // _webServer.serveStaticFiles("/files/local", "/local/");
-    // _webServer.serveStaticFiles("/files/sd", "/sd/");
-    // _webServer.serveStaticFiles("/", ("/" + fileSystem.getDefaultFSRoot()).c_str());
-
-// #ifdef FEATURE_WEB_SERVER_OR_WEB_SOCKETS
-//     // Start webserver
-//     _webServer.beginServer();
-// #endif
 
     // Loop forever
     while (1)
@@ -142,24 +112,5 @@ extern "C" void app_main(void)
 
         // Service webserver
         webServer.service();
-
-//         // Service all the system modules
-//         _sysModManager.service();
-
-//         // Test and Monitoring
-// #ifdef DEBUG_SHOW_TASK_INFO
-//         if (Raft::isTimeout(millis(), lasttaskdumpms, DEBUG_SHOW_TASK_MS))
-//         {
-//             tasks_info();
-//             lasttaskdumpms = millis();
-//         }
-// #endif
-// #ifdef DEBUG_SHOW_RUNTIME_STATS
-//         if (Raft::isTimeout(millis(), laststatsdumpms, DEBUG_SHOW_RUNTIME_STATS_MS))
-//         {
-//             runtime_stats();
-//             laststatsdumpms = millis();
-//         }
-// #endif
     }
 }

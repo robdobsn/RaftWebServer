@@ -8,8 +8,8 @@
 
 #include <Logger.h>
 #include "RaftWebServer.h"
-#include "RdWebConnManager.h"
-#include "RdWebConnDefs.h"
+#include "RaftWebConnManager.h"
+#include "RaftWebConnDefs.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -118,7 +118,7 @@ void RaftWebServer::service()
 // Add handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebServer::addHandler(RdWebHandler* pHandler)
+bool RaftWebServer::addHandler(RaftWebHandler* pHandler)
 {
     return _connManager.addHandler(pHandler);
 }

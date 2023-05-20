@@ -9,8 +9,8 @@
 #pragma once
 
 #include "RaftWebServerSettings.h"
-#include "RdWebConnManager.h"
-#include "RdWebHandler.h"
+#include "RaftWebConnManager.h"
+#include "RaftWebHandler.h"
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
 #endif
@@ -32,7 +32,7 @@ public:
     void addResponseHeader(RdJson::NameValuePair headerInfo);
     
     // Handler
-    bool addHandler(RdWebHandler* pHandler);
+    bool addHandler(RaftWebHandler* pHandler);
 
     // Check if channel can send
     bool canSend(uint32_t channelID, bool& noConn)
@@ -62,7 +62,7 @@ private:
     RaftWebServerSettings _webServerSettings;
 
     // Connection manager
-    RdWebConnManager _connManager;
+    RaftWebConnManager _connManager;
 
 };
 
