@@ -62,6 +62,10 @@ void RaftClientConnSockets::setup(bool blocking)
 
     // Set close on EXEC
     fcntl(_client, F_SETFD, FD_CLOEXEC);
+
+    // Set socket options
+    int on = 1;
+    setsockopt(_client, IPPROTO_TCP, TCP_NODELAY, (char *) &on, sizeof(on));
 }
 
 RaftWebConnSendRetVal RaftClientConnSockets::write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs)
