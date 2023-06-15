@@ -1,23 +1,26 @@
-idf_component_register(
-                SRCS 
-                  "src/RaftClientListener.cpp"
-                  "src/RaftClientConnSockets.cpp"
-                  "src/RaftClientConnNetconn.cpp"
-                  "src/RaftClientConnESP8266.cpp"
-                  "src/RaftWebInterface.cpp"
-                  "src/RaftWebServer.cpp"
-                  "src/RaftWebConnManager.cpp"
-                  "src/RaftWebHandlerStaticFiles.cpp"
-                  "src/RaftWebConnection.cpp"
-                  "src/RaftWebResponderFile.cpp"
-                  "src/RaftWebResponderRestAPI.cpp"
-                  "src/RaftWebResponderWS.cpp"
-                  "src/RaftWebSocketLink.cpp"
-                  "src/RaftWebMultipart.cpp"
-                INCLUDE_DIRS
-                  "src"
-                REQUIRES
-                  raftcore-src
-                  mbedtls
-                )
+cmake_minimum_required(VERSION 3.16)
 
+idf_component_register(
+  SRCS
+    "components/RaftWebServer/RaftClientConnESP8266.cpp"
+    "components/RaftWebServer/RaftClientConnNetconn.cpp"
+    "components/RaftWebServer/RaftClientConnSockets.cpp"
+    "components/RaftWebServer/RaftClientListener.cpp"
+    "components/RaftWebServer/RaftWebConnection.cpp"
+    "components/RaftWebServer/RaftWebConnManager.cpp"
+    "components/RaftWebServer/RaftWebConnManagerEspIdf.cpp"
+    "components/RaftWebServer/RaftWebHandlerStaticFiles.cpp"
+    "components/RaftWebServer/RaftWebInterface.cpp"
+    "components/RaftWebServer/RaftWebMultipart.cpp"
+    "components/RaftWebServer/RaftWebResponderFile.cpp"
+    "components/RaftWebServer/RaftWebResponderRestAPI.cpp"
+    "components/RaftWebServer/RaftWebResponderWS.cpp"
+    "components/RaftWebServer/RaftWebServer.cpp"
+    "components/RaftWebServer/RaftWebSocketLink.cpp"
+  INCLUDE_DIRS
+    "components/RaftWebServer/."
+  REQUIRES
+    raftcore-src
+    mbedtls
+    esp_http_server
+)

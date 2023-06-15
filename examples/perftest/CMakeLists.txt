@@ -4,6 +4,8 @@ include(FetchContent)
 
 set(SUPPORTED_TARGETS esp32)
 
+add_compile_definitions(FEATURE_WEB_SERVER_USE_ESP_IDF)
+
 set(FS_IMAGE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/fsimage)
 message(STATUS "FS_IMAGE_PATH: ${FS_IMAGE_PATH}")
 
@@ -18,9 +20,10 @@ FetchContent_Declare(
 message(STATUS "Fetching dependencies...")
 FetchContent_Populate(raftcore)
 
-# Fetch raftwebserver and raftcore
-get_filename_component(raftwebserver_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../.. REALPATH)
-set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR} ${raftwebserver_SOURCE_DIR})
+# Fetch raftcore
+# get_filename_component(raftwebserver_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../.. REALPATH)
+# set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR} ${raftwebserver_SOURCE_DIR})
+set(EXTRA_COMPONENT_DIRS ${EXTRA_COMPONENT_DIRS} ${raftcore_SOURCE_DIR} "../../components")
 FetchContent_MakeAvailable(raftcore)
 
 # Configure ESP-IDF project
