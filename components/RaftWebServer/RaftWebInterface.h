@@ -15,23 +15,22 @@ extern "C"
 {
 #include "lwip/err.h"
 }
+#include <http_parser.h>
 
 class FileStreamBlock;
 class String;
 class APISourceInfo;
 
 // Web methods
-enum RaftWebServerMethod
-{
-    WEB_METHOD_NONE, 
-    WEB_METHOD_GET, 
-    WEB_METHOD_POST, 
-    WEB_METHOD_DELETE,
-    WEB_METHOD_PUT, 
-    WEB_METHOD_PATCH, 
-    WEB_METHOD_HEAD, 
-    WEB_METHOD_OPTIONS
-};
+typedef int RaftWebServerMethod;
+#define WEB_METHOD_NONE -1
+#define WEB_METHOD_GET HTTP_GET
+#define WEB_METHOD_POST HTTP_POST
+#define WEB_METHOD_DELETE HTTP_DELETE
+#define WEB_METHOD_PUT HTTP_PUT
+#define WEB_METHOD_PATCH HTTP_PATCH
+#define WEB_METHOD_HEAD HTTP_HEAD
+#define WEB_METHOD_OPTIONS HTTP_OPTIONS
 
 // Web connection type
 enum RaftWebReqConnectionType

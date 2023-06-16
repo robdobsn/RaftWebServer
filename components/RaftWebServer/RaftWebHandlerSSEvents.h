@@ -27,16 +27,16 @@ public:
     virtual ~RaftWebHandlerSSEvents()
     {
     }
-    virtual const char* getName() override
+    virtual const char* getName() const override
     {
         return "HandlerSSEvents";
     }
-    virtual String getBaseURL() override
+    virtual String getBaseURL() const override
     {
         return _eventsPath;
     }
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-                const RaftWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
+                const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final
     {
         // LOG_W("RaftWebHandlerSSEvents", "getNewResponder %s connType %d method %d", 

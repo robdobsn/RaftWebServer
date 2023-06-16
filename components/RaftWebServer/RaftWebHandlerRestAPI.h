@@ -31,16 +31,16 @@ public:
     virtual ~RaftWebHandlerRestAPI()
     {
     }
-    virtual const char* getName() override
+    virtual const char* getName() const override
     {
         return "HandlerRESTAPI";
     }
-    virtual String getBaseURL() override
+    virtual String getBaseURL() const override
     {
         return _restAPIPrefix;
     }
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-            const RaftWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
+            const RaftWebRequestParams& params, 
             RaftHttpStatusCode &statusCode) override final
     {
         // Check

@@ -47,11 +47,11 @@ public:
     virtual ~RaftWebHandlerStaticData()
     {
     }
-    virtual const char* getName() override
+    virtual const char* getName() const override
     {
         return "HandlerStaticData";
     }
-    virtual String getBaseURL() override
+    virtual String getBaseURL() const override
     {
         return _baseURI;
     }
@@ -63,7 +63,7 @@ public:
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-                const RaftWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
+                const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final
     {
         // Debug
@@ -106,7 +106,7 @@ public:
         return pResponder;
 
     }
-    virtual bool isFileHandler() override final
+    virtual bool isFileHandler() const override final
     {
         return true;
     }

@@ -10,13 +10,18 @@
 
 #include <ArduinoOrAlt.h>
 #include <list>
-#include "RaftWebInterface.h"
+#include <RaftWebInterface.h>
+#include <RaftWebServerSettings.h>
+#include <RdJson.h>
+
+#ifdef FEATURE_WEB_SERVER_USE_ESP_IDF
+#include <esp_http_server.h>
+#endif
 
 class RaftWebRequest;
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
 class RaftWebResponder;
-class RaftWebServerSettings;
 
 class RaftWebHandler
 {
@@ -27,29 +32,41 @@ public:
     virtual ~RaftWebHandler()
     {        
     }
-    virtual const char* getName()
+    virtual const char* getName() const
     {
         return "HandlerBase";
     }
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-                const RaftWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
+                const RaftWebRequestParams& params,
                 RaftHttpStatusCode &statusCode)
     {
         return NULL;
     }
-    virtual String getBaseURL()
+    virtual String getBaseURL() const
     {
         return "<<NONE>>";
     }
-    virtual bool isFileHandler()
+    virtual bool isFileHandler() const
     {
         return false;
     }
-    virtual bool isWebSocketHandler()
+    virtual bool isWebSocketHandler() const
     {
         return false;
     }
-    
-private:
+    void setWebServerSettings(const RaftWebServerSettings& webServerSettings)
+    {
+        _webServerSettings = webServerSettings;
+    }
+    void setStandardHeaders(const std::list<RdJson::NameValuePair>& headers)
+    {
+        _standardHeaders = headers;
+    }
+    uint32_t getMaxResponseSize() const
+    {
+        return _webServerSettings._sendBufferMaxLen;
+    }
+protected:
+    RaftWebServerSettings _webServerSettings;
+    std::list<RdJson::NameValuePair> _standardHeaders;
 };
-

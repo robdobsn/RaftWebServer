@@ -22,18 +22,19 @@ public:
     RaftWebHandlerStaticFiles(const char* pBaseURI, const char* pBaseFolder, 
             const char* pCacheControl, const char* pDefaultPath);
     virtual ~RaftWebHandlerStaticFiles();
-    virtual const char* getName() override;
-    virtual String getBaseURL() override
+    virtual const char* getName() const override;
+    virtual String getBaseURL() const override
     {
         return _baseURI;
     }
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-                const RaftWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
+                const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final;
-    virtual bool isFileHandler() override final
+    virtual bool isFileHandler() const override final
     {
         return true;
     }
+
 private:
     // URI
     String _baseURI;
@@ -54,7 +55,7 @@ private:
     bool _gzipStats;
 
     // Helpers
-    String getFilePath(const RaftWebRequestHeader& header, bool defaultPath);
+    String getFilePath(const RaftWebRequestHeader& header, bool defaultPath) const;
 
 };
 

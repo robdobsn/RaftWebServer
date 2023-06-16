@@ -56,6 +56,13 @@ RaftWebConnManager::RaftWebConnManager()
 
 RaftWebConnManager::~RaftWebConnManager()
 {
+    // Delete handlers
+    for (RaftWebHandler *pHandler : _webHandlers)
+    {
+        delete pHandler;
+    }
+
+    // Delete mutex
     if (_endpointsMutex)
         vSemaphoreDelete(_endpointsMutex);
 }
@@ -204,6 +211,17 @@ bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
 
 bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler)
 {
+    // Check handler valid
+    if (!pHandler)
+        return false;
+        
+    // Give handler the web-server settings
+    pHandler->setWebServerSettings(_webServerSettings);
+
+    // Give handler the standard headers
+    pHandler->setStandardHeaders(_stdResponseHeaders);
+
+    // Check if we can add this handler
     if (pHandler->isFileHandler() && !_webServerSettings._enableFileServer)
     {
 #ifdef DEBUG_WEB_SERVER_HANDLERS
@@ -243,12 +261,16 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
         if (pHandler)
         {
             // Get a responder
-            RaftWebResponder *pResponder = pHandler->getNewResponder(header, params,
-                                                _webServerSettings, statusCode);
+            RaftWebResponder *pResponder = pHandler->getNewResponder(header, params, statusCode);
 
 #ifdef DEBUG_NEW_RESPONDER
-            LOG_I(MODULE_PREFIX, "getNewResponder url %s handlerType %s handlerBaseURL %s result %s httpStatus %s",
+            LOG_I(MODULE_PREFIX, "getNewResponder url %s uriAndParams %s params %s versStr %s numHeaders %d reqConnType %d handlerType %s handlerBaseURL %s result %s httpStatus %s",
                   header.URL.c_str(), 
+                  header.URIAndParams.c_str(),
+                  header.params.c_str(),
+                  header.versStr.c_str(),
+                  header.nameValues.size(),
+                  header.reqConnType,
                   pHandler->getName(),
                   pHandler->getBaseURL().c_str(),
                   pResponder ? "OK" : "NoMatch",

@@ -19,9 +19,9 @@ static const char *MODULE_PREFIX = "RaftWebRespFile";
 #define WARN_RESPONDER_FILE
 
 // Debug
-// #define DEBUG_RESPONDER_FILE
+#define DEBUG_RESPONDER_FILE
 // #define DEBUG_RESPONDER_FILE_CONTENTS
-// #define DEBUG_RESPONDER_FILE_START_END
+#define DEBUG_RESPONDER_FILE_START_END
 // #define DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS 50
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -29,14 +29,14 @@ static const char *MODULE_PREFIX = "RaftWebRespFile";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandler* pWebHandler, 
-                const RaftWebRequestParams& params, const RaftWebRequestHeader& requestHeader)
+                const RaftWebRequestParams& params, const RaftWebRequestHeader& requestHeader,
+                uint32_t maxSendSize)
     : _reqParams(params)
 {
     _filePath = filePath;
     _pWebHandler = pWebHandler;
     _fileSendStartMs = millis();
-    _isFinalChunk = false;
-
+ 
     // Check if gzip is valid
     bool gzipValid = false;
     for (const RdJson::NameValuePair& hdr : requestHeader.nameValues)
@@ -54,7 +54,7 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
     if (gzipValid)
     {
         String gzipFilePath = filePath + ".gz";
-        _isActive = _fileChunker.start(gzipFilePath, _reqParams.getMaxSendSize(), false, false, true, false);
+        _isActive = _fileChunker.start(gzipFilePath, maxSendSize, false, false, true, false);
         if (_isActive)
         {
             addHeader("Content-Encoding", "gzip");
@@ -67,7 +67,7 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
     // Fallback to unzipped file if necessary
     if (!_isActive)
     {
-        _isActive = _fileChunker.start(filePath, _reqParams.getMaxSendSize(), false, false, true, false);
+        _isActive = _fileChunker.start(filePath, maxSendSize, false, false, true, false);
 #ifdef DEBUG_RESPONDER_FILE
         if (_isActive)
         {

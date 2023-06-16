@@ -22,7 +22,6 @@
 #include <list>
 
 class RaftWebHandler;
-class RaftWebHandlerWS;
 class RaftWebRequestHeader;
 class RaftWebResponder;
 class RaftWebRequestParams;

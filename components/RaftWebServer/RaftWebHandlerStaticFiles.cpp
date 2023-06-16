@@ -68,7 +68,7 @@ RaftWebHandlerStaticFiles::~RaftWebHandlerStaticFiles()
 // getName of the handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const char* RaftWebHandlerStaticFiles::getName()
+const char* RaftWebHandlerStaticFiles::getName() const
 {
     return "HandlerStaticFiles";
 }
@@ -80,7 +80,7 @@ const char* RaftWebHandlerStaticFiles::getName()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebRequestHeader& requestHeader, 
-            const RaftWebRequestParams& params, const RaftWebServerSettings& webServerSettings,
+            const RaftWebRequestParams& params,
             RaftHttpStatusCode &statusCode)
 {
     // Debug
@@ -105,7 +105,8 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
     String filePath = getFilePath(requestHeader, requestHeader.URL.equals("/"));
 
     // Create responder
-    RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, requestHeader);
+    RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, 
+            requestHeader, _webServerSettings._sendBufferMaxLen);
 
     // Check valid
     if (!pResponder)
@@ -139,7 +140,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
 // Get file path
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RaftWebHandlerStaticFiles::getFilePath(const RaftWebRequestHeader& header, bool defaultPath)
+String RaftWebHandlerStaticFiles::getFilePath(const RaftWebRequestHeader& header, bool defaultPath) const
 {
     // Remove the base path from the URL
     String filePath;

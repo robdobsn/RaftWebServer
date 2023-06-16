@@ -108,10 +108,8 @@ void RaftWebServer::service()
         }
     }
 #endif
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
     // Service connection manager
     _connManager.service();
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -120,12 +118,7 @@ void RaftWebServer::service()
 
 bool RaftWebServer::addHandler(RaftWebHandler* pHandler)
 {
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
     return _connManager.addHandler(pHandler);
-#else
-    // TODO - implement
-    return true;
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,9 +144,7 @@ void RaftWebServer::socketListenerTask(void* pvParameters)
 
 void RaftWebServer::addResponseHeader(RdJson::NameValuePair headerInfo)
 {
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
     _connManager.addResponseHeader(headerInfo);
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -162,7 +153,5 @@ void RaftWebServer::addResponseHeader(RdJson::NameValuePair headerInfo)
 
 void RaftWebServer::serverSideEventsSendMsg(const char* eventContent, const char* eventGroup)
 {
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
 	_connManager.serverSideEventsSendMsg(eventContent, eventGroup);
-#endif
 }

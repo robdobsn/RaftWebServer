@@ -543,7 +543,7 @@ bool RaftWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataL
 #endif
 
     // Get a responder (we are responsible for deletion)
-    RaftWebRequestParams params(_maxSendBufferBytes, _pConnManager->getStdResponseHeaders(), 
+    RaftWebRequestParams params(
                 std::bind(&RaftWebConnection::rawSendOnConn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
     _pResponder = _pConnManager->getNewResponder(_header, params, statusCode);
 #ifdef DEBUG_RESPONDER_CREATE_DELETE

@@ -39,21 +39,20 @@ public:
     virtual ~RaftWebHandlerWS()
     {
     }
-    virtual bool isWebSocketHandler() override final
+    virtual bool isWebSocketHandler() const override final
     {
         return true;
     }
-    virtual const char* getName() override
+    virtual const char* getName() const override
     {
         return "HandlerWS";
     }
-    virtual String getBaseURL() override
+    virtual String getBaseURL() const override
     {
         return _wsConfig.getString("pfix", "ws");
     }
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
-                const RaftWebServerSettings& webServerSettings,
                 RaftHttpStatusCode &statusCode
                 ) override final
     {
@@ -95,7 +94,7 @@ public:
         // Looks like we can handle this so create a new responder object
         uint32_t channelID = _channelIDUsage[wsConnIdxAvailable].channelID;
         RaftWebResponder* pResponder = new RaftWebResponderWS(this, params, requestHeader.URL, 
-                    webServerSettings, _canAcceptRxMsgCB, _rxMsgCB, 
+                    _canAcceptRxMsgCB, _rxMsgCB, 
                     channelID,
                     _wsConfig.getLong("pktMaxBytes", 1000),
                     _wsConfig.getLong("txQueueMax", 10),
