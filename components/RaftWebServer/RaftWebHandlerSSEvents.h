@@ -14,8 +14,6 @@
 #include <functional>
 #include <RaftWebResponderSSEvents.h>
 
-class RaftWebRequest;
-
 class RaftWebHandlerSSEvents : public RaftWebHandler
 {
 public:

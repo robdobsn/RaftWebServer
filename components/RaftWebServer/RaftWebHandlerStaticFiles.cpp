@@ -15,11 +15,14 @@
 #include <Logger.h>
 #include <FileSystem.h>
 
+// TODO
+#include <esp_http_server.h>
+
 // #define DEBUG_STATIC_FILE_HANDLER
 
-#ifdef DEBUG_STATIC_FILE_HANDLER
+// #ifdef DEBUG_STATIC_FILE_HANDLER
 static const char* MODULE_PREFIX = "RaftWebHStatFile";
-#endif
+// #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -74,6 +77,72 @@ const char* RaftWebHandlerStaticFiles::getName() const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Handle request
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
+{
+    String filePath = getFilePath(req->uri);
+
+    /* Concatenate the requested file path */
+    struct stat file_stat;
+    if (stat(filePath.c_str(), &file_stat) == -1) {
+        LOG_E(MODULE_PREFIX, "Failed to stat file : %s", filePath.c_str());
+        /* If file doesn't exist respond with 404 Not Found */
+        httpd_resp_send_404(req);
+        return ESP_OK;
+    }
+
+    FILE *fd = fopen(filePath.c_str(), "r");
+    if (!fd) {
+        LOG_E(MODULE_PREFIX, "Failed to read existing file : %s", filePath.c_str());
+        /* If file exists but unable to open respond with 500 Server Error */
+        httpd_resp_set_status(req, "500 Server Error");
+        httpd_resp_sendstr(req, "Failed to read existing file!");
+        return ESP_OK;
+    }
+
+    LOG_I(MODULE_PREFIX, "Sending file : %s (%ld bytes)...", filePath.c_str(), file_stat.st_size);
+
+    // Set content type
+    httpd_resp_set_type(req, getContentType(filePath));
+
+    // Buffer
+    std::vector<char, SpiramAwareAllocator<char>> dataBuffer;
+    uint32_t chunkSize = getMaxResponseSize();
+    dataBuffer.resize(chunkSize);
+    uint32_t numBytesRead = 0;
+    do 
+    {
+        // Read chunk
+        numBytesRead = fread(dataBuffer.data(), 1, chunkSize, fd);
+
+        // Send chunk
+        if (httpd_resp_send_chunk(req, dataBuffer.data(), numBytesRead) != ESP_OK) 
+        {
+            fclose(fd);
+            LOG_E(MODULE_PREFIX, "File sending failed!");
+            // Abort sending file
+            httpd_resp_sendstr_chunk(req, NULL);
+            // Send error message with status code
+            httpd_resp_set_status(req, "500 Server Error");
+            httpd_resp_sendstr(req, "Failed to send file!");
+            return ESP_OK;
+        }
+
+        /* Keep looping till the whole file is sent */
+    } while (numBytesRead != 0);
+
+    /* Close file after sending complete */
+    fclose(fd);
+    LOG_I(MODULE_PREFIX, "File sending complete");
+
+    /* Respond with an empty chunk to signal HTTP response completion */
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get a responder if we can handle this request
 // NOTE: this returns a new object or NULL
 // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
@@ -102,7 +171,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
         return NULL;
 
     // Check if the path is just root
-    String filePath = getFilePath(requestHeader, requestHeader.URL.equals("/"));
+    String filePath = getFilePath(requestHeader.URL);
 
     // Create responder
     RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, 
@@ -140,17 +209,62 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
 // Get file path
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RaftWebHandlerStaticFiles::getFilePath(const RaftWebRequestHeader& header, bool defaultPath) const
+String RaftWebHandlerStaticFiles::getFilePath(const String& reqURL) const
 {
     // Remove the base path from the URL
     String filePath;
-    if (!defaultPath)
-        filePath = header.URL.substring(_baseURI.length());
+    if (!reqURL.equals("/"))
+        filePath = reqURL.substring(_baseURI.length());
     else
         filePath = "/" + _defaultPath;
 
     // Add on the file path
     return _baseFolder + filePath;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get content type
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const char* RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
+{
+    if (filePath.endsWith(".html"))
+        return "text/html";
+    else if (filePath.endsWith(".htm"))
+        return "text/html";
+    else if (filePath.endsWith(".css"))
+        return "text/css";
+    else if (filePath.endsWith(".json"))
+        return "text/json";
+    else if (filePath.endsWith(".js"))
+        return "application/javascript";
+    else if (filePath.endsWith(".png"))
+        return "image/png";
+    else if (filePath.endsWith(".gif"))
+        return "image/gif";
+    else if (filePath.endsWith(".jpg"))
+        return "image/jpeg";
+    else if (filePath.endsWith(".ico"))
+        return "image/x-icon";
+    else if (filePath.endsWith(".svg"))
+        return "image/svg+xml";
+    else if (filePath.endsWith(".eot"))
+        return "font/eot";
+    else if (filePath.endsWith(".woff"))
+        return "font/woff";
+    else if (filePath.endsWith(".woff2"))
+        return "font/woff2";
+    else if (filePath.endsWith(".ttf"))
+        return "font/ttf";
+    else if (filePath.endsWith(".xml"))
+        return "text/xml";
+    else if (filePath.endsWith(".pdf"))
+        return "application/pdf";
+    else if (filePath.endsWith(".zip"))
+        return "application/zip";
+    else if (filePath.endsWith(".gz"))
+        return "application/x-gzip";
+    return "text/plain";
 }
 
 #endif

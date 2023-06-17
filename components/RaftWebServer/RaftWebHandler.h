@@ -36,6 +36,10 @@ public:
     {
         return "HandlerBase";
     }
+    virtual esp_err_t handleRequest(httpd_req_t *req)
+    {
+        return ESP_OK;
+    }
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params,
                 RaftHttpStatusCode &statusCode)

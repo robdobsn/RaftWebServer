@@ -19,8 +19,6 @@
 
 // #define DEBUG_WEB_HANDLER_WS_NEW_RESPONDER
 
-class RaftWebRequest;
-
 class RaftWebHandlerWS : public RaftWebHandler
 {
 public:

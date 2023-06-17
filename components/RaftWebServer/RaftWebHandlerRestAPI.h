@@ -16,8 +16,6 @@
 
 // #define DEBUG_WEB_HANDLER_REST_API
 
-class RaftWebRequest;
-
 class RaftWebHandlerRestAPI : public RaftWebHandler
 {
 public:

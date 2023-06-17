@@ -13,7 +13,6 @@
 #include "RaftWebHandler.h"
 #include <Logger.h>
 
-class RaftWebRequest;
 class RaftWebRequestHeader;
 
 class RaftWebHandlerStaticFiles : public RaftWebHandler
@@ -27,6 +26,7 @@ public:
     {
         return _baseURI;
     }
+    virtual esp_err_t handleRequest(httpd_req_t *req) override final;
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final;
@@ -34,6 +34,7 @@ public:
     {
         return true;
     }
+
 
 private:
     // URI
@@ -55,8 +56,8 @@ private:
     bool _gzipStats;
 
     // Helpers
-    String getFilePath(const RaftWebRequestHeader& header, bool defaultPath) const;
-
+    String getFilePath(const String& reqURL) const;
+    const char* getContentType(const String& filePath) const;
 };
 
 #endif
