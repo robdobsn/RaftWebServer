@@ -2,25 +2,30 @@ cmake_minimum_required(VERSION 3.16)
 
 idf_component_register(
   SRCS
-    "components/RaftWebServer/RaftClientConnESP8266.cpp"
-    "components/RaftWebServer/RaftClientConnNetconn.cpp"
-    "components/RaftWebServer/RaftClientConnSockets.cpp"
-    "components/RaftWebServer/RaftClientListener.cpp"
-    "components/RaftWebServer/RaftWebConnection.cpp"
-    "components/RaftWebServer/RaftWebConnManager.cpp"
-    "components/RaftWebServer/RaftWebConnManagerEspIdf.cpp"
-    "components/RaftWebServer/RaftWebHandlerStaticFiles.cpp"
-    "components/RaftWebServer/RaftWebInterface.cpp"
-    "components/RaftWebServer/RaftWebMultipart.cpp"
-    "components/RaftWebServer/RaftWebResponderFile.cpp"
-    "components/RaftWebServer/RaftWebResponderRestAPI.cpp"
-    "components/RaftWebServer/RaftWebResponderWS.cpp"
     "components/RaftWebServer/RaftWebServer.cpp"
-    "components/RaftWebServer/RaftWebSocketLink.cpp"
+    "components/RaftWebServer/RaftWebHandlerRestAPI.cpp"
+    "components/RaftWebServer/RaftWebHandlerStaticFiles.cpp"
+    "components/RaftWebServer/espidf/RaftWebConnManager_espidf.cpp"
+    "components/RaftWebServer/mongoose/RaftWebConnManager_mongoose.cpp"
+    "components/RaftWebServer/original/RaftClientConnNetconn.cpp"
+    "components/RaftWebServer/original/RaftClientConnSockets.cpp"
+    "components/RaftWebServer/original/RaftClientListener.cpp"
+    "components/RaftWebServer/original/RaftWebConnection.cpp"
+    "components/RaftWebServer/original/RaftWebConnManager_original.cpp"
+    "components/RaftWebServer/original/RaftWebInterface.cpp"
+    "components/RaftWebServer/original/RaftWebMultipart.cpp"
+    "components/RaftWebServer/original/RaftWebResponderFile.cpp"
+    "components/RaftWebServer/original/RaftWebResponderRestAPI.cpp"
+    "components/RaftWebServer/original/RaftWebResponderWS.cpp"
+    "components/RaftWebServer/original/RaftWebSocketLink.cpp"    
   INCLUDE_DIRS
     "components/RaftWebServer/."
+    "components/RaftWebServer/espidf"
+    "components/RaftWebServer/mongoose"
+    "components/RaftWebServer/original"
   REQUIRES
     raftcore-src
+    mongoose-src
     mbedtls
     esp_http_server
 )

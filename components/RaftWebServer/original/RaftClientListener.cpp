@@ -22,8 +22,6 @@ static const char *MODULE_PREFIX = "RaftClientListener";
 #define WARN_ON_LISTENER_ERROR
 // #define DEBUG_NEW_CONNECTION
 
-#ifndef ESP8266
-
 void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
 {
 
@@ -248,5 +246,3 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
         delay(5000);
     }
 }
-
-#endif

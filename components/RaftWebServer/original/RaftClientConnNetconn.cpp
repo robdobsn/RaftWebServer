@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ESP8266
-
 #include "RaftClientConnNetconn.h"
 #include "RaftWebInterface.h"
 #include <Logger.h>
@@ -150,5 +148,3 @@ bool RaftClientConnNetconn::getRxData(struct netbuf** pInbuf, bool& closeRequire
     // Data available in pInbuf
     return true;
 }
-
-#endif

@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <Logger.h>
-#include "RaftWebConnManager.h"
+#include "RaftWebConnManager_original.h"
 #include "RaftWebConnection.h"
 #include "RaftWebHandler.h"
 #include "RaftWebHandlerWS.h"
@@ -15,9 +15,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <RaftUtils.h>
-#ifdef ESP8266
-#include "ESP8266Utils.h"
-#endif
 
 const static char* MODULE_PREFIX = "WebConnMgr";
 
@@ -42,36 +39,29 @@ const static char* MODULE_PREFIX = "WebConnMgr";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebConnManager::RaftWebConnManager()
+RaftWebConnManager_original::RaftWebConnManager_original()
 {
     // Connection queue
     _newConnQueue = nullptr;
 
-    // Mutex controlling endpoint access
-    _endpointsMutex = xSemaphoreCreateMutex();
-
     // Setup callback for new connections
-    _connClientListener.setHandOffNewConnCB(std::bind(&RaftWebConnManager::handleNewConnection, this, std::placeholders::_1));
+    _connClientListener.setHandOffNewConnCB(std::bind(&RaftWebConnManager_original::handleNewConnection, this, std::placeholders::_1));
 }
 
-RaftWebConnManager::~RaftWebConnManager()
+RaftWebConnManager_original::~RaftWebConnManager_original()
 {
     // Delete handlers
     for (RaftWebHandler *pHandler : _webHandlers)
     {
         delete pHandler;
     }
-
-    // Delete mutex
-    if (_endpointsMutex)
-        vSemaphoreDelete(_endpointsMutex);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager::setup(RaftWebServerSettings &settings)
+void RaftWebConnManager_original::setup(RaftWebServerSettings &settings)
 {
     // Store settings
     _webServerSettings = settings;
@@ -79,22 +69,28 @@ void RaftWebConnManager::setup(RaftWebServerSettings &settings)
     // Create slots
     _webConnections.resize(_webServerSettings._numConnSlots);
 
-#ifndef ESP8266
     // Create queue for new connections
     _newConnQueue = xQueueCreate(_newConnQueueMaxLen, sizeof(RaftClientConnBase*));
-#endif
 
 #ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     // Start task to service connections
     xTaskCreatePinnedToCore(&clientConnHandlerTask, "clientConnTask", RD_WEB_CONN_STACK_SIZE, this, 6, NULL, 0);
 #endif
+
+	// Start task to handle listen for connections
+	xTaskCreatePinnedToCore(&socketListenerTask,"socketLstnTask", 
+            settings._taskStackSize,
+            this, 
+            settings._taskPriority, 
+            NULL, 
+            settings._taskCore);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager::service()
+void RaftWebConnManager_original::service()
 {
 #ifndef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     serviceConnections();
@@ -102,15 +98,30 @@ void RaftWebConnManager::service()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Web Server Task
+// Listen for connections and add to queue for handling
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void RaftWebConnManager_original::socketListenerTask(void* pvParameters) 
+{
+	// Get pointer to specific RaftWebServer object
+	RaftWebConnManager_original* pWS = (RaftWebConnManager_original*)pvParameters;
+
+    // Listen for client connections
+    pWS->listenForClients(pWS->_webServerSettings._serverTCPPort, 
+                    pWS->_webServerSettings._numConnSlots);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Client Connection Handler Task
 // Handles client connections received on a queue and processes their HTTP requests
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager::clientConnHandlerTask(void *pvParameters)
+void RaftWebConnManager_original::clientConnHandlerTask(void *pvParameters)
 {
 #ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     // Get pointer to specific RaftWebServer object
-    RaftWebConnManager *pConnMgr = (RaftWebConnManager *)pvParameters;
+    RaftWebConnManager_original *pConnMgr = (RaftWebConnManager_original *)pvParameters;
 
     // Handle connection
     const static char *MODULE_PREFIX = "clientConnTask";
@@ -130,7 +141,7 @@ void RaftWebConnManager::clientConnHandlerTask(void *pvParameters)
 // Service Connections
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager::serviceConnections()
+void RaftWebConnManager_original::serviceConnections()
 {
     // Service existing connections or close them if inactive
     for (RaftWebConnection &webConn : _webConnections)
@@ -143,7 +154,6 @@ void RaftWebConnManager::serviceConnections()
     if (_newConnQueue == nullptr)
         return;
         
-#ifndef ESP8266
     RaftClientConnBase* pClientConn = nullptr;
     if (xQueueReceive(_newConnQueue, &pClientConn, 1) == pdTRUE)
     {
@@ -160,14 +170,13 @@ void RaftWebConnManager::serviceConnections()
             delete pClientConn;
         }
     }
-#endif // ESP8266
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Accommodate new connections if possible
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::accommodateConnection(RaftClientConnBase* pClientConn)
+bool RaftWebConnManager_original::accommodateConnection(RaftClientConnBase* pClientConn)
 {
     // Handle the new connection if we can
     uint32_t slotIdx = 0;
@@ -189,7 +198,7 @@ bool RaftWebConnManager::accommodateConnection(RaftClientConnBase* pClientConn)
 // Find an empty slot
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
+bool RaftWebConnManager_original::findEmptySlot(uint32_t &slotIdx)
 {
     // Check for inactive slots
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -209,7 +218,7 @@ bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
 // Add handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler)
+bool RaftWebConnManager_original::addHandler(RaftWebHandler *pHandler)
 {
     // Check handler valid
     if (!pHandler)
@@ -250,12 +259,13 @@ bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler)
 // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader &header,
+RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequestHeader &header,
                                                   const RaftWebRequestParams &params, 
                                                   RaftHttpStatusCode &statusCode)
 {
     // Iterate handlers to find one that gives a responder
     statusCode = HTTP_STATUS_NOTFOUND;
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     for (RaftWebHandler *pHandler : _webHandlers)
     {
         if (pHandler)
@@ -287,6 +297,7 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
                 break;
         }
     }
+#endif
     return nullptr;
 }
 
@@ -294,7 +305,7 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
 // Check if channel is ready to send
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::canSend(uint32_t& channelID, bool& noConn)
+bool RaftWebConnManager_original::canSend(uint32_t& channelID, bool& noConn)
 {
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -330,7 +341,7 @@ bool RaftWebConnManager::canSend(uint32_t& channelID, bool& noConn)
 // Send message on channel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::sendMsg(const uint8_t* pBuf, uint32_t bufLen,
+bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen,
                                         bool allChannels, uint32_t channelID)
 {
     bool anyOk = false;
@@ -384,7 +395,7 @@ bool RaftWebConnManager::sendMsg(const uint8_t* pBuf, uint32_t bufLen,
 // Send to all server-side events
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager::serverSideEventsSendMsg(const char *eventContent, const char *eventGroup)
+void RaftWebConnManager_original::serverSideEventsSendMsg(const char *eventContent, const char *eventGroup)
 {
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
@@ -401,26 +412,11 @@ void RaftWebConnManager::serverSideEventsSendMsg(const char *eventContent, const
 // Incoming connection
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::handleNewConnection(RaftClientConnBase* pClientConn)
+bool RaftWebConnManager_original::handleNewConnection(RaftClientConnBase* pClientConn)
 {
-#ifndef ESP8266
 #ifdef DEBUG_WEB_CONN_MANAGER
     LOG_I(MODULE_PREFIX, "handleNewConnection %d", pClientConn->getClientId());
 #endif
     // Add to queue for handling
     return xQueueSendToBack(_newConnQueue, &pClientConn, pdMS_TO_TICKS(10)) == pdTRUE;
-#else  // ESP8266
-    // Get any new connection from queue
-    if (pClientConn)
-    {
-        // Put the connection into our connection list if we can
-        if (!accommodateConnection(pClientConn))
-        {
-            // Debug
-            LOG_W(MODULE_PREFIX, "Can't handle connId %d", pClientConn->getClientId());
-            return false;
-        }
-    }
-    return true;
-#endif // ESP8266
 }

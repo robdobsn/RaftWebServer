@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ESP8266
-
 #include "RaftWebSocketLink.h"
 #include <stdint.h>
 #include <vector>
@@ -602,5 +600,3 @@ void RaftWebSocketLink::unmaskData()
         }
     }
 }
-
-#endif

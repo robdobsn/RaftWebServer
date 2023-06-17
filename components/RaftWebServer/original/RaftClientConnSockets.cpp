@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ESP8266
-
 #include "RaftClientConnSockets.h"
 #include "RaftWebInterface.h"
 #include "ArduinoTime.h"
@@ -187,5 +185,3 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
 void RaftClientConnSockets::getDataEnd()
 {
 }
-
-#endif

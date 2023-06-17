@@ -8,8 +8,6 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include <stdint.h>
 #include <vector>
 #include <ArduinoOrAlt.h>
@@ -223,5 +221,3 @@ private:
     String genMagicResponse(const String& wsKey, const String& wsVersion);
 
 };
-
-#endif

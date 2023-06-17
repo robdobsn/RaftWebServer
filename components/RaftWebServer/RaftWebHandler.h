@@ -18,10 +18,11 @@
 #include <esp_http_server.h>
 #endif
 
-class RaftWebRequest;
+#ifdef FEATURE_WEB_SERVER_USE_ORIGINAL
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
 class RaftWebResponder;
+#endif
 
 class RaftWebHandler
 {
@@ -36,16 +37,27 @@ public:
     {
         return "HandlerBase";
     }
-    virtual esp_err_t handleRequest(httpd_req_t *req)
-    {
-        return ESP_OK;
-    }
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params,
                 RaftHttpStatusCode &statusCode)
     {
         return NULL;
     }
+#elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+    virtual esp_err_t handleRequest(httpd_req_t *req)
+    {
+        return ESP_OK;
+    }
+#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    virtual bool canHandle(struct mg_connection *c, int ev, void *ev_data)
+    {
+        return false;
+    }
+    virtual void handle(struct mg_connection *c, int ev, void *ev_data)
+    {
+    }
+#endif
     virtual String getBaseURL() const
     {
         return "<<NONE>>";

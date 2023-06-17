@@ -8,8 +8,6 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include <ArduinoOrAlt.h>
 #include "RaftWebResponder.h"
 #include <RaftWebRequestParams.h>
@@ -116,5 +114,3 @@ private:
     static const uint32_t MAX_DEBUG_TEXT_STR_LEN = 100;
     static const uint32_t MAX_DEBUG_BIN_HEX_LEN = 50;    
 };
-
-#endif

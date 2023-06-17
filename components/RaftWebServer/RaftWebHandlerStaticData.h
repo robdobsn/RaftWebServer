@@ -62,6 +62,7 @@ public:
     // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final
@@ -106,6 +107,7 @@ public:
         return pResponder;
 
     }
+#endif
     virtual bool isFileHandler() const override final
     {
         return true;

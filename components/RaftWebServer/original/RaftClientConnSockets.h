@@ -8,8 +8,6 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include "RaftClientConnBase.h"
 
 #define RD_CLIENT_CONN_SOCKETS_CONN_STATS
@@ -53,5 +51,3 @@ private:
     static const uint32_t WEB_CONN_MAX_RX_BUFFER = 1440;
 #endif
 };
-
-#endif

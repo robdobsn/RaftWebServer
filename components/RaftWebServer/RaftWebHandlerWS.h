@@ -8,8 +8,6 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include "RaftWebHandler.h"
 #include <Logger.h>
 #include <RaftWebRequestHeader.h>
@@ -49,6 +47,7 @@ public:
     {
         return _wsConfig.getString("pfix", "ws");
     }
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode
@@ -115,6 +114,7 @@ public:
         // Return new responder - caller must clean up by deleting object when no longer needed
         return pResponder;
     }
+#endif
 
     // Setup websocket channel ID
     void setupWebSocketChannelID(uint32_t wsConnIdx, uint32_t chanID)
@@ -169,5 +169,3 @@ private:
     };
     std::vector<ChannelIDUsage> _channelIDUsage;
 };
-
-#endif

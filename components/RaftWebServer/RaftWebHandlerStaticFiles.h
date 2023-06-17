@@ -8,10 +8,12 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include "RaftWebHandler.h"
 #include <Logger.h>
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#include <mongoose.h>
+#endif
 
 class RaftWebRequestHeader;
 
@@ -26,10 +28,16 @@ public:
     {
         return _baseURI;
     }
-    virtual esp_err_t handleRequest(httpd_req_t *req) override final;
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final;
+#elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+    virtual esp_err_t handleRequest(httpd_req_t *req) override final;
+#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    virtual bool canHandle(struct mg_connection *c, int ev, void *ev_data) override final;
+    virtual void handle(struct mg_connection *c, int ev, void *ev_data) override final;
+#endif
     virtual bool isFileHandler() const override final
     {
         return true;
@@ -59,5 +67,3 @@ private:
     String getFilePath(const String& reqURL) const;
     const char* getContentType(const String& filePath) const;
 };
-
-#endif

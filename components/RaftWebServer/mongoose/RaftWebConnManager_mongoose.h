@@ -2,7 +2,7 @@
 //
 // RaftWebServer
 //
-// Rob Dobson 2020
+// Rob Dobson 2020-2023
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -11,16 +11,19 @@
 #include <RaftWebServerSettings.h>
 #include <RdJson.h>
 #include <list>
-#include "esp_http_server.h"
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#include <mongoose.h>
+#endif
 
 class RaftWebHandler;
 
-class RaftWebConnManagerEspIdf
+class RaftWebConnManager_mongoose
 {
 public:
     // Constructor / Destructor
-    RaftWebConnManagerEspIdf();
-    virtual ~RaftWebConnManagerEspIdf();
+    RaftWebConnManager_mongoose();
+    virtual ~RaftWebConnManager_mongoose();
 
     // Setup
     void setup(RaftWebServerSettings& settings);
@@ -49,13 +52,25 @@ public:
         return _webServerSettings;
     }
 
+    // Check if channel can send a message
+    bool canSend(uint32_t& channelID, bool& noConn)
+    {
+        // TODO - implement
+        return true;
+    }
+
+    // Send a message on a channel
+    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
+                bool allWebSockets, uint32_t channelID)
+    {
+        // TODO - implement
+        return true;
+    }
+
     // Send to all server-side events
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 
 private:
-
-    // Mutex for handling endpoints
-    SemaphoreHandle_t _endpointsMutex;
 
     // Web server settings
     RaftWebServerSettings _webServerSettings;
@@ -63,24 +78,24 @@ private:
     // Standard response headers
     std::list<RdJson::NameValuePair> _stdResponseHeaders;
 
-    // Server handle
-    void* _serverHandle;
-
     // Handlers
     std::list<RaftWebHandler*> _webHandlers;
 
-    // Static request handler
-    static esp_err_t staticESPIDFRequestHandler(httpd_req_t *req);
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    // Is setup
+    bool _isSetup = false;
 
-    // Static free context handler
-    static void staticESPIDFResponderFreeContext(void *ctx);
+    // Mongoose event manager
+    mg_mgr _mongooseMgr;
 
-    // Possible header names - ESP IDF doesn't seem to have a way to iterate through headers in requests
-    static std::list<String> potentialHeaderNames()
-    { 
-        return {
-            "Accept-Encoding"
-        };
-    }
+    // Mongoose listening address
+    String _mongooseListeningAddr;
+
+    // Static connection handler
+    static void staticEventHandler(struct mg_connection *c, int ev, void *ev_data, void *fn_data);
+
+    // Non-static connection handler
+    void eventHandler(struct mg_connection *c, int ev, void *ev_data);
+#endif
 
 };

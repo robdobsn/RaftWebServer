@@ -1,4 +1,4 @@
-# WebServer for ESP32 and ESP8266 (IDF and Arduino)
+# WebServer for ESP32 (IDF and Arduino)
 
-> Copyright (C) Rob Dobson 2018-2022
+> Copyright (C) Rob Dobson 2018-2023
 

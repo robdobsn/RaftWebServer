@@ -33,6 +33,7 @@ public:
     {
         return _eventsPath;
     }
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final
@@ -62,6 +63,7 @@ public:
         statusCode = HTTP_STATUS_OK;
         return pResponder;
     }
+#endif
 
 private:
     String _eventsPath;

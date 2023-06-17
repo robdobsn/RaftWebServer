@@ -8,8 +8,6 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include "lwip/api.h"
 #include "RaftClientConnBase.h"
 
@@ -62,5 +60,3 @@ private:
 #endif
 
 };
-
-#endif

@@ -12,15 +12,20 @@
 #include "RaftWebHandler.h"
 #include <RdJson.h>
 
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
-#include "RaftWebConnDefs.h"
-#include "RaftWebConnManager.h"
+#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+#undef FEATURE_WEB_SERVER_USE_MONGOOSE
+#undef FEATURE_WEB_SERVER_USE_ORIGINAL
+#include <RaftWebConnManager_espidf.h>
+#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#undef FEATURE_WEB_SERVER_USE_ESP_IDF
+#undef FEATURE_WEB_SERVER_USE_ORIGINAL
+#include <RaftWebConnManager_mongoose.h>
+#elif defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#undef FEATURE_WEB_SERVER_USE_ESP_IDF
+#undef FEATURE_WEB_SERVER_USE_MONGOOSE
+#include <RaftWebConnManager_original.h>
 #else
-#include "RaftWebConnManagerEspIdf.h"
-#endif
-
-#ifdef ESP8266
-#include <ESP8266WiFi.h>
+#error "No web server implementation selected"
 #endif
 
 class RaftWebServer
@@ -45,23 +50,14 @@ public:
     // Check if channel can send
     bool canSend(uint32_t channelID, bool& noConn)
     {
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
         return _connManager.canSend(channelID, noConn);
-#else
-        return true;
-#endif
     }
 
     // Send message on a channel
     bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
                 bool allChannels, uint32_t channelID)
     {
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
         return _connManager.sendMsg(pBuf, bufLen, allChannels, channelID);
-#else
-        // TODO - implement
-        return true;
-#endif
     }
 
     // Send to all server-side events
@@ -69,23 +65,18 @@ public:
 
 private:
 
-    // Comms interface
-#if defined(ESP8266)
-    WiFiServer* _pWiFiServer;
-#elif !defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-    // Helpers
-    static void socketListenerTask(void* pvParameters);
-#endif
-
     // Settings
     RaftWebServerSettings _webServerSettings;
 
-#ifndef FEATURE_WEB_SERVER_USE_ESP_IDF
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     // Connection manager
-    RaftWebConnManager _connManager;
+    RaftWebConnManager_original _connManager;
+#elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+    // Connection manager
+    RaftWebConnManager_espidf _connManager;
 #else
     // Connection manager
-    RaftWebConnManagerEspIdf _connManager;
+    RaftWebConnManager_mongoose _connManager;
 #endif
 
 };

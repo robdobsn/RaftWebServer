@@ -30,7 +30,9 @@
     "libLDFMode": "deep+",
     "libArchive": false,
     "flags": [
-      "-Icomponents/RaftWebServer"
+      "-Icomponents/RaftWebServer",
+      "-Icomponents/RaftWebServer/original",
+      "-Icomponents/RaftWebServer/espidf"
     ]
   }
 }

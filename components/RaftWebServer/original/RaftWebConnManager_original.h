@@ -12,13 +12,9 @@
 #include <RaftWebConnection.h>
 #include <RaftWebSocketDefs.h>
 #include <RaftClientListener.h>
-#ifndef ESP8266
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#else
-#include "ESP8266Utils.h"
-#endif
 #include <list>
 
 class RaftWebHandler;
@@ -26,12 +22,12 @@ class RaftWebRequestHeader;
 class RaftWebResponder;
 class RaftWebRequestParams;
 
-class RaftWebConnManager
+class RaftWebConnManager_original
 {
 public:
     // Constructor / Destructor
-    RaftWebConnManager();
-    virtual ~RaftWebConnManager();
+    RaftWebConnManager_original();
+    virtual ~RaftWebConnManager_original();
 
     // Setup
     void setup(RaftWebServerSettings& settings);
@@ -83,14 +79,9 @@ public:
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 
 private:
-#ifndef ESP8266
     // New connection queue
     QueueHandle_t _newConnQueue;
     static const int _newConnQueueMaxLen = 10;
-#endif
-
-    // Mutex for handling endpoints
-    SemaphoreHandle_t _endpointsMutex;
 
     // Web server settings
     RaftWebServerSettings _webServerSettings;
@@ -111,6 +102,7 @@ private:
     static void clientConnHandlerTask(void* pvParameters);
 
     // Helpers
+    static void socketListenerTask(void* pvParameters);
     bool accommodateConnection(RaftClientConnBase* pClientConn);
     bool findEmptySlot(uint32_t& slotIx);
     void serviceConnections();

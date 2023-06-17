@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ESP8266
-
 #include "RaftWebResponderWS.h"
 #include <RaftWebConnection.h>
 #include "RaftWebServerSettings.h"
@@ -312,5 +310,3 @@ void RaftWebResponderWS::webSocketCallback(RaftWebSocketEventCode eventCode, con
         }
 	}
 }
-
-#endif

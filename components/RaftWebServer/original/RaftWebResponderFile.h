@@ -8,8 +8,6 @@
 
 #pragma once
 
-#ifndef ESP8266
-
 #include <ArduinoOrAlt.h>
 #include <Logger.h>
 #include <ArduinoTime.h>
@@ -68,5 +66,3 @@ private:
     static const uint32_t SEND_DATA_OVERALL_TIMEOUT_MS = 5 * 60 * 1000;
     bool _isFinalChunk = false;
 };
-
-#endif

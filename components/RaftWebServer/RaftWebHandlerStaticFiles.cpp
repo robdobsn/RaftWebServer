@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ESP8266
-
 #include "RaftWebHandlerStaticFiles.h"
 #include "RaftWebConnection.h"
 #include "RaftWebResponder.h"
@@ -20,9 +18,9 @@
 
 // #define DEBUG_STATIC_FILE_HANDLER
 
-// #ifdef DEBUG_STATIC_FILE_HANDLER
+#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
 static const char* MODULE_PREFIX = "RaftWebHStatFile";
-// #endif
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -77,8 +75,10 @@ const char* RaftWebHandlerStaticFiles::getName() const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle request
+// Handle request (ESP IDF)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
 
 esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
 {
@@ -102,7 +102,9 @@ esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
         return ESP_OK;
     }
 
+#ifdef DEBUG_STATIC_FILE_HANDLER
     LOG_I(MODULE_PREFIX, "Sending file : %s (%ld bytes)...", filePath.c_str(), file_stat.st_size);
+#endif
 
     // Set content type
     httpd_resp_set_type(req, getContentType(filePath));
@@ -135,18 +137,21 @@ esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
 
     /* Close file after sending complete */
     fclose(fd);
-    LOG_I(MODULE_PREFIX, "File sending complete");
 
     /* Respond with an empty chunk to signal HTTP response completion */
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
 
+#endif
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a responder if we can handle this request
+// Get a responder if we can handle this request (ORIGINAL)
 // NOTE: this returns a new object or NULL
 // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
 
 RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebRequestHeader& requestHeader, 
             const RaftWebRequestParams& params,
@@ -204,6 +209,51 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
     statusCode = HTTP_STATUS_OK;
     return pResponder;
 }
+
+#endif
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Mongoose handlers
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+
+bool RaftWebHandlerStaticFiles::canHandle(struct mg_connection *c, int ev, void *ev_data)
+{
+    // TODO
+    return true;
+}
+
+void RaftWebHandlerStaticFiles::handle(struct mg_connection *c, int ev, void *ev_data)
+{
+    // TODO
+    if (ev == MG_EV_HTTP_MSG) 
+    {
+        struct mg_http_message *hm = (struct mg_http_message *)ev_data;
+        struct mg_http_message tmp = {0};
+        struct mg_str unknown = mg_str_n("?", 1), *cl;
+        struct mg_http_serve_opts opts = 
+        {
+            .root_dir = _baseFolder.c_str(),
+            .ssi_pattern = NULL,
+            .extra_headers = NULL,
+            .mime_types = NULL,
+            .page404 = NULL,
+            .fs = NULL,
+        };
+        mg_http_serve_dir(c, hm, &opts);
+
+        // Debug
+        mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
+        cl = mg_http_get_header(&tmp, "Content-Length");
+        if (cl == NULL) cl = &unknown;
+        MG_INFO(("%.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
+                (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
+                (int) cl->len, cl->ptr));
+    }
+}
+
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get file path
@@ -266,5 +316,3 @@ const char* RaftWebHandlerStaticFiles::getContentType(const String& filePath) co
         return "application/x-gzip";
     return "text/plain";
 }
-
-#endif

@@ -17,7 +17,7 @@
 // #define DEBUG_TRACE_HEAP_USAGE_WEB_CONN
 
 class RaftWebHandler;
-class RaftWebConnManager;
+class RaftWebConnManager_original;
 class RaftWebResponder;
 
 class RaftWebConnection
@@ -39,7 +39,7 @@ public:
     void clear();
 
     // Set a new connection
-    bool setNewConn(RaftClientConnBase* pClientConn, RaftWebConnManager* pConnManager,
+    bool setNewConn(RaftClientConnBase* pClientConn, RaftWebConnManager_original* pConnManager,
                 uint32_t maxSendBufferBytes);
 
     // True if active
@@ -59,7 +59,7 @@ public:
 
 private:
     // Connection manager
-    RaftWebConnManager* _pConnManager;
+    RaftWebConnManager_original* _pConnManager;
 
     // Client connection
     RaftClientConnBase* _pClientConn;

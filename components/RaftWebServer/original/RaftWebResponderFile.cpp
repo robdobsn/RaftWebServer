@@ -6,8 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ESP8266
-
 #include "RaftWebResponderFile.h"
 #include "Logger.h"
 #include "FileSystemChunker.h"
@@ -236,5 +234,3 @@ bool RaftWebResponderFile::leaveConnOpen()
 {
     return false;
 }
-
-#endif
