@@ -110,27 +110,27 @@ bool RaftWebConnManager_espidf::addHandler(RaftWebHandler *pHandler)
 #endif
     _webHandlers.push_back(pHandler);
 
-#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-    // TODO - generalise this
-    // Register handler with esp idf
-    String matchPath = pHandler->getBaseURL();
-    if (!matchPath.endsWith("/"))
-        matchPath += "/";
-    matchPath += "*";
-    httpd_uri_t uri_root = {
-        .uri = matchPath.c_str(),
-        .method = HTTP_GET,
-        .handler = staticRequestHandler,
-        .user_ctx = pHandler};
-    if (httpd_register_uri_handler(_serverHandle, &uri_root) == ESP_OK)
-    {
-        LOG_I(MODULE_PREFIX, "httpd_register_uri_handler OK");
-    }
-    else
-    {
-        LOG_E(MODULE_PREFIX, "httpd_register_uri_handler failed");
-    }
-#endif
+// #if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+//     // TODO - generalise this
+//     // Register handler with esp idf
+//     String matchPath = pHandler->getBaseURL();
+//     if (!matchPath.endsWith("/"))
+//         matchPath += "/";
+//     matchPath += "*";
+//     httpd_uri_t uri_root = {
+//         .uri = matchPath.c_str(),
+//         .method = HTTP_GET,
+//         .handler = staticRequestHandler,
+//         .user_ctx = pHandler};
+//     if (httpd_register_uri_handler(_serverHandle, &uri_root) == ESP_OK)
+//     {
+//         LOG_I(MODULE_PREFIX, "httpd_register_uri_handler OK");
+//     }
+//     else
+//     {
+//         LOG_E(MODULE_PREFIX, "httpd_register_uri_handler failed");
+//     }
+// #endif
     return true;
 }
 

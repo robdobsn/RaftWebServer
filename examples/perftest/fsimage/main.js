@@ -23,14 +23,23 @@ function connectWs()
             console.log('WebSocket connection opened');
             // window.webSocket.send("It's open! Hooray!!!");
             document.getElementById("webSocketState").innerHTML = "WebSocket is connected!";
+
+            // Set a timer to send a message every 5 seconds
+            if (!window.pageState)
+                window.pageState = {};
+            window.pageState.wsMsgCounter = 1;
+            window.pageState.msgTimer = setInterval(() => {
+                window.webSocket.send("Hello from the browser! " + (window.pageState.wsMsgCounter++) + "\n")
+            }, 5000);
+
         }
         
         // Websocket message received
         window.webSocket.onmessage = function(evt) 
         {
-            // console.log("WebSocket rx");
             const msg = new Uint8Array(evt.data);
-            window.pageState.martyIF.handleRxFrame(msg);
+            console.log("WebSocket rx ", msg);
+            // window.pageState.martyIF.handleRxFrame(msg);
             
             // switch(msg.charAt(0)) 
             // {
@@ -56,6 +65,7 @@ function connectWs()
         // Websocket closed
         window.webSocket.onclose = function(evt) 
         {
+            clearInterval(window.pageState.msgTimer);
             console.log('Websocket connection closed');
             document.getElementById("webSocketState").innerHTML = "WebSocket closed";
             window.webSocket = null;

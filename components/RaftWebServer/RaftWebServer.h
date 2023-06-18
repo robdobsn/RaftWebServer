@@ -54,19 +54,15 @@ public:
     }
 
     // Send message on a channel
-    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
-                bool allChannels, uint32_t channelID)
+    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
     {
-        return _connManager.sendMsg(pBuf, bufLen, allChannels, channelID);
+        return _connManager.sendMsg(pBuf, bufLen, channelID);
     }
 
     // Send to all server-side events
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 
 private:
-
-    // Settings
-    RaftWebServerSettings _webServerSettings;
 
 #if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     // Connection manager

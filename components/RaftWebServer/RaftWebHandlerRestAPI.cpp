@@ -81,15 +81,16 @@ RaftWebResponder* RaftWebHandlerRestAPI::getNewResponder(const RaftWebRequestHea
 
 bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void *ev_data)
 {
-    // Mongoose message
-    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-
     // Check valid
     if (!_matchEndpointCB)
         return false;
 
+    // Check for HTTP message
     if (ev == MG_EV_HTTP_MSG) 
     {
+        // Mongoose http message
+        struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+
         // Get request string and method string
         String reqStr = String(hm->uri.ptr, hm->uri.len);
         String methodStr = String(hm->method.ptr, hm->method.len);
@@ -127,9 +128,22 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
             LOG_I(MODULE_PREFIX, "handleRequest respStr %s", respStr.c_str());
         }
 
-        mg_printf(c, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+        // Send start of response
+        mg_printf(c, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n");
+
+        // Add standard headers
+        for (auto& header : _standardHeaders)
+        {
+            mg_printf(c, "%s: %s\r\n", header.name.c_str(), header.value.c_str());
+        }
+
+        // End of header
+        mg_printf(c, "\r\n");
+
+        // Send response
         mg_http_write_chunk(c, respStr.c_str(), respStr.length());
         mg_http_printf_chunk(c, "");
+
         // mg_http_reply(c, 200, "", "{\"result\": \"%.*s\"}\n", (int) hm->uri.len, hm->uri.ptr);
         // return _respStr.length();
 

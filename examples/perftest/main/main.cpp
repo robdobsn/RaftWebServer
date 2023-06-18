@@ -34,10 +34,11 @@ static const char* MODULE_PREFIX = "MainTask";
 #include <CommsCoreIF.h>
 #include <NetworkSystem.h>
 #include <FileSystem.h>
+#include <RestAPIEndpointManager.h>
 #include <RaftWebServer.h>
 #include <RaftWebHandlerStaticFiles.h>
 #include <RaftWebHandlerRestAPI.h>
-#include <RestAPIEndpointManager.h>
+#include <RaftWebHandlerWS.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Entry Point
@@ -80,6 +81,16 @@ void testEndpointCallback(const String &reqStr, String &respStr, const APISource
     respStr = "Hello from testEndpointCallback";
 }
 
+bool wsCanAccept(uint32_t channelID)
+{
+    return true;
+}
+
+void wsHandleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
+{
+    LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);    
+}
+
 extern "C" void app_main(void)
 {
     // Initialize flash
@@ -119,14 +130,15 @@ extern "C" void app_main(void)
     RaftWebServer webServer;
 
     // Settings
-    RaftWebServerSettings settings(80, 
-            10, 
-            false, 
-            true, 
-            0,
-            9,
-            3000,
-            1000,
+    RaftWebServerSettings settings(
+            RaftWebServerSettings::DEFAULT_HTTP_PORT, 
+            RaftWebServerSettings::DEFAULT_CONN_SLOTS, 
+            RaftWebServerSettings::DEFAULT_ENABLE_WEBSOCKETS, 
+            RaftWebServerSettings::DEFAULT_ENABLE_FILE_SERVER, 
+            RaftWebServerSettings::DEFAULT_TASK_CORE,
+            RaftWebServerSettings::DEFAULT_TASK_PRIORITY,
+            RaftWebServerSettings::DEFAULT_TASK_STACK_BYTES,
+            RaftWebServerSettings::DEFAULT_SEND_BUFFER_MAX_LEN,
             CommsCoreIF::CHANNEL_ID_REST_API);
     webServer.setup(settings);
 
@@ -140,12 +152,12 @@ extern "C" void app_main(void)
                         "test");
 
     // Web server static files
-    String baseUrl = "/";
-    String baseFolder = ("/" + fileSystem.getDefaultFSRoot());
-    RaftWebHandlerStaticFiles* pHandlerFiles = new RaftWebHandlerStaticFiles(baseUrl.c_str(), baseFolder.c_str(), NULL, "index.html");
+    String servePaths = "/" + fileSystem.getDefaultFSRoot() + ",/files/local=/local,/files/sd=/sd";
+    RaftWebHandlerStaticFiles* pHandlerFiles = new RaftWebHandlerStaticFiles(servePaths.c_str(), NULL);
     bool handlerAddOk = webServer.addHandler(pHandlerFiles);
-    LOG_I(MODULE_PREFIX, "serveStaticFiles url %s folder %s addResult %s", baseUrl.c_str(), baseFolder.c_str(), 
-                handlerAddOk ? "OK" : "FILE SERVER DISABLED");
+    LOG_I(MODULE_PREFIX, "serveStaticFiles paths %s addResult %s", 
+                        servePaths.c_str(), 
+                        handlerAddOk ? "OK" : "FILE SERVER DISABLED");
     if (!handlerAddOk)
         delete pHandlerFiles;
 
@@ -155,6 +167,41 @@ extern "C" void app_main(void)
     LOG_I(MODULE_PREFIX, "serveAPI url %s addResult %s", "/api", handlerAddOk ? "OK" : "API SERVER DISABLED");
     if (!handlerAddOk)
         delete pHandlerAPI;
+
+    // Add websocket handler
+    ConfigBase wsJsonConfig = R"(
+        {
+            "pfix": "ws",
+            "pcol": "RICSerial",
+            "maxConn": 4,
+            "txQueueMax": 6,
+            "pktMaxBytes": 5000,
+            "pingMs": 2000
+        }
+    )";
+    RaftWebHandlerWS* pHandlerWS = new RaftWebHandlerWS(wsJsonConfig, 
+            wsCanAccept,
+            wsHandleInboundMessage
+         );
+    const uint32_t CHANNEL_ID_NUMBER_BASE = 200;
+    handlerAddOk = webServer.addHandler(pHandlerWS);
+    LOG_I(MODULE_PREFIX, "serveWS url %s addResult %s", "/ws", handlerAddOk ? "OK" : "WS SERVER DISABLED");
+    if (!pHandlerWS)
+    {
+        delete pHandlerWS;
+    }
+    else
+    {
+        // Add 4 websocket channels
+        for (int i = 0; i < 4; i++)
+        {
+            pHandlerWS->setupWebSocketChannelID(i, i + CHANNEL_ID_NUMBER_BASE);
+        }
+    }
+
+    // Send periodic messages on websocket
+    uint32_t wsSendMsgLoopCtr = 0;
+    uint32_t wsMsgCtr = 0;
 
     // Loop forever
     while (1)
@@ -167,5 +214,17 @@ extern "C" void app_main(void)
 
         // Service webserver
         webServer.service();
+
+        // Check for sending a message on a websocket
+        if (wsSendMsgLoopCtr++ == 1000)
+        {
+            wsSendMsgLoopCtr = 0;
+
+            // Send a message on each websocket channel
+            String msgStr = "Hello from websocket " + String(wsMsgCtr++);
+            bool rslt = webServer.sendMsg((uint8_t*)msgStr.c_str(), msgStr.length(), CHANNEL_ID_NUMBER_BASE);
+
+            LOG_I(MODULE_PREFIX, "Sent message on websocket: %s rslt %d", msgStr.c_str(), rslt);
+        }
     }
 }

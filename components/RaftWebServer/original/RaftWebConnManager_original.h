@@ -72,8 +72,7 @@ public:
     bool canSend(uint32_t& channelID, bool& noConn);
 
     // Send a message on a channel
-    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
-                bool allWebSockets, uint32_t channelID);
+    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID);
 
     // Send to all server-side events
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);

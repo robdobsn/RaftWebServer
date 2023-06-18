@@ -15,6 +15,7 @@ idf_component_register(
     "RaftWebServer.cpp"
     "RaftWebHandlerRestAPI.cpp"
     "RaftWebHandlerStaticFiles.cpp"
+    "RaftWebHandlerWS.cpp"
     "espidf/RaftWebConnManager_espidf.cpp"
     "mongoose/RaftWebConnManager_mongoose.cpp"
     "original/RaftClientConnNetconn.cpp"

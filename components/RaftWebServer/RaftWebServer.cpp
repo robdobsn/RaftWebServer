@@ -29,8 +29,6 @@ RaftWebServer::RaftWebServer()
 
 void RaftWebServer::setup(RaftWebServerSettings& settings)
 {
-	// Settings
-    _webServerSettings = settings;
     
 #ifdef INFO_WEB_SERVER_SETUP
     LOG_I(MODULE_PREFIX, "setup port %d numConnSlots %d wsEn %d enableFileServer %d", 
@@ -39,7 +37,7 @@ void RaftWebServer::setup(RaftWebServerSettings& settings)
 #endif
 
 	// Setup connection manager
-	_connManager.setup(_webServerSettings);
+	_connManager.setup(settings);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

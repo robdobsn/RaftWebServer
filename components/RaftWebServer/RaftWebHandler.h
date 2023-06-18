@@ -54,11 +54,11 @@ public:
     {
         return false;
     }
-#endif
-    virtual String getBaseURL() const
+    virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
     {
-        return "<<NONE>>";
+        return false;
     }
+#endif
     virtual bool isFileHandler() const
     {
         return false;

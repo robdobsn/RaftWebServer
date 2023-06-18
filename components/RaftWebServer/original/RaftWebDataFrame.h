@@ -19,10 +19,12 @@ public:
     RaftWebDataFrame()
     {
     }
-    RaftWebDataFrame(const uint8_t* pBuf, uint32_t bufLen)
+    RaftWebDataFrame(uint32_t channelID, const uint8_t* pBuf, uint32_t bufLen, uint32_t frameTimeMs)
     {
         frame.resize(bufLen);
         memcpy(frame.data(), pBuf, frame.size());
+        _channelID = channelID;
+        _frameTimeMs = frameTimeMs;
     }
     const uint8_t* getData()
     {
@@ -32,6 +34,16 @@ public:
     {
         return frame.size();
     }
+    uint32_t getChannelID()
+    {
+        return _channelID;
+    }
+    uint32_t getFrameTimeMs()
+    {
+        return _frameTimeMs;
+    }
 private:
     std::vector<uint8_t> frame;
+    uint32_t _channelID = UINT32_MAX;
+    uint32_t _frameTimeMs = 0;
 };

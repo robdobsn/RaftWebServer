@@ -18,45 +18,92 @@
 #include <mongoose.h>
 #endif
 
-// #define DEBUG_STATIC_FILE_HANDLER
+#define DEBUG_STATIC_FILE_HANDLER
 
 #if defined(DEBUG_STATIC_FILE_HANDLER)
-static const char* MODULE_PREFIX = "RaftWebHStatFile";
+static const char* MODULE_PREFIX = "RaftWebHdlrStaticFiles";
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pBaseURI, 
-                const char* pBaseFolder, const char* pCacheControl,
-                const char* pDefaultPath)
+RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, const char* pCacheControl)
 {
-    // Default path (for response to /)
-    _defaultPath = pDefaultPath;
-
     // Handle URI and base folder
-    if (pBaseURI)
-        _baseURI = pBaseURI;
-    if (pBaseFolder)
-        _baseFolder = pBaseFolder;
+    if (pServePaths)
+        _servePaths = pServePaths;
     if (pCacheControl)
         _cacheControl = pCacheControl;
 
-    // Ensure paths and URLs have a leading /
-    if (_baseURI.length() == 0 || _baseURI[0] != '/')
-        _baseURI = "/" + _baseURI;
-    if (_baseFolder.length() == 0 || _baseFolder[0] != '/')
-        _baseFolder = "/" + _baseFolder;
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
 
-    // Check if baseFolder is actually a folder
-    _isBaseReallyAFolder = _baseFolder.endsWith("/");
+    // Split the base folders by comma
+    String baseFolders = _servePaths;
+    int pos = 0;
+    while (pos < baseFolders.length())
+    {
+        // Find next comma
+        int nextPos = baseFolders.indexOf(',', pos);
+        if (nextPos < 0)
+            nextPos = baseFolders.length();
 
-    // Remove trailing /
-    if (_baseURI.endsWith("/"))
-        _baseURI.remove(_baseURI.length()-1); 
-    if (_baseFolder.endsWith("/"))
-        _baseFolder.remove(_baseFolder.length()-1); 
+        // Get the folder
+        String folder = baseFolders.substring(pos, nextPos);
+
+        // Check if there is a = in the folder
+        int eqPos = folder.indexOf('=');
+        if (eqPos > 0)
+        {
+            // Get the URI and folder
+            String uri = folder.substring(0, eqPos);
+            String path = folder.substring(eqPos+1);
+
+            // Ensure paths and URLs have a leading /
+            if (uri.length() == 0 || uri[0] != '/')
+                uri = "/" + uri;
+            if (path.length() == 0 || path[0] != '/')
+                path = "/" + path;
+
+            // Remove trailing /
+            if (uri.endsWith("/"))
+                uri.remove(uri.length()-1);
+            if (path.endsWith("/"))
+                path.remove(path.length()-1);
+
+            // Add to vector
+            RdJson::NameValuePair nvPair(uri, path);
+            _servedPathPairs.push_back(nvPair);
+        }
+        else
+        {
+            // Ensure paths and URLs have a leading /
+            if (folder.length() == 0 || folder[0] != '/')
+                folder = "/" + folder;
+
+            // Remove trailing /
+            if (folder.endsWith("/"))
+                folder.remove(folder.length()-1);
+
+            // Add to vector
+            RdJson::NameValuePair nvPair("/", folder);
+            _servedPathPairs.push_back(nvPair);
+        }
+
+        // Next
+        pos = nextPos + 1;
+    }
+
+    // Debug show name-value pairs
+#ifdef DEBUG_STATIC_FILE_HANDLER
+    for (auto& nvPair : _servedPathPairs)
+    {
+        LOG_I(MODULE_PREFIX, "servedPathPairs uri %s path %s", nvPair.name.c_str(), nvPair.value.c_str());
+    }
+#endif
+
+#endif
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,23 +138,59 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
     // Debug
 #ifdef DEBUG_STATIC_FILE_HANDLER
     uint64_t getResponderStartUs = micros();
-    LOG_I(MODULE_PREFIX, "getNewResponder reqURL %s baseURI %s", requestHeader.URL.c_str(), _baseURI.c_str());    
+    LOG_I(MODULE_PREFIX, "getNewResponder reqURL %s paths %s", requestHeader.URL.c_str(), _servePaths.c_str());    
 #endif
 
     // Must be a GET
     if (requestHeader.extract.method != WEB_METHOD_GET)
-        return NULL;
-
-    // Check the URL is valid
-    if (!requestHeader.URL.startsWith(_baseURI))
-        return NULL;
+        return nullptr;
 
     // Check that the connection type is HTTP
     if (requestHeader.reqConnType != REQ_CONN_TYPE_HTTP)
         return NULL;
 
-    // Check if the path is just root
-    String filePath = getFilePath(requestHeader.URL);
+    // Check the URL is valid
+    RdJson::NameValuePair longestMatchedPath;
+    for (auto& servePath : _servedPathPairs)
+    {
+        // Check if the path matches
+        if (requestHeader.URL.startsWith(servePath.name))
+        {
+            if (servePath.name.length() > longestMatchedPath.name.length())
+                longestMatchedPath = servePath;
+        }
+    }
+
+    // Check if we found a match
+    if (longestMatchedPath.name.length() == 0)
+    {
+#ifdef DEBUG_STATIC_FILE_HANDLER
+        LOG_I(MODULE_PREFIX, "getNewResponder failed no match uri %s", requestHeader.URL.c_str());
+#endif
+        return nullptr;
+    }
+
+    // Get the file path
+    String filePath = longestMatchedPath.value + "/";
+    if (requestHeader.URL == "/")
+    {
+        filePath += "index.html";
+    }
+    else
+    {
+        String reqFileElem = requestHeader.URL.substring(longestMatchedPath.name.length());
+        if (reqFileElem.startsWith("/"))
+            reqFileElem.remove(0, 1);
+        filePath += reqFileElem;
+    }
+
+    // Debug
+#ifdef DEBUG_STATIC_FILE_HANDLER
+    LOG_I(MODULE_PREFIX, "getNewResponder req %s filePath %s longestMatch name %s value %s", 
+                requestHeader.URL.c_str(),
+                filePath.c_str(), 
+                longestMatchedPath.name.c_str(), longestMatchedPath.value.c_str());
+#endif
 
     // Create responder
     RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, 
@@ -139,6 +222,33 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
     // Return new responder - caller must clean up by deleting object when no longer needed
     statusCode = HTTP_STATUS_OK;
     return pResponder;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get content type
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
+{
+    // Iterate MIME types str
+    const char* pCurMime = _webServerSettings._pMimeTypes ? _webServerSettings._pMimeTypes : _mimeTypesStr;
+    while (pCurMime != NULL)
+    {
+        // Get extension
+        const char* pExt = pCurMime;
+        pCurMime = strchr(pCurMime, ',');
+        if (pCurMime != NULL)
+        {
+            // Get content type
+            String contentExtAndType = String(pExt, pCurMime - pExt);
+            String ext = contentExtAndType.substring(0, contentExtAndType.indexOf('='));
+            String contentType = contentExtAndType.substring(contentExtAndType.indexOf('=') + 1);
+            if (filePath.endsWith(ext))
+                return contentType;
+            pCurMime++;
+        }
+    }
+    return "text/plain";
 }
 
 #endif
@@ -225,22 +335,33 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
     // TODO
     if (ev == MG_EV_HTTP_MSG) 
     {
+        // Update extra headers string
+        _extraHeadersStr = "";
+        for (auto& header : _standardHeaders)
+        {
+            _extraHeadersStr += header.name + ": " + header.value + "\r\n";
+        }
+
+        // Extract message
         struct mg_http_message *hm = (struct mg_http_message *)ev_data;
-        struct mg_http_message tmp = {0};
-        struct mg_str unknown = mg_str_n("?", 1), *cl;
         struct mg_http_serve_opts opts = 
         {
-            .root_dir = _baseFolder.c_str(),
+            .root_dir = _servePaths.c_str(),
             .ssi_pattern = NULL,
-            .extra_headers = NULL,
-            .mime_types = NULL,
-            .page404 = NULL,
+            .extra_headers = _extraHeadersStr.c_str(),
+            .mime_types = _webServerSettings._pMimeTypes ? _webServerSettings._pMimeTypes : _mimeTypesStr,
+            .page404 = _webServerSettings._p404PageSource,
             .fs = NULL,
         };
         mg_http_serve_dir(c, hm, &opts);
 
         // Debug
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+        struct mg_http_message tmp = {0};
+#pragma GCC diagnostic pop
         mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
+        struct mg_str unknown = mg_str_n("?", 1), *cl;
         cl = mg_http_get_header(&tmp, "Content-Length");
         if (cl == NULL) cl = &unknown;
         MG_INFO(("%.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
@@ -252,64 +373,3 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
 
 #endif
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get file path
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-String RaftWebHandlerStaticFiles::getFilePath(const String& reqURL) const
-{
-    // Remove the base path from the URL
-    String filePath;
-    if (!reqURL.equals("/"))
-        filePath = reqURL.substring(_baseURI.length());
-    else
-        filePath = "/" + _defaultPath;
-
-    // Add on the file path
-    return _baseFolder + filePath;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get content type
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-const char* RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
-{
-    if (filePath.endsWith(".html"))
-        return "text/html";
-    else if (filePath.endsWith(".htm"))
-        return "text/html";
-    else if (filePath.endsWith(".css"))
-        return "text/css";
-    else if (filePath.endsWith(".json"))
-        return "text/json";
-    else if (filePath.endsWith(".js"))
-        return "application/javascript";
-    else if (filePath.endsWith(".png"))
-        return "image/png";
-    else if (filePath.endsWith(".gif"))
-        return "image/gif";
-    else if (filePath.endsWith(".jpg"))
-        return "image/jpeg";
-    else if (filePath.endsWith(".ico"))
-        return "image/x-icon";
-    else if (filePath.endsWith(".svg"))
-        return "image/svg+xml";
-    else if (filePath.endsWith(".eot"))
-        return "font/eot";
-    else if (filePath.endsWith(".woff"))
-        return "font/woff";
-    else if (filePath.endsWith(".woff2"))
-        return "font/woff2";
-    else if (filePath.endsWith(".ttf"))
-        return "font/ttf";
-    else if (filePath.endsWith(".xml"))
-        return "text/xml";
-    else if (filePath.endsWith(".pdf"))
-        return "application/pdf";
-    else if (filePath.endsWith(".zip"))
-        return "application/zip";
-    else if (filePath.endsWith(".gz"))
-        return "application/x-gzip";
-    return "text/plain";
-}

@@ -274,7 +274,7 @@ RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequ
             RaftWebResponder *pResponder = pHandler->getNewResponder(header, params, statusCode);
 
 #ifdef DEBUG_NEW_RESPONDER
-            LOG_I(MODULE_PREFIX, "getNewResponder url %s uriAndParams %s params %s versStr %s numHeaders %d reqConnType %d handlerType %s handlerBaseURL %s result %s httpStatus %s",
+            LOG_I(MODULE_PREFIX, "getNewResponder url %s uriAndParams %s params %s versStr %s numHeaders %d reqConnType %d handlerType %s result %s httpStatus %s",
                   header.URL.c_str(), 
                   header.URIAndParams.c_str(),
                   header.params.c_str(),
@@ -282,7 +282,6 @@ RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequ
                   header.nameValues.size(),
                   header.reqConnType,
                   pHandler->getName(),
-                  pHandler->getBaseURL().c_str(),
                   pResponder ? "OK" : "NoMatch",
                   RaftWebInterface::getHTTPStatusStr(statusCode));
 #endif
@@ -341,10 +340,9 @@ bool RaftWebConnManager_original::canSend(uint32_t& channelID, bool& noConn)
 // Send message on channel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen,
-                                        bool allChannels, uint32_t channelID)
+bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
-    bool anyOk = false;
+    bool sendOk = false;
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
 #ifdef DEBUG_WEBSOCKETS_SEND_DETAIL
@@ -365,30 +363,24 @@ bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen,
         if (!_webConnections[i].isActive())
             continue;
 
-        // Flag indicating we should send
-        bool sendOnThisSocket = allChannels;
-        if (!sendOnThisSocket)
-        {
-            // Get responder
-            RaftWebResponder *pResponder = _webConnections[i].getResponder();
-            if (!pResponder)
-                continue;
+        // Get responder
+        RaftWebResponder *pResponder = _webConnections[i].getResponder();
+        if (!pResponder)
+            continue;
 
-            // Get channelID
-            uint32_t usedChannelID = 0;
-            if (!pResponder->getChannelID(usedChannelID))
-                continue;
+        // Get channelID
+        uint32_t usedChannelID = 0;
+        if (!pResponder->getChannelID(usedChannelID))
+            continue;
 
-            // Check for the channelID of the message
-            if (usedChannelID == channelID)
-                sendOnThisSocket = true;
-        }
+        // Check for the channelID of the message
+        if (usedChannelID != channelID)
+            continue;
 
         // Send if appropriate
-        if (sendOnThisSocket)
-            anyOk |= _webConnections[i].sendOnConn(pBuf, bufLen);
+        sendOk = _webConnections[i].sendOnConn(pBuf, bufLen);
     }
-    return anyOk;
+    return sendOk;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

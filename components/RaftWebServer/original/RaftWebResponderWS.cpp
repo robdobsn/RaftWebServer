@@ -57,8 +57,10 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
 
 RaftWebResponderWS::~RaftWebResponderWS()
 {
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)    
     if (_pWebHandler)
         _pWebHandler->responderDelete(this);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +207,7 @@ bool RaftWebResponderWS::sendFrame(const uint8_t* pBuf, uint32_t bufLen)
         return false;
     }
     // Add to queue - don't block if full
-    RaftWebDataFrame frame(pBuf, bufLen);
+    RaftWebDataFrame frame(_channelID, pBuf, bufLen, millis());
     bool putRslt = _txQueue.put(frame, MAX_WAIT_FOR_TX_QUEUE_MS);
     if (!putRslt)
     {

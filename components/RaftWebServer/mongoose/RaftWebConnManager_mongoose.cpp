@@ -100,7 +100,7 @@ void RaftWebConnManager_mongoose::service()
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     // Service mongoose
     if (_isSetup)
-        mg_mgr_poll(&_mongooseMgr, 1000);  
+        mg_mgr_poll(&_mongooseMgr, 0);  
 #endif
 }
 
@@ -120,49 +120,28 @@ bool RaftWebConnManager_mongoose::addHandler(RaftWebHandler *pHandler)
     // Give handler the standard headers
     pHandler->setStandardHeaders(_stdResponseHeaders);
 
-//     // Check if we can add this handler
-//     if (pHandler->isFileHandler() && !_webServerSettings._enableFileServer)
-//     {
-// #ifdef DEBUG_WEB_SERVER_HANDLERS
-//         LOG_I(MODULE_PREFIX, "addHandler NOT ADDING %s as file server disabled", pHandler->getName());
-// #endif
-//         return false;
-//     }
-//     else if (pHandler->isWebSocketHandler() && (!_webServerSettings._enableWebSockets))
-//     {
-//         // TODO implement websockets
-// #ifdef DEBUG_WEB_SERVER_HANDLERS
-//         LOG_I(MODULE_PREFIX, "addHandler NOT ADDING %s as no websocket configs", pHandler->getName());
-// #endif
-//         return false;
-//     }
-
 #ifdef DEBUG_WEB_SERVER_HANDLERS
     LOG_I(MODULE_PREFIX, "addHandler %s", pHandler->getName());
 #endif
     _webHandlers.push_back(pHandler);
-
-//     // TODO - generalise this
-//     // Register handler with esp idf
-//     String matchPath = pHandler->getBaseURL();
-//     if (!matchPath.endsWith("/"))
-//         matchPath += "/";
-//     matchPath += "*";
-//     httpd_uri_t uri_root = {
-//         .uri = matchPath.c_str(),
-//         .method = HTTP_GET,
-//         .handler = staticESPIDFRequestHandler,
-//         .user_ctx = pHandler};
-//     if (httpd_register_uri_handler(_serverHandle, &uri_root) == ESP_OK)
-//     {
-//         LOG_I(MODULE_PREFIX, "httpd_register_uri_handler OK");
-//     }
-//     else
-//     {
-//         LOG_E(MODULE_PREFIX, "httpd_register_uri_handler failed");
-//     }
-
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Send a message on a channel
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebConnManager_mongoose::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
+{
+    // See if a suitable handler exists
+    for (RaftWebHandler *pHandler : _webHandlers)
+    {
+        if (!pHandler->isWebSocketHandler())
+            continue;
+        if (pHandler->sendMsg(pBuf, bufLen, channelID))
+            return true;
+    }
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -210,15 +189,15 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, 
 
 #ifdef DEBUG_WEB_SERVER_MONGOOSE
 
-    // Debug Mongoose message
-    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+    if (ev == MG_EV_HTTP_MSG)
+    {
+        // Debug Mongoose message
+        struct mg_http_message *hm = (struct mg_http_message *) ev_data;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-    struct mg_http_message tmp = {0};
+        struct mg_http_message tmp = {0};
 #pragma GCC diagnostic pop
-    if (ev == MG_EV_HTTP_MSG)
-    {
         mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
         struct mg_str* cl = mg_http_get_header(&tmp, "Content-Length");
         struct mg_str unknown = mg_str_n("?", 1);
@@ -227,25 +206,9 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, 
                 (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
                 (int) cl->len, cl->ptr);
     }
-    else
+    else if (ev != MG_EV_POLL)
     {
         LOG_I(MODULE_PREFIX, "%p %s", c, mongooseEventToString(ev));
-        // if (hm)
-        // {
-        //     LOG_I(MODULE_PREFIX, "handleRequest ev %d hm %p", ev, hm);
-        //     // if ((hm->method.len > 0) && (hm->method.ptr != nullptr))
-        //     // {
-        //     //     LOG_I(MODULE_PREFIX, "handleRequest method %.*s", (int) hm->method.len, hm->method.ptr);
-        //     // }
-        //     // if ((hm->uri.len > 0) && (hm->uri.ptr != nullptr))
-        //     // {
-        //     //     LOG_I(MODULE_PREFIX, "handleRequest uri %.*s", (int) hm->uri.len, hm->uri.ptr);
-        //     // }
-        // }
-        // else
-        // {
-        //     LOG_I(MODULE_PREFIX, "handleRequest no send buffer & ev_data NULL, ev %d", ev);
-        // }
     }
 #endif
 
