@@ -16,7 +16,6 @@ idf_component_register(
     "RaftWebHandlerRestAPI.cpp"
     "RaftWebHandlerStaticFiles.cpp"
     "RaftWebHandlerWS.cpp"
-    "espidf/RaftWebConnManager_espidf.cpp"
     "mongoose/RaftWebConnManager_mongoose.cpp"
     "original/RaftClientConnNetconn.cpp"
     "original/RaftClientConnSockets.cpp"
@@ -31,7 +30,6 @@ idf_component_register(
     "original/RaftWebSocketLink.cpp"
   INCLUDE_DIRS
     "."
-    "espidf"
     "mongoose"
     "original"
   REQUIRES

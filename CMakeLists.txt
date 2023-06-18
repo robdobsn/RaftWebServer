@@ -6,7 +6,6 @@ idf_component_register(
     "components/RaftWebServer/RaftWebHandlerRestAPI.cpp"
     "components/RaftWebServer/RaftWebHandlerStaticFiles.cpp"
     "components/RaftWebServer/RaftWebHandlerWS.cpp"
-    "components/RaftWebServer/espidf/RaftWebConnManager_espidf.cpp"
     "components/RaftWebServer/mongoose/RaftWebConnManager_mongoose.cpp"
     "components/RaftWebServer/original/RaftClientConnNetconn.cpp"
     "components/RaftWebServer/original/RaftClientConnSockets.cpp"
@@ -21,7 +20,6 @@ idf_component_register(
     "components/RaftWebServer/original/RaftWebSocketLink.cpp"    
   INCLUDE_DIRS
     "components/RaftWebServer/."
-    "components/RaftWebServer/espidf"
     "components/RaftWebServer/mongoose"
     "components/RaftWebServer/original"
   REQUIRES

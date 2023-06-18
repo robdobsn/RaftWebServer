@@ -13,7 +13,7 @@
 // #define DEBUG_WEB_HANDLER_WS
 // #define DEBUG_WS_SEND_APP_DATA
 // #define DEBUG_WS_RECV_APP_DATA
-#define DEBUG_WS_OPEN_CLOSE
+// #define DEBUG_WS_OPEN_CLOSE
 
 static const char* MODULE_PREFIX = "RaftWebHandlerWS";
 

@@ -13,11 +13,13 @@
 #include <string.h>
 #include <RaftUtils.h>
 
-const static char* MODULE_PREFIX = "WebConnMgrMongoose";
-
 // Debug
 // #define DEBUG_WEB_SERVER_MONGOOSE
 // #define DEBUG_WEB_SERVER_HANDLERS
+
+#if defined(DEBUG_WEB_SERVER_MONGOOSE) || defined(DEBUG_WEB_SERVER_HANDLERS)
+const static char* MODULE_PREFIX = "WebConnMgrMongoose";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -134,10 +136,8 @@ bool RaftWebConnManager_mongoose::canSend(uint32_t& channelID, bool& noConn)
         if (pHandler->canSend(channelID, noConn))
             return true;
     }
-
-    return false;
-
 #endif
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

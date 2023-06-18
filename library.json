@@ -32,7 +32,6 @@
     "flags": [
       "-Icomponents/RaftWebServer",
       "-Icomponents/RaftWebServer/original",
-      "-Icomponents/RaftWebServer/espidf"
     ]
   }
 }

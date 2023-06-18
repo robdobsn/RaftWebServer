@@ -12,18 +12,14 @@
 #include "RaftWebHandler.h"
 #include <RdJson.h>
 
-#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#undef FEATURE_WEB_SERVER_USE_ESP_IDF
 #undef FEATURE_WEB_SERVER_USE_MONGOOSE
-#undef FEATURE_WEB_SERVER_USE_ORIGINAL
-#include <RaftWebConnManager_espidf.h>
+#include <RaftWebConnManager_original.h>
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #undef FEATURE_WEB_SERVER_USE_ESP_IDF
 #undef FEATURE_WEB_SERVER_USE_ORIGINAL
 #include <RaftWebConnManager_mongoose.h>
-#elif defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
-#undef FEATURE_WEB_SERVER_USE_ESP_IDF
-#undef FEATURE_WEB_SERVER_USE_MONGOOSE
-#include <RaftWebConnManager_original.h>
 #else
 #error "No web server implementation selected"
 #endif
@@ -67,9 +63,6 @@ private:
 #if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     // Connection manager
     RaftWebConnManager_original _connManager;
-#elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-    // Connection manager
-    RaftWebConnManager_espidf _connManager;
 #else
     // Connection manager
     RaftWebConnManager_mongoose _connManager;
