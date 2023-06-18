@@ -35,8 +35,7 @@ public:
 #elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
     virtual esp_err_t handleRequest(httpd_req_t *req) override final;
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool canHandle(struct mg_connection *c, int ev, void *ev_data) override final;
-    virtual void handle(struct mg_connection *c, int ev, void *ev_data) override final;
+    virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data) override final;
 #endif
     virtual bool isFileHandler() const override final
     {

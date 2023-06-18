@@ -12,13 +12,15 @@
 #include "RaftWebResponderFile.h"
 #include <Logger.h>
 #include <FileSystem.h>
-
-// TODO
+#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
 #include <esp_http_server.h>
+#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#include <mongoose.h>
+#endif
 
 // #define DEBUG_STATIC_FILE_HANDLER
 
-#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
+#if defined(DEBUG_STATIC_FILE_HANDLER)
 static const char* MODULE_PREFIX = "RaftWebHStatFile";
 #endif
 
@@ -73,6 +75,73 @@ const char* RaftWebHandlerStaticFiles::getName() const
 {
     return "HandlerStaticFiles";
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get a responder if we can handle this request (ORIGINAL)
+// NOTE: this returns a new object or NULL
+// NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+
+RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebRequestHeader& requestHeader, 
+            const RaftWebRequestParams& params,
+            RaftHttpStatusCode &statusCode)
+{
+    // Debug
+#ifdef DEBUG_STATIC_FILE_HANDLER
+    uint64_t getResponderStartUs = micros();
+    LOG_I(MODULE_PREFIX, "getNewResponder reqURL %s baseURI %s", requestHeader.URL.c_str(), _baseURI.c_str());    
+#endif
+
+    // Must be a GET
+    if (requestHeader.extract.method != WEB_METHOD_GET)
+        return NULL;
+
+    // Check the URL is valid
+    if (!requestHeader.URL.startsWith(_baseURI))
+        return NULL;
+
+    // Check that the connection type is HTTP
+    if (requestHeader.reqConnType != REQ_CONN_TYPE_HTTP)
+        return NULL;
+
+    // Check if the path is just root
+    String filePath = getFilePath(requestHeader.URL);
+
+    // Create responder
+    RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, 
+            requestHeader, _webServerSettings._sendBufferMaxLen);
+
+    // Check valid
+    if (!pResponder)
+        return nullptr;
+
+    // Check active (otherwise file didn't exist, etc)
+    if (!pResponder->isActive())
+    {
+        delete pResponder;
+#ifdef DEBUG_STATIC_FILE_HANDLER
+    uint64_t getResponderEndUs = micros();
+    LOG_I(MODULE_PREFIX, "canHandle failed new responder (file not found?) uri %s took %lld", 
+                requestHeader.URL.c_str(), getResponderEndUs-getResponderStartUs);
+#endif
+        return nullptr;
+    }
+
+    // Debug
+#ifdef DEBUG_STATIC_FILE_HANDLER
+    uint64_t getResponderEndUs = micros();
+    LOG_I(MODULE_PREFIX, "canHandle constructed new responder %lx uri %s took %lld", 
+                (unsigned long)pResponder, requestHeader.URL.c_str(), getResponderEndUs-getResponderStartUs);
+#endif
+
+    // Return new responder - caller must clean up by deleting object when no longer needed
+    statusCode = HTTP_STATUS_OK;
+    return pResponder;
+}
+
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle request (ESP IDF)
@@ -146,85 +215,12 @@ esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a responder if we can handle this request (ORIGINAL)
-// NOTE: this returns a new object or NULL
-// NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
-
-RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebRequestHeader& requestHeader, 
-            const RaftWebRequestParams& params,
-            RaftHttpStatusCode &statusCode)
-{
-    // Debug
-#ifdef DEBUG_STATIC_FILE_HANDLER
-    uint64_t getResponderStartUs = micros();
-    LOG_I(MODULE_PREFIX, "getNewResponder reqURL %s baseURI %s", requestHeader.URL.c_str(), _baseURI.c_str());    
-#endif
-
-    // Must be a GET
-    if (requestHeader.extract.method != WEB_METHOD_GET)
-        return NULL;
-
-    // Check the URL is valid
-    if (!requestHeader.URL.startsWith(_baseURI))
-        return NULL;
-
-    // Check that the connection type is HTTP
-    if (requestHeader.reqConnType != REQ_CONN_TYPE_HTTP)
-        return NULL;
-
-    // Check if the path is just root
-    String filePath = getFilePath(requestHeader.URL);
-
-    // Create responder
-    RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, 
-            requestHeader, _webServerSettings._sendBufferMaxLen);
-
-    // Check valid
-    if (!pResponder)
-        return nullptr;
-
-    // Check active (otherwise file didn't exist, etc)
-    if (!pResponder->isActive())
-    {
-        delete pResponder;
-#ifdef DEBUG_STATIC_FILE_HANDLER
-    uint64_t getResponderEndUs = micros();
-    LOG_I(MODULE_PREFIX, "canHandle failed new responder (file not found?) uri %s took %lld", 
-                requestHeader.URL.c_str(), getResponderEndUs-getResponderStartUs);
-#endif
-        return nullptr;
-    }
-
-    // Debug
-#ifdef DEBUG_STATIC_FILE_HANDLER
-    uint64_t getResponderEndUs = micros();
-    LOG_I(MODULE_PREFIX, "canHandle constructed new responder %lx uri %s took %lld", 
-                (unsigned long)pResponder, requestHeader.URL.c_str(), getResponderEndUs-getResponderStartUs);
-#endif
-
-    // Return new responder - caller must clean up by deleting object when no longer needed
-    statusCode = HTTP_STATUS_OK;
-    return pResponder;
-}
-
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Mongoose handlers
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
-bool RaftWebHandlerStaticFiles::canHandle(struct mg_connection *c, int ev, void *ev_data)
-{
-    // TODO
-    return true;
-}
-
-void RaftWebHandlerStaticFiles::handle(struct mg_connection *c, int ev, void *ev_data)
+bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, void *ev_data)
 {
     // TODO
     if (ev == MG_EV_HTTP_MSG) 
@@ -251,6 +247,7 @@ void RaftWebHandlerStaticFiles::handle(struct mg_connection *c, int ev, void *ev
                 (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
                 (int) cl->len, cl->ptr));
     }
+    return true;
 }
 
 #endif

@@ -96,6 +96,9 @@ private:
 
     // Non-static connection handler
     void eventHandler(struct mg_connection *c, int ev, void *ev_data);
+
+    // Convert mongoose event to string
+    static const char* mongooseEventToString(int ev);
 #endif
 
 };

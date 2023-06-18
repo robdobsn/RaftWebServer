@@ -207,14 +207,65 @@ void RaftWebConnManager_mongoose::staticEventHandler(struct mg_connection *c, in
 
 void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, void *ev_data)
 {
-    // Iterate through all handlers to see if one can handle this request
+
+#ifdef DEBUG_WEB_SERVER_MONGOOSE
+
+    // Debug Mongoose message
+    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    struct mg_http_message tmp = {0};
+#pragma GCC diagnostic pop
+    if (ev == MG_EV_HTTP_MSG)
+    {
+        mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
+        struct mg_str* cl = mg_http_get_header(&tmp, "Content-Length");
+        struct mg_str unknown = mg_str_n("?", 1);
+        if (cl == NULL) cl = &unknown;
+        LOG_I(MODULE_PREFIX, "%p HTTP_MSG %.*s %.*s %.*s C-L %.*s", c, (int) hm->method.len, hm->method.ptr,
+                (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
+                (int) cl->len, cl->ptr);
+    }
+    else
+    {
+        LOG_I(MODULE_PREFIX, "%p %s", c, mongooseEventToString(ev));
+        // if (hm)
+        // {
+        //     LOG_I(MODULE_PREFIX, "handleRequest ev %d hm %p", ev, hm);
+        //     // if ((hm->method.len > 0) && (hm->method.ptr != nullptr))
+        //     // {
+        //     //     LOG_I(MODULE_PREFIX, "handleRequest method %.*s", (int) hm->method.len, hm->method.ptr);
+        //     // }
+        //     // if ((hm->uri.len > 0) && (hm->uri.ptr != nullptr))
+        //     // {
+        //     //     LOG_I(MODULE_PREFIX, "handleRequest uri %.*s", (int) hm->uri.len, hm->uri.ptr);
+        //     // }
+        // }
+        // else
+        // {
+        //     LOG_I(MODULE_PREFIX, "handleRequest no send buffer & ev_data NULL, ev %d", ev);
+        // }
+    }
+#endif
+
+    // Iterate through all handlers that are not file handlers to see if one can handle this request
+    // This is to ensure that other handlers get the first chance to handle the request
     for (RaftWebHandler *pHandler : _webHandlers)
     {
-        if (pHandler->canHandle(c, ev, ev_data))
-        {
-            pHandler->handle(c, ev, ev_data);
+        if (pHandler->isFileHandler())
+            continue;
+        if (pHandler->handleRequest(c, ev, ev_data))
             return;
-        }
+    }
+
+    // Now iterate through file handlers
+    for (RaftWebHandler *pHandler : _webHandlers)
+    {
+        if (!pHandler->isFileHandler())
+            continue;
+        if (pHandler->handleRequest(c, ev, ev_data))
+            return;
     }
 
     // No handler found
@@ -258,4 +309,36 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, 
     // // Handle request
     // return pHandler->handleRequest(req);
 }
+
+
+    const char* RaftWebConnManager_mongoose::mongooseEventToString(int ev)
+    {
+#ifdef DEBUG_WEB_SERVER_MONGOOSE
+        switch (ev)
+        {
+        case MG_EV_ERROR: return "MG_EV_ERROR";
+        case MG_EV_OPEN:  return "MG_EV_OPEN";
+        case MG_EV_POLL:  return "MG_EV_POLL";
+        case MG_EV_RESOLVE: return "MG_EV_RESOLVE";
+        case MG_EV_CONNECT: return "MG_EV_CONNECT";
+        case MG_EV_ACCEPT: return "MG_EV_ACCEPT";
+        case MG_EV_TLS_HS: return "MG_EV_TLS_HS";
+        case MG_EV_READ: return "MG_EV_READ";
+        case MG_EV_WRITE: return "MG_EV_WRITE";
+        case MG_EV_CLOSE: return "MG_EV_CLOSE";
+        case MG_EV_HTTP_MSG: return "MG_EV_HTTP_MSG";
+        case MG_EV_HTTP_CHUNK: return "MG_EV_HTTP_CHUNK";
+        case MG_EV_WS_OPEN: return "MG_EV_WS_OPEN";
+        case MG_EV_WS_MSG: return "MG_EV_WS_MSG";
+        case MG_EV_WS_CTL: return "MG_EV_WS_CTL";
+        case MG_EV_MQTT_CMD: return "MG_EV_MQTT_CMD";
+        case MG_EV_MQTT_MSG: return "MG_EV_MQTT_MSG";
+        case MG_EV_MQTT_OPEN: return "MG_EV_MQTT_OPEN";
+        case MG_EV_SNTP_TIME: return "MG_EV_SNTP_TIME";
+        case MG_EV_USER: return "MG_EV_USER";
+        default: return "UNKNOWN";
+#endif
+        return "";
+        }
+    }
 #endif

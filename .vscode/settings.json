@@ -1,6 +1,8 @@
 {
     "cmake.configureOnOpen": false,
     "files.associations": {
-        "ostream": "cpp"
-    }
+        "ostream": "cpp",
+        "functional": "cpp"
+    },
+    "C_Cpp.dimInactiveRegions": false
 }

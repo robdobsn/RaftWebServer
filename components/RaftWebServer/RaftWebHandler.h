@@ -50,12 +50,9 @@ public:
         return ESP_OK;
     }
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool canHandle(struct mg_connection *c, int ev, void *ev_data)
+    virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data)
     {
         return false;
-    }
-    virtual void handle(struct mg_connection *c, int ev, void *ev_data)
-    {
     }
 #endif
     virtual String getBaseURL() const

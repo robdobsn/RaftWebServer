@@ -24,7 +24,7 @@ driver = webdriver.Chrome()
 # print("Elapsed time: {:.2f} seconds".format(elapsed_time))
 
 # Set up the loop variables
-num_tests = 10
+num_tests = 100
 times = []
 successes = []
 
@@ -33,30 +33,30 @@ for i in range(num_tests):
     # Navigate to the website and start the timer
     start_time = time.time()
     print(f"Test start time {i}: {start_time:.2f}", end=" ")
-    # driver.get("http://192.168.86.75/test_page_2_files.html")
+    driver.get("http://192.168.86.75/test_page_2_files.html")
     # driver.get("localhost:8000/mongoose.c")
-    driver.get("http://192.168.86.75/")
+    # driver.get("http://192.168.86.75/")
 
     # Wait for the page to load
-    driver.implicitly_wait(10)
-    success = True
+    # driver.implicitly_wait(10)
+    # success = True
 
-    # # Wait for the websocket to connect and the content-status field to be "WebSocket is connected!"
-    # success = False
-    # try:
-    #     print(f"Waiting for websocket to connect", end=" ")
-    #     elem = WebDriverWait(driver, 5).until(EC.text_to_be_present_in_element((By.ID, "webSocketState"), "WebSocket is connected!"))
-    #     if elem:
-    #         # print(f"elem: {elem}")
-    #         print(f"Websocket connected", end=" ")
-    #         success = True
-    #     else:
-    #         print(f"elem is None", end=" ")
-    # except Exception as e:
-    #     print(f"Exception: {e}")
+    # Wait for the websocket to connect and the content-status field to be "WebSocket is connected!"
+    success = False
+    try:
+        print(f"Waiting for websocket to connect", end=" ")
+        elem = WebDriverWait(driver, 5).until(EC.text_to_be_present_in_element((By.ID, "webSocketState"), "WebSocket is connected!"))
+        if elem:
+            # print(f"elem: {elem}")
+            print(f"Websocket connected", end=" ")
+            success = True
+        else:
+            print(f"elem is None", end=" ")
+    except Exception as e:
+        print(f"Exception: {e}")
 
-    # # Check if the page loaded successfully
-    # success = "WebSocket is connected!" in driver.page_source
+    # Check if the page loaded successfully
+    success = "WebSocket is connected!" in driver.page_source
 
     # Stop the timer and calculate the elapsed time
     end_time = time.time()
@@ -79,12 +79,12 @@ print(f"Success rate: {success_rate * 100:.2f}%")
 print(f"Average time: {average_time:.2f} seconds")
 print(f"Standard deviation: {std_dev:.2f} seconds")
 
-# # Plot the results
-# plt.plot(times)
-# plt.title("Website Load Times")
-# plt.xlabel("Test Number")
-# plt.ylabel("Load Time (s)")
-# plt.show()
+# Plot the results
+plt.plot(times)
+plt.title("Website Load Times")
+plt.xlabel("Test Number")
+plt.ylabel("Load Time (s)")
+plt.show()
 
 # Close the browser
 driver.quit()

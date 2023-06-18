@@ -36,10 +36,49 @@ static const char* MODULE_PREFIX = "MainTask";
 #include <FileSystem.h>
 #include <RaftWebServer.h>
 #include <RaftWebHandlerStaticFiles.h>
+#include <RaftWebHandlerRestAPI.h>
+#include <RestAPIEndpointManager.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Entry Point
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RestAPIEndpointManager restAPIEndpointManager;
+
+// Mapping from web-server method to RESTAPI method enums
+RestAPIEndpoint::EndpointMethod convWebToRESTAPIMethod(RaftWebServerMethod method)
+{
+    switch(method)
+    {
+        case WEB_METHOD_POST: return RestAPIEndpoint::ENDPOINT_POST;
+        case WEB_METHOD_PUT: return RestAPIEndpoint::ENDPOINT_PUT;
+        case WEB_METHOD_DELETE: return RestAPIEndpoint::ENDPOINT_DELETE;
+        case WEB_METHOD_OPTIONS: return RestAPIEndpoint::ENDPOINT_OPTIONS;
+        default: return RestAPIEndpoint::ENDPOINT_GET;
+    }
+}
+
+bool matchEndpoint(const char* url, RaftWebServerMethod method,
+                    RaftWebServerRestEndpoint& endpoint)
+{
+    // Rest API match
+    RestAPIEndpoint::EndpointMethod restAPIMethod = convWebToRESTAPIMethod(method);
+    RestAPIEndpoint* pEndpointDef = restAPIEndpointManager.getMatchingEndpoint(url, restAPIMethod, false);
+    if (pEndpointDef)
+    {
+        endpoint.restApiFn = pEndpointDef->_callbackMain;
+        endpoint.restApiFnBody = pEndpointDef->_callbackBody;
+        endpoint.restApiFnChunk = pEndpointDef->_callbackChunk;
+        endpoint.restApiFnIsReady = pEndpointDef->_callbackIsReady;
+        return true;
+    }
+    return false;
+}
+
+void testEndpointCallback(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+{
+    respStr = "Hello from testEndpointCallback";
+}
 
 extern "C" void app_main(void)
 {
@@ -95,15 +134,27 @@ extern "C" void app_main(void)
     ESP_LOGI(MODULE_PREFIX, "%s %s (built " __DATE__ " " __TIME__ ") Heap %d", 
                         SYSTEM_NAME, SYSTEM_VERSION, heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
+    // Add a REST API endpoint
+    restAPIEndpointManager.addEndpoint("test", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
+                        testEndpointCallback,
+                        "test");
+
     // Web server static files
     String baseUrl = "/";
     String baseFolder = ("/" + fileSystem.getDefaultFSRoot());
-    RaftWebHandlerStaticFiles* pHandler = new RaftWebHandlerStaticFiles(baseUrl.c_str(), baseFolder.c_str(), NULL, "index.html");
-    bool handlerAddOk = webServer.addHandler(pHandler);
+    RaftWebHandlerStaticFiles* pHandlerFiles = new RaftWebHandlerStaticFiles(baseUrl.c_str(), baseFolder.c_str(), NULL, "index.html");
+    bool handlerAddOk = webServer.addHandler(pHandlerFiles);
     LOG_I(MODULE_PREFIX, "serveStaticFiles url %s folder %s addResult %s", baseUrl.c_str(), baseFolder.c_str(), 
                 handlerAddOk ? "OK" : "FILE SERVER DISABLED");
     if (!handlerAddOk)
-        delete pHandler;
+        delete pHandlerFiles;
+
+    // Add an API handler
+    RaftWebHandlerRestAPI* pHandlerAPI = new RaftWebHandlerRestAPI("/api", &matchEndpoint);
+    handlerAddOk = webServer.addHandler(pHandlerAPI);
+    LOG_I(MODULE_PREFIX, "serveAPI url %s addResult %s", "/api", handlerAddOk ? "OK" : "API SERVER DISABLED");
+    if (!handlerAddOk)
+        delete pHandlerAPI;
 
     // Loop forever
     while (1)

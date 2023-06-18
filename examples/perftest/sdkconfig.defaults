@@ -1,6 +1,9 @@
 # Define configuration
 # Remove/repace these comments to set level to debug/info
 
+# Main task
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+
 # Serial Baud-Rate
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 
