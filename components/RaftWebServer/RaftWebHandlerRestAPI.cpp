@@ -8,9 +8,11 @@
 
 #include "RaftWebHandlerRestAPI.h"
 
-#define DEBUG_WEB_HANDLER_REST_API
+// #define DEBUG_WEB_HANDLER_REST_API
 
+#if defined(DEBUG_WEB_HANDLER_REST_API)
 static const char* MODULE_PREFIX = "RaftWebHandlerRestAPI";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle request (Original)
@@ -101,7 +103,6 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
         if (reqStr.startsWith(_restAPIPrefix))
         {
             // Remove prefix on test string
-            LOG_I(MODULE_PREFIX, "handleRequest reqStr %s prefix %s", reqStr.c_str(), _restAPIPrefix.c_str());
             String endpointName = reqStr.substring(_restAPIPrefix.length());
             if (_matchEndpointCB(endpointName.c_str(), convMongooseMethodToRaftMethod(methodStr), endpoint))
             {
@@ -125,7 +126,9 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
             endpoint.restApiFn(reqStr, respStr, _webServerSettings._restAPIChannelID);
 
             // Debug
+#ifdef DEBUG_WEB_HANDLER_REST_API
             LOG_I(MODULE_PREFIX, "handleRequest respStr %s", respStr.c_str());
+#endif
         }
 
         // Send start of response
@@ -143,45 +146,6 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
         // Send response
         mg_http_write_chunk(c, respStr.c_str(), respStr.length());
         mg_http_printf_chunk(c, "");
-
-        // mg_http_reply(c, 200, "", "{\"result\": \"%.*s\"}\n", (int) hm->uri.len, hm->uri.ptr);
-        // return _respStr.length();
-
-    //     LOG_I(MODULE_PREFIX, "canHandle matching %s with req %.*s", _restAPIPrefix.c_str(), (int) hm->uri.len, hm->uri.ptr);
-
-    //     if (mg_http_match_uri(hm, _restAPIPrefix.c_str())) 
-    //     {
-            
-    //         // Debug
-    //         LOG_I(MODULE_PREFIX, "canHandle matched %s req %.*s", _restAPIPrefix.c_str(), (int) hm->uri.len, hm->uri.ptr);
-
-    // //         // // TODO - remove
-    // //         // // Print some statistics about currently established connections
-    // //         // mg_printf(c, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    // //         // mg_http_printf_chunk(c, "ID PROTO TYPE      LOCAL           REMOTE\n");
-    // //         // for (struct mg_connection *t = c->mgr->conns; t != NULL; t = t->next) {
-    // //         // mg_http_printf_chunk(c, "%-3lu %4s %s %M %M\n", t->id,
-    // //         //                         t->is_udp ? "UDP" : "TCP",
-    // //         //                         t->is_listening  ? "LISTENING"
-    // //         //                         : t->is_accepted ? "ACCEPTED "
-    // //         //                                         : "CONNECTED",
-    // //         //                         mg_print_ip, &t->loc, mg_print_ip, &t->rem);
-    // //         // }
-    // //         // mg_http_printf_chunk(c, "");  // Don't forget the last empty chunk
-
-    //         return true;
-    //     }
-        
-    //     struct mg_http_serve_opts opts = 
-    //     {
-    //         .root_dir = _baseFolder.c_str(),
-    //         .ssi_pattern = NULL,
-    //         .extra_headers = NULL,
-    //         .mime_types = NULL,
-    //         .page404 = NULL,
-    //         .fs = NULL,
-    //     };
-    //     mg_http_serve_dir(c, hm, &opts);
 
         // Handled ok
         return true;

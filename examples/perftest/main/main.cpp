@@ -88,7 +88,7 @@ bool wsCanAccept(uint32_t channelID)
 
 void wsHandleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
 {
-    LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);    
+    // LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);    
 }
 
 extern "C" void app_main(void)
@@ -174,7 +174,7 @@ extern "C" void app_main(void)
             "pfix": "ws",
             "pcol": "RICSerial",
             "maxConn": 4,
-            "txQueueMax": 6,
+            "txQueueMax": 20,
             "pktMaxBytes": 5000,
             "pingMs": 2000
         }
@@ -184,6 +184,8 @@ extern "C" void app_main(void)
             wsHandleInboundMessage
          );
     const uint32_t CHANNEL_ID_NUMBER_BASE = 200;
+    const uint32_t NUM_WS_CHANNELS_TO_USE = 2;
+    const uint32_t MAX_WS_CHANNELS = 4;
     handlerAddOk = webServer.addHandler(pHandlerWS);
     LOG_I(MODULE_PREFIX, "serveWS url %s addResult %s", "/ws", handlerAddOk ? "OK" : "WS SERVER DISABLED");
     if (!pHandlerWS)
@@ -193,7 +195,7 @@ extern "C" void app_main(void)
     else
     {
         // Add 4 websocket channels
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < MAX_WS_CHANNELS; i++)
         {
             pHandlerWS->setupWebSocketChannelID(i, i + CHANNEL_ID_NUMBER_BASE);
         }
@@ -216,15 +218,17 @@ extern "C" void app_main(void)
         webServer.service();
 
         // Check for sending a message on a websocket
-        if (wsSendMsgLoopCtr++ == 1000)
+        if (wsSendMsgLoopCtr++ == 200)
         {
             wsSendMsgLoopCtr = 0;
 
             // Send a message on each websocket channel
-            String msgStr = "Hello from websocket " + String(wsMsgCtr++);
-            bool rslt = webServer.sendMsg((uint8_t*)msgStr.c_str(), msgStr.length(), CHANNEL_ID_NUMBER_BASE);
-
-            LOG_I(MODULE_PREFIX, "Sent message on websocket: %s rslt %d", msgStr.c_str(), rslt);
+            for (int i = 0; i < NUM_WS_CHANNELS_TO_USE; i++)
+            {
+                // Build message (with channel ID as first byte)
+                String msgStr = "Hello from server ch " + String(i) + " count " + String(wsMsgCtr++);
+                webServer.sendMsg((uint8_t*)msgStr.c_str(), msgStr.length(), CHANNEL_ID_NUMBER_BASE + i);
+            }
         }
     }
 }

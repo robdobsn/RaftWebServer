@@ -16,8 +16,8 @@
 const static char* MODULE_PREFIX = "WebConnMgrMongoose";
 
 // Debug
-#define DEBUG_WEB_SERVER_MONGOOSE
-#define DEBUG_WEB_SERVER_HANDLERS
+// #define DEBUG_WEB_SERVER_MONGOOSE
+// #define DEBUG_WEB_SERVER_HANDLERS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -51,8 +51,10 @@ void RaftWebConnManager_mongoose::setup(RaftWebServerSettings &settings)
     // Setup listening address
     _mongooseListeningAddr = "http://0.0.0.0:" + String(settings._serverTCPPort);
 
-    // TODO
+#ifdef DEBUG_WEB_SERVER_MONGOOSE
+    // Debug
     mg_log_set(MG_LL_DEBUG);  // Set log level
+#endif
 
     // Init manager
     mg_mgr_init(&_mongooseMgr);
@@ -72,23 +74,6 @@ void RaftWebConnManager_mongoose::setup(RaftWebServerSettings &settings)
     }
 
 #endif
-
-    // 
-    // httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    // config.uri_match_fn = httpd_uri_match_wildcard;
-
-    // // TODO handle other config like server port
-
-    // // Start server
-    // _serverHandle = nullptr;
-    // if (httpd_start(&_serverHandle, &config) == ESP_OK)
-    // {
-    //     LOG_I(MODULE_PREFIX, "httpd_start OK");
-    // }
-    // else
-    // {
-    //     LOG_E(MODULE_PREFIX, "httpd_start failed");
-    // }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +110,34 @@ bool RaftWebConnManager_mongoose::addHandler(RaftWebHandler *pHandler)
 #endif
     _webHandlers.push_back(pHandler);
     return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check if channel can send a message
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebConnManager_mongoose::canSend(uint32_t& channelID, bool& noConn)
+{
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+
+    // Check setup
+    noConn = true;
+    if (!_isSetup)
+        return false;
+
+    // See if a suitable handler exists
+    for (RaftWebHandler *pHandler : _webHandlers)
+    {
+        if (!pHandler->isWebSocketHandler())
+            continue;
+        if (pHandler->canSend(channelID, noConn))
+            return true;
+    }
+
+    return false;
+
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -166,21 +179,8 @@ void RaftWebConnManager_mongoose::serverSideEventsSendMsg(const char *eventConte
 // Request handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO remove
-// char off_resp[] = "<!DOCTYPE html><html><head><style type=\"text/css\">html {  font-family: Arial;  display: inline-block;  margin: 0px auto;  text-align: center;}h1{  color: #070812;  padding: 2vh;}.button {  display: inline-block;  background-color: #b30000; //red color  border: none;  border-radius: 4px;  color: white;  padding: 16px 40px;  text-decoration: none;  font-size: 30px;  margin: 2px;  cursor: pointer;}.button2 {  background-color: #364cf4; //blue color}.content {   padding: 50px;}.card-grid {  max-width: 800px;  margin: 0 auto;  display: grid;  grid-gap: 2rem;  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));}.card {  background-color: white;  box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);}.card-title {  font-size: 1.2rem;  font-weight: bold;  color: #034078}</style>  <title>ESP32 WEB SERVER</title>  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">  <link rel=\"icon\" href=\"data:,\">  <link rel=\"stylesheet\" href=\"https://use.fontawesome.com/releases/v5.7.2/css/all.css\"    integrity=\"sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr\" crossorigin=\"anonymous\">  <link rel=\"stylesheet\" type=\"text/css\" ></head><body>  <h2>ESP32 WEB SERVER</h2>  <div class=\"content\">    <div class=\"card-grid\">      <div class=\"card\">        <p><i class=\"fas fa-lightbulb fa-2x\" style=\"color:#c81919;\"></i>     <strong>GPIO2</strong></p>        <p>GPIO state: <strong> ON</strong></p>        <p>          <a href=\"/led2on\"><button class=\"button\">ON</button></a>          <a href=\"/led2off\"><button class=\"button button2\">OFF</button></a>        </p>      </div>    </div>  </div><div id=\"webSocketState\">WebSocket is connected!</div></body></html>";
-
-// esp_err_t send_web_page(httpd_req_t *req)
-// {
-//     int response = httpd_resp_send(req, off_resp, HTTPD_RESP_USE_STRLEN);
-//     return response;
-// }
-
-// esp_err_t get_req_handler(httpd_req_t *req)
-// {
-//     return send_web_page(req);
-// }
-
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+
 void RaftWebConnManager_mongoose::staticEventHandler(struct mg_connection *c, int ev, void *ev_data, void *fn_data)
 {
     // Use non-static function
@@ -261,56 +261,38 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, 
 //              (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
 //              (int) cl->len, cl->ptr));
 //   }
-
-    // TODO remove
-    // TEST CODE TO SEND A SINGLE PAGE
-    // return get_req_handler(req);
-
-    // // Check valid
-    // if (!req->user_ctx)
-    //     return ESP_FAIL;
-
-    // // Debug
-    // LOG_I(MODULE_PREFIX, "staticEventHandler %s", req->uri);
-
-    // // TODO handle adding response headers + content type CORS etc
-
-    // // Get handler from user context
-    // RaftWebHandler *pHandler = (RaftWebHandler *)req->user_ctx;
-
-    // // Handle request
-    // return pHandler->handleRequest(req);
 }
 
 
-    const char* RaftWebConnManager_mongoose::mongooseEventToString(int ev)
-    {
+const char* RaftWebConnManager_mongoose::mongooseEventToString(int ev)
+{
 #ifdef DEBUG_WEB_SERVER_MONGOOSE
-        switch (ev)
-        {
-        case MG_EV_ERROR: return "MG_EV_ERROR";
-        case MG_EV_OPEN:  return "MG_EV_OPEN";
-        case MG_EV_POLL:  return "MG_EV_POLL";
-        case MG_EV_RESOLVE: return "MG_EV_RESOLVE";
-        case MG_EV_CONNECT: return "MG_EV_CONNECT";
-        case MG_EV_ACCEPT: return "MG_EV_ACCEPT";
-        case MG_EV_TLS_HS: return "MG_EV_TLS_HS";
-        case MG_EV_READ: return "MG_EV_READ";
-        case MG_EV_WRITE: return "MG_EV_WRITE";
-        case MG_EV_CLOSE: return "MG_EV_CLOSE";
-        case MG_EV_HTTP_MSG: return "MG_EV_HTTP_MSG";
-        case MG_EV_HTTP_CHUNK: return "MG_EV_HTTP_CHUNK";
-        case MG_EV_WS_OPEN: return "MG_EV_WS_OPEN";
-        case MG_EV_WS_MSG: return "MG_EV_WS_MSG";
-        case MG_EV_WS_CTL: return "MG_EV_WS_CTL";
-        case MG_EV_MQTT_CMD: return "MG_EV_MQTT_CMD";
-        case MG_EV_MQTT_MSG: return "MG_EV_MQTT_MSG";
-        case MG_EV_MQTT_OPEN: return "MG_EV_MQTT_OPEN";
-        case MG_EV_SNTP_TIME: return "MG_EV_SNTP_TIME";
-        case MG_EV_USER: return "MG_EV_USER";
-        default: return "UNKNOWN";
-#endif
-        return "";
-        }
+    switch (ev)
+    {
+    case MG_EV_ERROR: return "MG_EV_ERROR";
+    case MG_EV_OPEN:  return "MG_EV_OPEN";
+    case MG_EV_POLL:  return "MG_EV_POLL";
+    case MG_EV_RESOLVE: return "MG_EV_RESOLVE";
+    case MG_EV_CONNECT: return "MG_EV_CONNECT";
+    case MG_EV_ACCEPT: return "MG_EV_ACCEPT";
+    case MG_EV_TLS_HS: return "MG_EV_TLS_HS";
+    case MG_EV_READ: return "MG_EV_READ";
+    case MG_EV_WRITE: return "MG_EV_WRITE";
+    case MG_EV_CLOSE: return "MG_EV_CLOSE";
+    case MG_EV_HTTP_MSG: return "MG_EV_HTTP_MSG";
+    case MG_EV_HTTP_CHUNK: return "MG_EV_HTTP_CHUNK";
+    case MG_EV_WS_OPEN: return "MG_EV_WS_OPEN";
+    case MG_EV_WS_MSG: return "MG_EV_WS_MSG";
+    case MG_EV_WS_CTL: return "MG_EV_WS_CTL";
+    case MG_EV_MQTT_CMD: return "MG_EV_MQTT_CMD";
+    case MG_EV_MQTT_MSG: return "MG_EV_MQTT_MSG";
+    case MG_EV_MQTT_OPEN: return "MG_EV_MQTT_OPEN";
+    case MG_EV_SNTP_TIME: return "MG_EV_SNTP_TIME";
+    case MG_EV_USER: return "MG_EV_USER";
+    default: return "UNKNOWN";
     }
+#endif
+    return "";
+}
+
 #endif

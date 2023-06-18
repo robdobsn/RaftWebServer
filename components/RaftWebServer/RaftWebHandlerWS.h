@@ -34,9 +34,6 @@ public:
         // Store config
         _wsConfig = config;
 
-        // TODO
-        LOG_I("RaftWebHandlerWS", "config %s", config.getConfigString().c_str());
-
         // Setup channelIDs mapping
         uint32_t maxConn = _wsConfig.getLong("maxConn", 1);
         _channelIDUsage.clear();
@@ -76,6 +73,8 @@ public:
 
     // Handle request
     virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data) override final;
+    // Check is a message can be sent
+    virtual bool canSend(uint32_t& channelID, bool& noConn) override final;
     // Send message (on a channel)
     virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID) override final;
 

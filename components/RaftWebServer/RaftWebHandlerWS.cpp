@@ -9,14 +9,19 @@
 #include "RaftWebHandlerWS.h"
 #include <RaftUtils.h>
 
-#define WARN_WS_SEND_APP_DATA_FAIL
-
-#define DEBUG_WEB_HANDLER_WS
-#define DEBUG_WS_SEND_APP_DATA
+// #define DEBUG_WS_SEND_APP_DATA_FAIL
+// #define DEBUG_WEB_HANDLER_WS
+// #define DEBUG_WS_SEND_APP_DATA
+// #define DEBUG_WS_RECV_APP_DATA
+#define DEBUG_WS_OPEN_CLOSE
 
 static const char* MODULE_PREFIX = "RaftWebHandlerWS";
 
 #if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// getNewResponder
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& requestHeader, 
             const RaftWebRequestParams& params, 
@@ -89,6 +94,10 @@ RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& 
     return pResponder;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// responderDelete
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void RaftWebHandlerWS::responderDelete(RaftWebResponderWS* pResponder)
 {
     // Get the channelID
@@ -116,6 +125,10 @@ void RaftWebHandlerWS::responderDelete(RaftWebResponderWS* pResponder)
 }
 
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// handleRequest
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_data)
 {
@@ -160,74 +173,10 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
         _channelIDUsage[wsConnIdxAvailable].isUsed = true;
 
         // Debug
+#ifdef DEBUG_WS_OPEN_CLOSE        
         LOG_I(MODULE_PREFIX, "handleRequest WS conn upgraded ok reqStr %s connIdxAvail %d channelID %d", 
                         reqStr.c_str(), wsConnIdxAvailable, _channelIDUsage[wsConnIdxAvailable].channelID);
-
-        // // Check endpoint callback
-        // String respStr;
-        // if (endpoint.restApiFn)
-        // {
-        //     // Call endpoint
-        //     endpoint.restApiFn(reqStr, respStr, _webServerSettings._restAPIChannelID);
-
-        //     // Debug
-        //     LOG_I(MODULE_PREFIX, "handleRequest respStr %s", respStr.c_str());
-        // }
-
-        // // Send start of response
-        // mg_printf(c, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n");
-
-        // // Add standard headers
-        // for (auto& header : _standardHeaders)
-        // {
-        //     mg_printf(c, "%s: %s\r\n", header.name.c_str(), header.value.c_str());
-        // }
-
-        // // End of header
-        // mg_printf(c, "\r\n");
-
-        // // Send response
-        // mg_http_write_chunk(c, respStr.c_str(), respStr.length());
-        // mg_http_printf_chunk(c, "");
-        
-        // mg_http_reply(c, 200, "", "{\"result\": \"%.*s\"}\n", (int) hm->uri.len, hm->uri.ptr);
-        // return _respStr.length();
-
-    //     LOG_I(MODULE_PREFIX, "canHandle matching %s with req %.*s", _restAPIPrefix.c_str(), (int) hm->uri.len, hm->uri.ptr);
-
-    //     if (mg_http_match_uri(hm, _restAPIPrefix.c_str())) 
-    //     {
-            
-    //         // Debug
-    //         LOG_I(MODULE_PREFIX, "canHandle matched %s req %.*s", _restAPIPrefix.c_str(), (int) hm->uri.len, hm->uri.ptr);
-
-    // //         // // TODO - remove
-    // //         // // Print some statistics about currently established connections
-    // //         // mg_printf(c, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    // //         // mg_http_printf_chunk(c, "ID PROTO TYPE      LOCAL           REMOTE\n");
-    // //         // for (struct mg_connection *t = c->mgr->conns; t != NULL; t = t->next) {
-    // //         // mg_http_printf_chunk(c, "%-3lu %4s %s %M %M\n", t->id,
-    // //         //                         t->is_udp ? "UDP" : "TCP",
-    // //         //                         t->is_listening  ? "LISTENING"
-    // //         //                         : t->is_accepted ? "ACCEPTED "
-    // //         //                                         : "CONNECTED",
-    // //         //                         mg_print_ip, &t->loc, mg_print_ip, &t->rem);
-    // //         // }
-    // //         // mg_http_printf_chunk(c, "");  // Don't forget the last empty chunk
-
-    //         return true;
-    //     }
-        
-    //     struct mg_http_serve_opts opts = 
-    //     {
-    //         .root_dir = _baseFolder.c_str(),
-    //         .ssi_pattern = NULL,
-    //         .extra_headers = NULL,
-    //         .mime_types = NULL,
-    //         .page404 = NULL,
-    //         .fs = NULL,
-    //     };
-    //     mg_http_serve_dir(c, hm, &opts);
+#endif
 
         // Handled ok
         return true;
@@ -243,14 +192,40 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
         const uint8_t* pData = (uint8_t*)c->data;
         uint32_t channelID = Raft::getBEUint32AndInc(pData);
 
+#ifdef DEBUG_WEB_HANDLER_WS
         // Debug
         LOG_I(MODULE_PREFIX, "handleRequest WS channelID %d len %d", channelID, wm->data.len);
+#endif
 
         // Check message callback
         if (_rxMsgCB)
         {
             // Call callback with the message
             _rxMsgCB(channelID, (const uint8_t*)wm->data.ptr, wm->data.len);
+        }
+        return true;
+    }
+
+    // Check for WS close
+    if (ev == MG_EV_CLOSE)
+    {
+        // Get the channel ID from the connection data field
+        const uint8_t* pData = (uint8_t*)c->data;
+        uint32_t channelID = Raft::getBEUint32AndInc(pData);
+
+        // Debug
+#ifdef DEBUG_WS_OPEN_CLOSE
+        LOG_I(MODULE_PREFIX, "handleRequest WS channelID %d closed", channelID);
+#endif
+
+        // Clear the channel ID usage
+        for (auto &channelIDUsage : _channelIDUsage)
+        {
+            if (channelIDUsage.isUsed && (channelIDUsage.channelID == channelID))
+            {
+                channelIDUsage.isUsed = false;
+                break;
+            }
         }
         return true;
     }
@@ -288,7 +263,7 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
                 {
                     // Timeout - remove from queue
                     _txQueue.get(frame);
-#ifdef WARN_WS_SEND_APP_DATA_FAIL                    
+#ifdef DEBUG_WS_SEND_APP_DATA_FAIL                    
                     LOG_W(MODULE_PREFIX, "sendMsg timeout channelID %d len %d", channelID, frame.getLen());
 #endif
                 }
@@ -299,6 +274,37 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
     return false;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// canSend
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebHandlerWS::canSend(uint32_t& channelID, bool& noConn)
+{
+    // Check channel is connected
+    bool channelFound = false;
+    for (auto &channelIDUsage : _channelIDUsage)
+    {
+        if ((channelIDUsage.isUsed) && (channelIDUsage.channelID == channelID))
+        {
+            channelFound = true;
+            break;
+        }
+    }
+    if (!channelFound)
+    {
+        noConn = true;
+        return false;
+    }
+
+    // Check queue
+    noConn = false;
+    return _txQueue.canAcceptData();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// sendMsg
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
     // Add to queue - don't block if full
@@ -306,7 +312,7 @@ bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t ch
     bool putRslt = _txQueue.put(frame, MAX_WAIT_FOR_TX_QUEUE_MS);
     if (!putRslt)
     {
-#ifdef WARN_WS_SEND_APP_DATA_FAIL
+#ifdef DEBUG_WS_SEND_APP_DATA_FAIL
         LOG_W(MODULE_PREFIX, "sendMsg add to txQueue failed len %d count %d maxLen %d", bufLen, _txQueue.count(), _txQueue.maxLen());
 #endif
         return false;

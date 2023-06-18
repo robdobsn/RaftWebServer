@@ -54,6 +54,11 @@ public:
     {
         return false;
     }
+    virtual bool canSend(uint32_t& channelID, bool& noConn)
+    {
+        noConn = true;
+        return false;
+    }
     virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
     {
         return false;

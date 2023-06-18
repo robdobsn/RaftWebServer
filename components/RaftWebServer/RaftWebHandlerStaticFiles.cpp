@@ -18,7 +18,7 @@
 #include <mongoose.h>
 #endif
 
-#define DEBUG_STATIC_FILE_HANDLER
+// #define DEBUG_STATIC_FILE_HANDLER
 
 #if defined(DEBUG_STATIC_FILE_HANDLER)
 static const char* MODULE_PREFIX = "RaftWebHdlrStaticFiles";
@@ -332,7 +332,7 @@ esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
 
 bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, void *ev_data)
 {
-    // TODO
+    // Check event
     if (ev == MG_EV_HTTP_MSG) 
     {
         // Update extra headers string
@@ -355,6 +355,7 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
         };
         mg_http_serve_dir(c, hm, &opts);
 
+#ifdef DEBUG_STATIC_FILE_HANDLER
         // Debug
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -367,6 +368,8 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
         MG_INFO(("%.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
                 (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
                 (int) cl->len, cl->ptr));
+#endif
+
     }
     return true;
 }

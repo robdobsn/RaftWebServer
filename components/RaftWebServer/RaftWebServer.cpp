@@ -11,9 +11,11 @@
 #include <stdint.h>
 #include <string.h>
 
-static const char *MODULE_PREFIX = "RaftWebServer";
+// #define INFO_WEB_SERVER_SETUP
 
-#define INFO_WEB_SERVER_SETUP
+#if defined(INFO_WEB_SERVER_SETUP)
+static const char *MODULE_PREFIX = "RaftWebServer";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor

@@ -2,43 +2,66 @@
 function bodyIsLoaded() {
 
     // Setup page state
-    document.getElementById("webSocketState").innerHTML = "WebSocket is not connected";
+    showInElemByID("webSocket0State", "Not connected");
+    showInElemByID("webSocket1State", "Not connected");
+    window.pageState = {
+        wsInfo: [{}, {}]
+    };
 
+    window.webSockets = [null, null];
     // Connect ws
-    connectWs();    
+    connectWs(0);
+    connectWs(1);   
 }
 
-function connectWs()
+function connectWs(wsIdx)
 {
     // Setup webSocket
-    if (!window.webSocket) 
+    let wsElem = window.webSockets[wsIdx];
+    if (!wsElem) 
     {
         console.log('Attempting WebSocket connection');
-        window.webSocket = new WebSocket('ws://' + location.hostname + '/ws');
-        window.webSocket.binaryType = "arraybuffer";
+        wsElem = new WebSocket('ws://' + location.hostname + '/ws');
+        wsElem.binaryType = "arraybuffer";
 
         // Websocket opened
-        window.webSocket.onopen = function(evt) 
+        wsElem.onopen = function(evt) 
         {
-            console.log('WebSocket connection opened');
-            // window.webSocket.send("It's open! Hooray!!!");
-            document.getElementById("webSocketState").innerHTML = "WebSocket is connected!";
+            console.log(`WebSocket ${wsIdx} connection opened`);
+            // wsElem.send("It's open! Hooray!!!");
+            showInElemByID(`webSocket${wsIdx}State`, 'Open');
 
-            // Set a timer to send a message every 5 seconds
-            if (!window.pageState)
-                window.pageState = {};
-            window.pageState.wsMsgCounter = 1;
-            window.pageState.msgTimer = setInterval(() => {
-                window.webSocket.send("Hello from the browser! " + (window.pageState.wsMsgCounter++) + "\n")
-            }, 5000);
+            // Set a timer to send a message repeatedly
+            if (!window.pageState.wsInfo[wsIdx].count)
+                window.pageState.wsInfo[wsIdx].count = 0;
+            window.pageState.wsInfo[wsIdx].timer = setInterval(() => {
+                const msg = `Hello from client ${wsIdx} count ${window.pageState.wsInfo[wsIdx].count++}\n`
+                wsElem.send(msg)
+                showInElemByID(`webSocket${wsIdx}SendMsg`, "Last tx: " + msg);
+            }, 1000);
 
         }
         
         // Websocket message received
-        window.webSocket.onmessage = function(evt) 
+        wsElem.onmessage = function(evt) 
         {
-            const msg = new Uint8Array(evt.data);
-            console.log("WebSocket rx ", msg);
+            // Check for binary data
+            let msgStr = '';
+            if (evt.data instanceof ArrayBuffer)
+            {
+                // Convert to string
+                const enc = new TextDecoder("utf-8");
+                msgStr = enc.decode(evt.data);
+            }
+            else
+            {
+                msgStr = evt.data;
+            }
+                
+            // Debug
+            console.log(`WebSocket ${wsIdx} message received: ${msgStr}`);
+            showInElemByID(`webSocket${wsIdx}RecvMsg`, "Last rx: " + msgStr);
+            
             // window.pageState.martyIF.handleRxFrame(msg);
             
             // switch(msg.charAt(0)) 
@@ -63,22 +86,24 @@ function connectWs()
         }
         
         // Websocket closed
-        window.webSocket.onclose = function(evt) 
+        wsElem.onclose = function(evt) 
         {
-            clearInterval(window.pageState.msgTimer);
-            console.log('Websocket connection closed');
-            document.getElementById("webSocketState").innerHTML = "WebSocket closed";
-            window.webSocket = null;
-            if (window.pageState.reconnectTimer)
-                clearTimeout(window.pageState.reconnectTimer);
-            window.pageState.reconnectTimer = setTimeout(reconnect, 5000);
+            clearInterval(window.pageState.wsInfo[wsIdx].timer);
+            showInElemByID(`webSocket${wsIdx}State`, 'Closed');
+            wsElem = null;
+            if (window.pageState.wsInfo[wsIdx].reconnectTimer)
+                clearTimeout(window.pageState.wsInfo[wsIdx].reconnectTimer);
+            window.pageState.wsInfo[wsIdx].reconnectTimer = setTimeout(() =>
+            {
+                connectWs(wsIdx);
+            }, 500);
         }
         
         // Websocket error
-        window.webSocket.onerror = function(evt) 
+        wsElem.onerror = function(evt) 
         {
             console.log('Websocket error: ' + evt);
-            document.getElementById("webSocketState").innerHTML = "WebSocket error";
+            showInElemByID(`webSocket${wsIdx}State`, 'Error');
         }
           
         // let source = new webSocket('/events');
@@ -101,8 +126,8 @@ function connectWs()
     }
 }
 
-// Attempt to reconnect websocket
-function reconnect(event)
+function showInElemByID(elemID, msg)
 {
-    connectWs();
+    const elem = document.getElementById(elemID);
+    elem.innerHTML = msg;
 }

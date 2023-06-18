@@ -13,11 +13,13 @@
 #include <string.h>
 #include <RaftUtils.h>
 
-const static char* MODULE_PREFIX = "WebConnMgrEspIdf";
-
 // Debug
 // #define DEBUG_WEB_SERVER_ESP_IDF
 // #define DEBUG_WEB_SERVER_HANDLERS
+
+#if defined(DEBUG_WEB_SERVER_ESP_IDF) || defined(DEBUG_WEB_SERVER_HANDLERS)
+const static char* MODULE_PREFIX = "WebConnMgrEspIdf";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
