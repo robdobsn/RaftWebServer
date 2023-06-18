@@ -4,9 +4,9 @@ include(FetchContent)
 
 set(SUPPORTED_TARGETS esp32)
 
-add_compile_definitions(FEATURE_WEB_SERVER_USE_MONGOOSE)
+# add_compile_definitions(FEATURE_WEB_SERVER_USE_MONGOOSE)
 # add_compile_definitions(FEATURE_WEB_SERVER_USE_ESP_IDF)
-# add_compile_definitions(FEATURE_WEB_SERVER_USE_ORIGINAL)
+add_compile_definitions(FEATURE_WEB_SERVER_USE_ORIGINAL)
 
 set(FS_IMAGE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/fsimage)
 message(STATUS "FS_IMAGE_PATH: ${FS_IMAGE_PATH}")

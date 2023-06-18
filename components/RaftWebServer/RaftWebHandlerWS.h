@@ -24,9 +24,11 @@ class RaftWebHandlerWS : public RaftWebHandler
 public:
     RaftWebHandlerWS(const ConfigBase& config,
             RaftWebSocketCanAcceptCB canAcceptRxMsgCB, RaftWebSocketMsgCB rxMsgCB)
-            : _canAcceptRxMsgCB(canAcceptRxMsgCB), _rxMsgCB(rxMsgCB),
+            :   _canAcceptRxMsgCB(canAcceptRxMsgCB), 
+                _rxMsgCB(rxMsgCB)
+
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-              _txQueue(config.getLong("txQueueMax", 10))
+                , _txQueue(config.getLong("txQueueMax", 10))
 #endif
     {
         // Store config

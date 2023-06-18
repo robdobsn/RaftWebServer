@@ -133,6 +133,12 @@ bool RaftWebConnManager_mongoose::addHandler(RaftWebHandler *pHandler)
 
 bool RaftWebConnManager_mongoose::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+
+    // Check setup
+    if (!_isSetup)
+        return false;
+
     // See if a suitable handler exists
     for (RaftWebHandler *pHandler : _webHandlers)
     {
@@ -141,6 +147,9 @@ bool RaftWebConnManager_mongoose::sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
         if (pHandler->sendMsg(pBuf, bufLen, channelID))
             return true;
     }
+
+#endif
+
     return false;
 }
 
