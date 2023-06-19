@@ -15,6 +15,7 @@
 #include "RaftWebResponderRestAPI.h"
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
+class MongooseMultipartState;
 #endif
 
 // #define DEBUG_WEB_HANDLER_REST_API
@@ -41,7 +42,7 @@ public:
             const RaftWebRequestParams& params, 
             RaftHttpStatusCode &statusCode) override final;
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data) override final;
+    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
 #endif
 
 private:
@@ -51,5 +52,8 @@ private:
     // Helpers
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     RaftWebServerMethod convMongooseMethodToRaftMethod(const String& mongooseMethod);
+    void multipartStateCleanup(struct mg_connection *pConn);
+    MongooseMultipartState* multipartStateGetPtr(struct mg_connection *pConn);
+    void multipartStateSetPtr(struct mg_connection *pConn, MongooseMultipartState* pMultipartState);
 #endif
 };

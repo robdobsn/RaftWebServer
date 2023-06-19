@@ -28,7 +28,7 @@ public:
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final;
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data) override final;
+    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
 #endif
     virtual bool isFileHandler() const override final
     {

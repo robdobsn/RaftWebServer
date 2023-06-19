@@ -39,7 +39,6 @@ static const char* MODULE_PREFIX = "MainTask";
 #include <RaftWebHandlerStaticFiles.h>
 #include <RaftWebHandlerRestAPI.h>
 #include <RaftWebHandlerWS.h>
-#include <FileSystemChunker.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Entry Point
@@ -89,10 +88,8 @@ bool wsCanAccept(uint32_t channelID)
 
 void wsHandleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
 {
-    // LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);    
+    // LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);
 }
-
-FileSystemChunker fileChunker;
 
 void uploadFileComplete(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
@@ -102,31 +99,82 @@ void uploadFileComplete(const String &reqStr, String &respStr, const APISourceIn
     Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
+FILE* pGlobalFilePtr = NULL;
+
 UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
 {
+    LOG_I(MODULE_PREFIX, "uploadFileBlock %s filename %s blockLen %d firstBlock %d finalBlock %d",
+            req.c_str(), fileStreamBlock.filename, fileStreamBlock.blockLen, 
+            fileStreamBlock.firstBlock, fileStreamBlock.finalBlock);
+
     // Check for first block
     if (fileStreamBlock.firstBlock)
     {
-        // Check chunker isn't already active
-        if (fileChunker.isActive())
+        // Check for existing file
+        if (pGlobalFilePtr)
+        {
+            LOG_E(MODULE_PREFIX, "uploadFileBlock file already open, closing");
+            fclose(pGlobalFilePtr);
+            pGlobalFilePtr = NULL;
             return UtilsRetCode::BUSY;
+        }
 
-        // Start chunker
-        if (!fileChunker.start(fileStreamBlock.filename, 20000, false, true, true, false))
+        // Open file
+        String filename = String("/local/") + fileStreamBlock.filename;
+        pGlobalFilePtr = fopen(filename.c_str(), "w+");
+        if (!pGlobalFilePtr)
+        {
+            LOG_E(MODULE_PREFIX, "uploadFileBlock failed to open file %s", filename.c_str());
             return UtilsRetCode::CANNOT_START;
+        }
+
+        // Debug
+        LOG_I(MODULE_PREFIX, "uploadFileBlock opened file %s", filename.c_str());
+    }
+
+    // Check for file open ok
+    if (!pGlobalFilePtr)
+    {
+        LOG_E(MODULE_PREFIX, "uploadFileBlock file not open");
+        return UtilsRetCode::CANNOT_START;
+    }
+
+    // Seek to position
+    if (fseek(pGlobalFilePtr, fileStreamBlock.filePos, SEEK_SET) != 0)
+    {
+        LOG_E(MODULE_PREFIX, "uploadFileBlock failed to seek to position %d", fileStreamBlock.filePos);
+        return UtilsRetCode::OTHER_FAILURE;
     }
 
     // Write data to file
-    uint32_t handledBytes = 0;
-    bool finalChunk = false;
-    if (!fileChunker.nextWrite(fileStreamBlock.pBlock, fileStreamBlock.blockLen, handledBytes, finalChunk))
-        return UtilsRetCode::OTHER_FAILURE;
+    const uint8_t* pData = fileStreamBlock.pBlock;
+    uint32_t dataPos = 0;
+    const uint32_t WRITE_CHUNK_LEN = 1000;
+    while (dataPos < fileStreamBlock.blockLen)
+    {
+        uint32_t writeLen = fileStreamBlock.blockLen - dataPos;
+        if (writeLen > WRITE_CHUNK_LEN)
+        {
+            writeLen = WRITE_CHUNK_LEN;
+        }
+        if (fwrite(pData + dataPos, 1, writeLen, pGlobalFilePtr) != writeLen)
+        {
+            LOG_E(MODULE_PREFIX, "uploadFileBlock failed to write len %d at %d - total blockLen %d", 
+                    writeLen, dataPos, fileStreamBlock.blockLen);
+            return UtilsRetCode::OTHER_FAILURE;
+        }
+        dataPos += writeLen;
+    }
 
     // Check for final block
-    if (finalChunk)
+    if (fileStreamBlock.finalBlock)
     {
-        // Stop chunker
-        fileChunker.end();
+        // Close file
+        fclose(pGlobalFilePtr);
+        pGlobalFilePtr = NULL;
+
+        // Debug
+        LOG_I(MODULE_PREFIX, "uploadFileBlock closed file %s", fileStreamBlock.filename);
     }
     return UtilsRetCode::OK;
 }
@@ -252,6 +300,34 @@ extern "C" void app_main(void)
         {
             pHandlerWS->setupWebSocketChannelID(i, i + CHANNEL_ID_NUMBER_BASE);
         }
+    }
+
+    // Add headers
+    webServer.addResponseHeader({"Access-Control-Allow-Origin", "*"});
+
+    // Test creating a small file and reading it back to ensure the filesystem works
+    String testFileName = "/local/test.txt";
+    FILE* testFile = fopen(testFileName.c_str(), "w+");
+    if (testFile)
+    {
+        fprintf(testFile, "Hello world");
+        fclose(testFile);
+        testFile = fopen(testFileName.c_str(), "r");
+        if (testFile)
+        {
+            char buf[100];
+            fgets(buf, sizeof(buf), testFile);
+            fclose(testFile);
+            LOG_I(MODULE_PREFIX, "File test OK - read back '%s'", buf);
+        }
+        else
+        {
+            LOG_E(MODULE_PREFIX, "File test failed to read file");
+        }
+    }
+    else
+    {
+        LOG_E(MODULE_PREFIX, "File test failed to create file");
     }
 
     // Send periodic messages on websocket

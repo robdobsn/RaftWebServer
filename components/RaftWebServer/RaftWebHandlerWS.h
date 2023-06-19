@@ -72,7 +72,7 @@ public:
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
     // Handle request
-    virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data) override final;
+    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
     // Check is a message can be sent
     virtual bool canSend(uint32_t& channelID, bool& noConn) override final;
     // Send message (on a channel)

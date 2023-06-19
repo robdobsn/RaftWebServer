@@ -83,13 +83,16 @@ private:
     String _mongooseListeningAddr;
 
     // Static connection handler
-    static void staticEventHandler(struct mg_connection *c, int ev, void *ev_data, void *fn_data);
+    static void staticEventHandler(struct mg_connection *pConn, int ev, void *ev_data, void *fn_data);
 
     // Non-static connection handler
-    void eventHandler(struct mg_connection *c, int ev, void *ev_data);
+    void eventHandler(struct mg_connection *pConn, int ev, void *ev_data);
 
     // Convert mongoose event to string
     static const char* mongooseEventToString(int ev);
+
+    // Debug event
+    void debugEvent(struct mg_connection *pConn, int ev, void *ev_data);
 #endif
 
 };

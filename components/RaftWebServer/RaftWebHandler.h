@@ -41,7 +41,7 @@ public:
         return NULL;
     }
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data)
+    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
     {
         return false;
     }
@@ -82,7 +82,7 @@ protected:
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_POS = 0;
     static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN = 4;
-    static const int RAFT_MG_HTTP_DATA_OFFSET_POS = RAFT_MG_HTTP_DATA_CHANNEL_ID_POS + RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN;
-    static const int RAFT_MG_HTTP_DATA_OFFSET_LEN = 4;
+    static const int RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS = RAFT_MG_HTTP_DATA_CHANNEL_ID_POS + RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN;
+    static const int RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_LEN = sizeof(void*);
 #endif
 };

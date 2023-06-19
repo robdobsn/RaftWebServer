@@ -27,12 +27,13 @@ body {
 }
 
 .content-block {
-    display: flex;
+    display: block;
     flex-direction: row;
     flex-wrap: wrap;
     width: 90%;
     padding-left: 10px;
     margin: 20px;
     background-color: #ffffff;
+    font-family: sans-serif;
 }
 

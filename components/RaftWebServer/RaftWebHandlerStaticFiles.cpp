@@ -257,7 +257,7 @@ String RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
-bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, void *ev_data)
+bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
 {
     // Check event
     if (ev == MG_EV_HTTP_MSG) 
@@ -280,7 +280,7 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
             .page404 = _webServerSettings._p404PageSource,
             .fs = NULL,
         };
-        mg_http_serve_dir(c, hm, &opts);
+        mg_http_serve_dir(pConn, hm, &opts);
 
 #ifdef DEBUG_STATIC_FILE_HANDLER
         // Debug
@@ -288,7 +288,7 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
         struct mg_http_message tmp = {0};
 #pragma GCC diagnostic pop
-        mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
+        mg_http_parse((char *) pConn->send.buf, c->send.len, &tmp);
         struct mg_str unknown = mg_str_n("?", 1), *cl;
         cl = mg_http_get_header(&tmp, "Content-Length");
         if (cl == NULL) cl = &unknown;

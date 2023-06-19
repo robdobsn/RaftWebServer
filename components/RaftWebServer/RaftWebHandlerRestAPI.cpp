@@ -8,8 +8,15 @@
 
 #include "RaftWebHandlerRestAPI.h"
 
-#define DEBUG_WEB_HANDLER_REST_API
-#define DEBUG_WEB_HANDLER_REST_API_DETAIL
+// #define DEBUG_WEB_HANDLER_REST_API
+// #define DEBUG_WEB_HANDLER_REST_API_DETAIL
+// #define DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
+// #define DEBUG_WEB_HANDLER_REST_API_CHUNK_VERBOSE
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#include <MongooseMultipartState.h>
+#include <FileStreamBlock.h>
+#endif
 
 #if defined(DEBUG_WEB_HANDLER_REST_API)
 static const char* MODULE_PREFIX = "RaftWebHandlerRestAPI";
@@ -82,7 +89,7 @@ RaftWebResponder* RaftWebHandlerRestAPI::getNewResponder(const RaftWebRequestHea
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
-bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void *ev_data)
+bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
 {
 #ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
     if (ev != MG_EV_POLL)
@@ -90,6 +97,16 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
         LOG_I(MODULE_PREFIX, "handleRequest ev %d", ev);
     }    
 #endif
+
+    // Check if connection contains multipart state pointer
+    // If so delete it and clear the data - this assumes that nothing else uses the
+    // section of the connection data field used for multipart state
+    // Return false so other handlers get a chance to see the close event
+    if (ev == MG_EV_CLOSE)
+    {
+        multipartStateCleanup(pConn);
+        return false;
+    }
 
     // Check valid
     if (!_matchEndpointCB)
@@ -112,7 +129,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
     RaftWebServerMethod method = convMongooseMethodToRaftMethod(methodStr);
     if (reqStr.startsWith(_restAPIPrefix))
     {
-        // Remove prefix on test string
+        // Endpoint name is after prefix
         String endpointName = reqStr.substring(_restAPIPrefix.length());
 #ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
         LOG_I(MODULE_PREFIX, "handleRequest testing endpointName %s method %s for match", 
@@ -132,13 +149,36 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
     if (!canHandle)
         return false;
 
+    // Get multipart state pointer
+    // This is a pointer to an object created when a multipart session is ongoing
+    // The pointer is stored in the connection state data (c->data)
+    // The connection state data must be initialised to nullptr on CONNECT or ACCEPT
+    MongooseMultipartState* pMultipartState = multipartStateGetPtr(pConn);
+
     // Check if handling chunked data
     bool lastChunkReceived = false;
     if (ev == MG_EV_HTTP_CHUNK)
     {
-        // Get offset (this is cleared when connection accepted and when HTTP_MSG received)
-        const uint8_t* pData = (uint8_t*)c->data + RAFT_MG_HTTP_DATA_OFFSET_POS;
-        uint32_t contentPos = Raft::getBEUint32AndInc(pData);
+        if (!pMultipartState)
+        {
+            // No multipart state
+#ifdef DEBUG_WEB_HANDLER_REST_API
+            LOG_I(MODULE_PREFIX, "handleRequest no connection state - so creating");
+#endif
+
+            // Create new connection state
+            pMultipartState = new MongooseMultipartState();
+
+            // Store in connection state data
+            multipartStateSetPtr(pConn, pMultipartState);
+        }
+        if (!pMultipartState)
+        {
+            return false;
+        }
+
+        // Get content position from conn state
+        uint32_t contentPos = pMultipartState->contentPos;
 
         // Get content-length if present
         uint32_t contentLength = 0;
@@ -148,104 +188,126 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
             contentLength = atol(cl->ptr);
         }
 
+#ifdef DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
+            if (hm->body.len < 1000)
+            {
+                LOG_I(MODULE_PREFIX, "handleRequest multipart data body\n----------\n%s\n----------\n", String(hm->body.ptr, hm->body.len).c_str());
+            }
+#endif
+
         // Extract information from multipart message
         struct mg_http_part part;
         size_t ofs = 0;
         while ((ofs = mg_http_next_multipart(hm->body, ofs, &part)) != 0)
         {
+            // Extract filename if present
+            if (part.filename.len > 0)
+            {
+                String fileName = String(part.filename.ptr, part.filename.len);
+                if (fileName != pMultipartState->fileName)
+                {
+#ifdef DEBUG_WEB_HANDLER_REST_API
+                    // Debug
+                    LOG_I(MODULE_PREFIX, "handleRequest multipart data new filename %s", fileName.c_str());
+#endif
 
-#ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL                
+                    contentPos = 0;
+                }
+                pMultipartState->fileName = fileName;
+            }
+
+#ifdef DEBUG_WEB_HANDLER_REST_API_CHUNK_VERBOSE
+            if (part.body.len < 1000)
+            {
+                LOG_I(MODULE_PREFIX, "handleRequest multipart data body\n----------\n%s\n----------\n", String(part.body.ptr, part.body.len).c_str());
+            }
+#endif
+
+#ifdef DEBUG_WEB_HANDLER_REST_API
             // Debug
-            LOG_I(MODULE_PREFIX, "handleRequest chunked data nameLen %d filenameLen %d bodyLen %d contentPos %d contentLen %d ofs %d",
+            LOG_I(MODULE_PREFIX, "handleRequest multipart data nameLen %d filenameLen %d bodyLen %d contentPos %d contentLen %d ofs %d",
                         part.name.len, part.filename.len, part.body.len, contentPos, contentLength, ofs);
-#endif                
+#endif
 
-            // // Prepare block
-            String filename = String(part.filename.ptr, part.filename.len);
-            // FileStreamBlock fileStreamBlock(
-            //                 filename.c_str(),
-            //                 contentLength, 
-            //                 contentPos, 
-            //                 part.body.ptr, 
-            //                 part.body.len, 
-            //                 isFinalPart, 
-            //                 formInfo._crc16, 
-            //                 formInfo._crc16Valid,
-            //                 formInfo._fileLenBytes, 
-            //                 formInfo._fileLenValid, 
-            //                 contentPos==0);
-            // // Check for callback
-            // if (_endpoint.restApiFnChunk)
-            //     _endpoint.restApiFnChunk(_requestStr, fileStreamBlock, _apiSourceInfo);
-            // }
+#ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
+            if (part.body.len < 50)
+            {
+                LOG_I(MODULE_PREFIX, "handleRequest multipart data body %s", String(part.body.ptr, part.body.len).c_str());
+            }
+#endif
+
+            // Check we have a filename
+            if (pMultipartState->fileName.length() != 0)
+            {
+#ifdef DEBUG_WEB_HANDLER_REST_API
+                LOG_I(MODULE_PREFIX, "handleRequest multipart sending to API");
+#endif
+                // Prepare block
+                FileStreamBlock fileStreamBlock(
+                    pMultipartState->fileName.c_str(),
+                    contentLength, 
+                    contentPos, 
+                    (uint8_t*)part.body.ptr, 
+                    part.body.len,
+                    false,
+                    0, 
+                    false, 
+                    0, 
+                    false, 
+                    contentPos==0);
+                // Check for callback
+                APISourceInfo apiSourceInfo(_webServerSettings._restAPIChannelID);
+                if (endpoint.restApiFnChunk) 
+                    endpoint.restApiFnChunk(reqStr, fileStreamBlock, apiSourceInfo);
+            }
 
             // Update content pos
             contentPos += part.body.len;
         }
 
-        // Update multipart offset (set to 0 if we have finished)
-        Raft::setBEUint32((uint8_t*)c->data, RAFT_MG_HTTP_DATA_OFFSET_POS, 
-                        hm->chunk.len == 0 ? 0 : contentPos);
+        // Delete the mulipart chunk now that we have processed it
+        mg_http_delete_chunk(pConn, hm);
 
-        // String name = String(part.name.ptr, part.name.len);
-        // String filename = String(part.filename.ptr, part.filename.len);
-        // LOG_I(MODULE_PREFIX, "handleRequest chunked data name %s filename %s bodyLen %d", 
-        //             name.c_str(), filename.c_str(), part.body.len);
+        // Update multipart state
+        pMultipartState->contentPos = contentPos;
 
-//         // Prepare to send to chunk callback
-//         FileStreamBlock fileStreamBlock(formInfo._fileName.c_str(), 
-//                         _headerExtract.contentLength, contentPos, 
-//                         pBuf, bufLen, isFinalPart, formInfo._crc16, formInfo._crc16Valid,
-//                         formInfo._fileLenBytes, formInfo._fileLenValid, contentPos==0);
-//         // Check for callback
-//         if (_endpoint.restApiFnChunk)
-//             _endpoint.restApiFnChunk(_requestStr, fileStreamBlock, _apiSourceInfo);                
-//             // Get the chunk data
-//             FileStreamBlock fileStreamBlock;
-//             endpoint.restApiFnChunk(reqStr, 
-//         }
-// } && mg_http_match_uri(hm, "/api/upload")) {
-    // MG_INFO(("Got chunk len %lu", (unsigned long) hm->chunk.len));
-    // MG_INFO(("Query string: [%.*s]", (int) hm->query.len, hm->query.ptr));
-    // MG_INFO(("Chunk data:\n%.*s", (int) hm->chunk.len, hm->chunk.ptr));
-        mg_http_delete_chunk(c, hm);
+        // Check for last chunk
         if (hm->chunk.len == 0) {
-            MG_INFO(("Last chunk received"));
-            // mg_http_reply(c, 200, "", "ok (chunked)\n");
+
+#ifdef DEBUG_WEB_HANDLER_REST_API
+            // Debug
+            LOG_I(MODULE_PREFIX, "handleRequest multipart data last chunk");
+#endif
+
+            // Prepare final block
+            FileStreamBlock fileStreamBlock(
+                pMultipartState->fileName.c_str(),
+                contentLength, 
+                contentPos, 
+                nullptr, 
+                0,
+                false,
+                0, 
+                false, 
+                0, 
+                false, 
+                false);
+            // Check for callback
+            APISourceInfo apiSourceInfo(_webServerSettings._restAPIChannelID);
+            if (endpoint.restApiFnChunk)
+                endpoint.restApiFnChunk(reqStr, fileStreamBlock, apiSourceInfo);
+
+            // Last chunk received
             lastChunkReceived = true;
+            multipartStateCleanup(pConn);
         }
-// }
-
-// if (ev == MG_EV_HTTP_CHUNK)
-// {
-//     // Mongoose http message
-//     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-
-//     // Get request string and method string
-//     String reqStr = String(hm->uri.ptr, hm->uri.len);
-//     String methodStr = String(hm->method.ptr, hm->method.len);
-
-//     String queryStr = String(hm->query.ptr, hm->query.len);
-
-//     LOG_I(MODULE_PREFIX, "handleRequest chunked data %s method %s query %s chunkLen %d", 
-//                 reqStr.c_str(), methodStr.c_str(), queryStr.c_str(), hm->chunk.len);
-// }
-
-// // Upload info
-// FileStreamBlock fileStreamBlock(formInfo._fileName.c_str(), 
-//                 _headerExtract.contentLength, contentPos, 
-//                 pBuf, bufLen, isFinalPart, formInfo._crc16, formInfo._crc16Valid,
-//                 formInfo._fileLenBytes, formInfo._fileLenValid, contentPos==0);
-// // Check for callback
-// if (_endpoint.restApiFnChunk)
-//     _endpoint.restApiFnChunk(_requestStr, fileStreamBlock, _apiSourceInfo);
     }
 
     // Handle regular messages and end of multipart
     if ((ev == MG_EV_HTTP_MSG) || lastChunkReceived)
     {
         // Clear multipart offset (in case multiple files are uploaded)
-        Raft::setBEUint32((uint8_t*)c->data, RAFT_MG_HTTP_DATA_OFFSET_POS, 0);
+        Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS, 0);
 
         // Check endpoint callback
         String respStr;
@@ -258,23 +320,26 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *c, int ev, void 
 #ifdef DEBUG_WEB_HANDLER_REST_API
             LOG_I(MODULE_PREFIX, "handleRequest respStr %s", respStr.c_str());
 #endif
+        }
 
         // Send start of response
-        mg_printf(c, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n");
+        mg_printf(pConn, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n");
 
         // Add standard headers
         for (auto& header : _standardHeaders)
         {
-            mg_printf(c, "%s: %s\r\n", header.name.c_str(), header.value.c_str());
+            mg_printf(pConn, "%s: %s\r\n", header.name.c_str(), header.value.c_str());
         }
 
         // End of header
-        mg_printf(c, "\r\n");
+        mg_printf(pConn, "\r\n");
 
         // Send response
-        mg_http_write_chunk(c, respStr.c_str(), respStr.length());
-        mg_http_printf_chunk(c, "");
-        }
+        mg_http_write_chunk(pConn, respStr.c_str(), respStr.length());
+        mg_http_printf_chunk(pConn, "");
+
+        // Cleanup multipart state
+        multipartStateCleanup(pConn);
     }
 
     // Handled ok
@@ -289,6 +354,46 @@ RaftWebServerMethod RaftWebHandlerRestAPI::convMongooseMethodToRaftMethod(const 
     if (mongooseMethod.equalsIgnoreCase("DELETE")) return WEB_METHOD_DELETE;
     if (mongooseMethod.equalsIgnoreCase("OPTIONS")) return WEB_METHOD_OPTIONS;
     return WEB_METHOD_GET;
+}
+
+void RaftWebHandlerRestAPI::multipartStateCleanup(struct mg_connection *pConn)
+{
+    // Get multipart state ptr
+    MongooseMultipartState* pMultipartState = multipartStateGetPtr(pConn);
+
+#ifdef DEBUG_WEB_HANDLER_REST_API
+        // Debug
+        LOG_I(MODULE_PREFIX, "multipartStateCleanup checking ptr %p", pMultipartState);
+#endif
+
+    // Check if we need to delete
+    if (pMultipartState)
+    {
+        // Delete the multipart state
+        delete pMultipartState;
+
+#ifdef DEBUG_WEB_HANDLER_REST_API
+        // Debug
+        LOG_I(MODULE_PREFIX, "multipartStateCleanup DELETING multipart state info");
+#endif
+
+        // Set save ptr to null
+        memset((void*)pConn->data, 0, RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_LEN);
+    }
+}
+
+MongooseMultipartState* RaftWebHandlerRestAPI::multipartStateGetPtr(struct mg_connection *pConn)
+{
+    const uint8_t* pPtrToMultipartStatePtr = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS;
+    MongooseMultipartState* pMultipartState = nullptr;
+    memcpy(&pMultipartState, pPtrToMultipartStatePtr, RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_LEN);
+    return pMultipartState;
+}
+
+void RaftWebHandlerRestAPI::multipartStateSetPtr(struct mg_connection *pConn, MongooseMultipartState* pMultipartState)
+{
+    uint8_t* pPtrToMultipartStatePtr = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS;
+    memcpy(pPtrToMultipartStatePtr, &pMultipartState, RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_LEN);
 }
 
 #endif
