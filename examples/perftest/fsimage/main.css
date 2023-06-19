@@ -2,8 +2,18 @@ body {
     font-family: monospace;
 }
 
+.content-status {
+	display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 90%;
+	padding-left: 10px;
+	margin: 20px;
+    background-color: #ffffff;
+}
+
 .status-item {
-    background-color: #808080;
+    background-color: #404040;
     margin-left: 10px;
     color: #ffffff;
     line-height: 0;
@@ -15,12 +25,14 @@ body {
     flex-basis: 100%;
     flex: 1;
 }
-.content-status {
-	display: flex;
+
+.content-block {
+    display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     width: 90%;
-	padding-left: 10px;
-	margin: 20px;
-    background-color: #cccccc;
+    padding-left: 10px;
+    margin: 20px;
+    background-color: #ffffff;
 }
+

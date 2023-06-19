@@ -14,10 +14,6 @@
 #include <RaftWebServerSettings.h>
 #include <RdJson.h>
 
-#ifdef FEATURE_WEB_SERVER_USE_ESP_IDF
-#include <esp_http_server.h>
-#endif
-
 #ifdef FEATURE_WEB_SERVER_USE_ORIGINAL
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
@@ -43,11 +39,6 @@ public:
                 RaftHttpStatusCode &statusCode)
     {
         return NULL;
-    }
-#elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-    virtual esp_err_t handleRequest(httpd_req_t *req)
-    {
-        return ESP_OK;
     }
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data)
@@ -87,4 +78,11 @@ public:
 protected:
     RaftWebServerSettings _webServerSettings;
     std::list<RdJson::NameValuePair> _standardHeaders;
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_POS = 0;
+    static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN = 4;
+    static const int RAFT_MG_HTTP_DATA_OFFSET_POS = RAFT_MG_HTTP_DATA_CHANNEL_ID_POS + RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN;
+    static const int RAFT_MG_HTTP_DATA_OFFSET_LEN = 4;
+#endif
 };

@@ -169,7 +169,7 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
         mg_ws_upgrade(c, hm, NULL);
 
         // Put the channel ID into the connection data field
-        Raft::setBEUint32((uint8_t*)c->data, 0, _channelIDUsage[wsConnIdxAvailable].channelID);
+        Raft::setBEUint32((uint8_t*)c->data, RAFT_MG_HTTP_DATA_CHANNEL_ID_POS, _channelIDUsage[wsConnIdxAvailable].channelID);
         _channelIDUsage[wsConnIdxAvailable].isUsed = true;
 
         // Debug
@@ -189,7 +189,7 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
         struct mg_ws_message *wm = (struct mg_ws_message *) ev_data;
 
         // Get the channel ID from the connection data field
-        const uint8_t* pData = (uint8_t*)c->data;
+        const uint8_t* pData = (uint8_t*)c->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
         uint32_t channelID = Raft::getBEUint32AndInc(pData);
 
 #ifdef DEBUG_WEB_HANDLER_WS
@@ -210,7 +210,7 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
     if (ev == MG_EV_CLOSE)
     {
         // Get the channel ID from the connection data field
-        const uint8_t* pData = (uint8_t*)c->data;
+        const uint8_t* pData = (uint8_t*)c->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
         uint32_t channelID = Raft::getBEUint32AndInc(pData);
 
         // Debug
@@ -239,7 +239,7 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *c, int ev, void *ev_d
         if (_txQueue.peek(frame))
         {
             // Get the channel ID from the connection data field
-            const uint8_t* pData = (uint8_t*)c->data;
+            const uint8_t* pData = (uint8_t*)c->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
             uint32_t channelID = Raft::getBEUint32AndInc(pData);
 
             // Check the channel ID is for this channel

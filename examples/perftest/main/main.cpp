@@ -39,6 +39,7 @@ static const char* MODULE_PREFIX = "MainTask";
 #include <RaftWebHandlerStaticFiles.h>
 #include <RaftWebHandlerRestAPI.h>
 #include <RaftWebHandlerWS.h>
+#include <FileSystemChunker.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Entry Point
@@ -89,6 +90,45 @@ bool wsCanAccept(uint32_t channelID)
 void wsHandleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
 {
     // LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);    
+}
+
+FileSystemChunker fileChunker;
+
+void uploadFileComplete(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+{
+#ifdef DEBUG_FILE_MANAGER_UPLOAD
+    LOG_I(MODULE_PREFIX, "uploadFileComplete %s", reqStr.c_str());
+#endif
+    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+}
+
+UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
+{
+    // Check for first block
+    if (fileStreamBlock.firstBlock)
+    {
+        // Check chunker isn't already active
+        if (fileChunker.isActive())
+            return UtilsRetCode::BUSY;
+
+        // Start chunker
+        if (!fileChunker.start(fileStreamBlock.filename, 20000, false, true, true, false))
+            return UtilsRetCode::CANNOT_START;
+    }
+
+    // Write data to file
+    uint32_t handledBytes = 0;
+    bool finalChunk = false;
+    if (!fileChunker.nextWrite(fileStreamBlock.pBlock, fileStreamBlock.blockLen, handledBytes, finalChunk))
+        return UtilsRetCode::OTHER_FAILURE;
+
+    // Check for final block
+    if (finalChunk)
+    {
+        // Stop chunker
+        fileChunker.end();
+    }
+    return UtilsRetCode::OK;
 }
 
 extern "C" void app_main(void)
@@ -146,10 +186,23 @@ extern "C" void app_main(void)
     ESP_LOGI(MODULE_PREFIX, "%s %s (built " __DATE__ " " __TIME__ ") Heap %d", 
                         SYSTEM_NAME, SYSTEM_VERSION, heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
-    // Add a REST API endpoint
+    // Add a test REST API endpoint
     restAPIEndpointManager.addEndpoint("test", RestAPIEndpoint::ENDPOINT_CALLBACK, RestAPIEndpoint::ENDPOINT_GET,
                         testEndpointCallback,
                         "test");
+
+    // Add an upload REST API endpoint
+    restAPIEndpointManager.addEndpoint("upload", 
+                RestAPIEndpoint::ENDPOINT_CALLBACK, 
+                RestAPIEndpoint::ENDPOINT_POST,
+                uploadFileComplete,
+                "Upload file", 
+                "application/json", 
+                nullptr,
+                RestAPIEndpoint::ENDPOINT_CACHE_NEVER,
+                nullptr, 
+                nullptr,
+                uploadFileBlock);
 
     // Web server static files
     String servePaths = "/" + fileSystem.getDefaultFSRoot() + ",/files/local=/local,/files/sd=/sd";

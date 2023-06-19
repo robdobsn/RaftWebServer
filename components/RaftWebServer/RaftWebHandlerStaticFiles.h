@@ -27,8 +27,6 @@ public:
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final;
-#elif defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-    virtual esp_err_t handleRequest(httpd_req_t *req) override final;
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     virtual bool handleRequest(struct mg_connection *c, int ev, void *ev_data) override final;
 #endif

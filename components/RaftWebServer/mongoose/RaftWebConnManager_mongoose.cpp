@@ -14,8 +14,10 @@
 #include <RaftUtils.h>
 
 // Debug
-// #define DEBUG_WEB_SERVER_MONGOOSE
-// #define DEBUG_WEB_SERVER_HANDLERS
+#define DEBUG_WEB_SERVER_MONGOOSE
+#define DEBUG_WEB_SERVER_HANDLERS
+#define DEBUG_WEB_SERVER_EVENT_DETAILS
+// #define DEBUG_WEB_SERVER_EVENT_VERBOSE
 
 #if defined(DEBUG_WEB_SERVER_MONGOOSE) || defined(DEBUG_WEB_SERVER_HANDLERS)
 const static char* MODULE_PREFIX = "WebConnMgrMongoose";
@@ -193,33 +195,77 @@ void RaftWebConnManager_mongoose::staticEventHandler(struct mg_connection *c, in
     pConnManager->eventHandler(c, ev, ev_data);
 }
 
-void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, void *ev_data)
+void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *pConn, int ev, void *ev_data)
 {
 
-#ifdef DEBUG_WEB_SERVER_MONGOOSE
+#ifdef DEBUG_WEB_SERVER_EVENT_DETAILS
 
-    if (ev == MG_EV_HTTP_MSG)
+    if ((ev == MG_EV_HTTP_MSG) || (ev == MG_EV_HTTP_CHUNK))
     {
         // Debug Mongoose message
         struct mg_http_message *hm = (struct mg_http_message *) ev_data;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-        struct mg_http_message tmp = {0};
-#pragma GCC diagnostic pop
-        mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
-        struct mg_str* cl = mg_http_get_header(&tmp, "Content-Length");
+        struct mg_str* cl = mg_http_get_header(hm, "Content-Length");
         struct mg_str unknown = mg_str_n("?", 1);
         if (cl == NULL) cl = &unknown;
-        LOG_I(MODULE_PREFIX, "%p HTTP_MSG %.*s %.*s %.*s C-L %.*s", c, (int) hm->method.len, hm->method.ptr,
-                (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
-                (int) cl->len, cl->ptr);
+        int numHeaders = 0;
+        for (int i=0; i<MG_MAX_HTTP_HEADERS; i++)
+        {
+            if (hm->headers[i].name.len > 0)
+                numHeaders++;
+        }
+        char buf[20] = "0";
+        mg_http_get_var(&hm->query, "offset", buf, sizeof(buf));
+        int offset = strtol(buf, NULL, 0);
+        LOG_I(MODULE_PREFIX, "eventHandler %p %s %.*s %.*s numHdrs %d contLen %.*s query %.*s proto %.*s bodyLen %d headLen %d chunkLen %d msgLen %d offset %d", pConn, 
+                mongooseEventToString(ev),
+                (int) hm->method.len, hm->method.ptr,
+                (int) hm->uri.len, hm->uri.ptr, 
+                numHeaders,
+                (int) cl->len, cl->ptr,
+                (int) hm->query.len, hm->query.ptr,
+                (int) hm->proto.len, hm->proto.ptr,
+                hm->body.len, 
+                hm->head.len, 
+                hm->chunk.len, 
+                hm->message.len,
+                offset);
+
+#ifdef DEBUG_WEB_SERVER_EVENT_VERBOSE
+        for (int i=0; i<MG_MAX_HTTP_HEADERS; i++)
+        {
+            if (hm->headers[i].name.len > 0)
+            {
+                LOG_I(MODULE_PREFIX, "eventHandler --- hdr %d %.*s = %.*s", i, 
+                        (int) hm->headers[i].name.len, hm->headers[i].name.ptr,
+                        (int) hm->headers[i].value.len, hm->headers[i].value.ptr);
+            }
+        }
+#endif
+
     }
+    // else if (ev == MG_EV_HTTP_CHUNK)
+    // {
+    //     // Debug Mongoose message
+    //     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+    //     LOG_I(MODULE_PREFIX, "%p %s %.*s %.*s chunkLen %d", pConn, 
+    //             mongooseEventToString(ev),
+    //             (int) hm->method.len, hm->method.ptr,
+    //             (int) hm->uri.len, hm->uri.ptr, 
+    //             hm->chunk.len);
+    // }
     else if (ev != MG_EV_POLL)
     {
-        LOG_I(MODULE_PREFIX, "%p %s", c, mongooseEventToString(ev));
+        LOG_I(MODULE_PREFIX, "%p %s", pConn, mongooseEventToString(ev));
     }
 #endif
+
+    // Check if this is a new connection
+    if (ev == MG_EV_ACCEPT)
+    {
+        // Clear the data field as this is used for offsets, channelIDs, etc.
+        memset(pConn->data, 0, MG_DATA_SIZE);
+    }
 
     // Iterate through all handlers that are not file handlers to see if one can handle this request
     // This is to ensure that other handlers get the first chance to handle the request
@@ -227,8 +273,18 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, 
     {
         if (pHandler->isFileHandler())
             continue;
-        if (pHandler->handleRequest(c, ev, ev_data))
+        bool rslt = pHandler->handleRequest(pConn, ev, ev_data);
+#ifdef DEBUG_WEB_SERVER_MONGOOSE
+        if (ev != MG_EV_POLL)
+        {
+            LOG_I(MODULE_PREFIX, "eventHandler - event %s handler %s rslt %d", 
+                    mongooseEventToString(ev), pHandler->getName(), rslt);
+        }
+#endif
+        if (rslt)
+        {
             return;
+        }
     }
 
     // Now iterate through file handlers
@@ -236,33 +292,26 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *c, int ev, 
     {
         if (!pHandler->isFileHandler())
             continue;
-        if (pHandler->handleRequest(c, ev, ev_data))
+        bool rslt = pHandler->handleRequest(pConn, ev, ev_data);
+#ifdef DEBUG_WEB_SERVER_MONGOOSE
+        if (ev != MG_EV_POLL)
+        {
+            LOG_I(MODULE_PREFIX, "eventHandler - event %s handler %s rslt %d", 
+                    mongooseEventToString(ev), pHandler->getName(), rslt);
+        }
+#endif
+        if (rslt)
+        {
             return;
+        }
     }
 
     // No handler found
-    LOG_E(MODULE_PREFIX, "eventHandler - no handler found");
-    mg_http_reply(c, 404, "", "Content not found");
-
-//     static const char *s_root_dir = ".";
-//     static const char *s_ssi_pattern = "";
-//     if (ev == MG_EV_HTTP_MSG) {
-//     struct mg_http_message *hm = (struct mg_http_message *)ev_data;
-//     struct mg_http_message tmp = {0};
-//     struct mg_str unknown = mg_str_n("?", 1), *cl;
-//     struct mg_http_serve_opts opts = {0};
-//     opts.root_dir = s_root_dir;
-//     opts.ssi_pattern = s_ssi_pattern;
-//     mg_http_serve_dir(c, hm, &opts);
-//     mg_http_parse((char *) c->send.buf, c->send.len, &tmp);
-//     cl = mg_http_get_header(&tmp, "Content-Length");
-//     if (cl == NULL) cl = &unknown;
-//     MG_INFO(("%.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
-//              (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
-//              (int) cl->len, cl->ptr));
-//   }
+    if (ev == MG_EV_HTTP_MSG)
+    {
+        mg_http_reply(pConn, 404, "", "Content not found");
+    }
 }
-
 
 const char* RaftWebConnManager_mongoose::mongooseEventToString(int ev)
 {

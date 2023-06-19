@@ -12,9 +12,7 @@
 #include "RaftWebResponderFile.h"
 #include <Logger.h>
 #include <FileSystem.h>
-#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-#include <esp_http_server.h>
-#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
 #endif
 
@@ -254,77 +252,6 @@ String RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle request (ESP IDF)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if defined(FEATURE_WEB_SERVER_USE_ESP_IDF)
-
-esp_err_t RaftWebHandlerStaticFiles::handleRequest(httpd_req_t *req)
-{
-    String filePath = getFilePath(req->uri);
-
-    /* Concatenate the requested file path */
-    struct stat file_stat;
-    if (stat(filePath.c_str(), &file_stat) == -1) {
-        LOG_E(MODULE_PREFIX, "Failed to stat file : %s", filePath.c_str());
-        /* If file doesn't exist respond with 404 Not Found */
-        httpd_resp_send_404(req);
-        return ESP_OK;
-    }
-
-    FILE *fd = fopen(filePath.c_str(), "r");
-    if (!fd) {
-        LOG_E(MODULE_PREFIX, "Failed to read existing file : %s", filePath.c_str());
-        /* If file exists but unable to open respond with 500 Server Error */
-        httpd_resp_set_status(req, "500 Server Error");
-        httpd_resp_sendstr(req, "Failed to read existing file!");
-        return ESP_OK;
-    }
-
-#ifdef DEBUG_STATIC_FILE_HANDLER
-    LOG_I(MODULE_PREFIX, "Sending file : %s (%ld bytes)...", filePath.c_str(), file_stat.st_size);
-#endif
-
-    // Set content type
-    httpd_resp_set_type(req, getContentType(filePath));
-
-    // Buffer
-    std::vector<char, SpiramAwareAllocator<char>> dataBuffer;
-    uint32_t chunkSize = getMaxResponseSize();
-    dataBuffer.resize(chunkSize);
-    uint32_t numBytesRead = 0;
-    do 
-    {
-        // Read chunk
-        numBytesRead = fread(dataBuffer.data(), 1, chunkSize, fd);
-
-        // Send chunk
-        if (httpd_resp_send_chunk(req, dataBuffer.data(), numBytesRead) != ESP_OK) 
-        {
-            fclose(fd);
-            LOG_E(MODULE_PREFIX, "File sending failed!");
-            // Abort sending file
-            httpd_resp_sendstr_chunk(req, NULL);
-            // Send error message with status code
-            httpd_resp_set_status(req, "500 Server Error");
-            httpd_resp_sendstr(req, "Failed to send file!");
-            return ESP_OK;
-        }
-
-        /* Keep looping till the whole file is sent */
-    } while (numBytesRead != 0);
-
-    /* Close file after sending complete */
-    fclose(fd);
-
-    /* Respond with an empty chunk to signal HTTP response completion */
-    httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
-}
-
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Mongoose handlers
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -369,9 +296,9 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *c, int ev, v
                 (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
                 (int) cl->len, cl->ptr));
 #endif
-
+        return true;
     }
-    return true;
+    return false;
 }
 
 #endif

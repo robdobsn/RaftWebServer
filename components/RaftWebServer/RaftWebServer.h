@@ -13,11 +13,9 @@
 #include <RdJson.h>
 
 #if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
-#undef FEATURE_WEB_SERVER_USE_ESP_IDF
 #undef FEATURE_WEB_SERVER_USE_MONGOOSE
 #include <RaftWebConnManager_original.h>
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#undef FEATURE_WEB_SERVER_USE_ESP_IDF
 #undef FEATURE_WEB_SERVER_USE_ORIGINAL
 #include <RaftWebConnManager_mongoose.h>
 #else
