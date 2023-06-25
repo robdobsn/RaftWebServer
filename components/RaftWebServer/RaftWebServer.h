@@ -30,13 +30,10 @@ public:
     RaftWebServer();
 
     // Setup the web server and start listening
-    void setup(RaftWebServerSettings& settings); 
+    void setup(const RaftWebServerSettings& settings); 
 
     // Service
     void service();
-    
-    // Configure
-    void addResponseHeader(RdJson::NameValuePair headerInfo);
     
     // Handler
     bool addHandler(RaftWebHandler* pHandler);
@@ -61,7 +58,7 @@ private:
 #if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
     // Connection manager
     RaftWebConnManager_original _connManager;
-#else
+#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     // Connection manager
     RaftWebConnManager_mongoose _connManager;
 #endif

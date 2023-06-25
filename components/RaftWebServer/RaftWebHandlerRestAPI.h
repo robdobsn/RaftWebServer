@@ -20,9 +20,17 @@ class MongooseMultipartState;
 
 // #define DEBUG_WEB_HANDLER_REST_API
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// RaftWebHandlerRestAPI
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class RaftWebHandlerRestAPI : public RaftWebHandler
 {
 public:
+
+    /// @brief Constructor of REST API handler
+    /// @param restAPIPrefix (eg "/api")
+    /// @param matchEndpointCB (callback to match a uri and method to a handler)
     RaftWebHandlerRestAPI(const String& restAPIPrefix, RaftWebAPIMatchEndpointCB matchEndpointCB)
     {
         _matchEndpointCB = matchEndpointCB;
@@ -33,6 +41,8 @@ public:
     virtual ~RaftWebHandlerRestAPI()
     {
     }
+    /// @brief Get name of handler
+    /// @return Name of handler
     virtual const char* getName() const override
     {
         return "HandlerRESTAPI";
@@ -42,6 +52,10 @@ public:
             const RaftWebRequestParams& params, 
             RaftHttpStatusCode &statusCode) override final;
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    /// @brief Handle request (mongoose)
+    /// @param pConn Mongoose connection
+    /// @param ev Mongoose event
+    /// @param ev_data Mongoose event data (this is a pointer to the mongoose event data structure)
     virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
 #endif
 

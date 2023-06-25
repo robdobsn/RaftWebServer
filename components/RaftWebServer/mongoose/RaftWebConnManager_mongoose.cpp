@@ -19,7 +19,9 @@
 // #define DEBUG_WEB_SERVER_EVENT_DETAILS
 // #define DEBUG_WEB_SERVER_EVENT_VERBOSE
 
+#if defined (FEATURE_WEB_SERVER_USE_MONGOOSE) || defined(DEBUG_WEB_SERVER_HANDLERS)
 const static char* MODULE_PREFIX = "WebConnMgrMongoose";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -42,7 +44,7 @@ RaftWebConnManager_mongoose::~RaftWebConnManager_mongoose()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_mongoose::setup(RaftWebServerSettings &settings)
+void RaftWebConnManager_mongoose::setup(const RaftWebServerSettings &settings)
 {
     // Store settings
     _webServerSettings = settings;
@@ -105,9 +107,6 @@ bool RaftWebConnManager_mongoose::addHandler(RaftWebHandler *pHandler)
 
     // Give handler the web-server settings
     pHandler->setWebServerSettings(_webServerSettings);
-
-    // Give handler the standard headers
-    pHandler->setStandardHeaders(_stdResponseHeaders);
 
 #ifdef DEBUG_WEB_SERVER_HANDLERS
     LOG_I(MODULE_PREFIX, "addHandler %s", pHandler->getName());

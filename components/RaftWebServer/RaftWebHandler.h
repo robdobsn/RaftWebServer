@@ -67,17 +67,13 @@ public:
     {
         _webServerSettings = webServerSettings;
     }
-    void setStandardHeaders(const std::list<RdJson::NameValuePair>& headers)
-    {
-        _standardHeaders = headers;
-    }
     uint32_t getMaxResponseSize() const
     {
         return _webServerSettings._sendBufferMaxLen;
     }
 protected:
-    RaftWebServerSettings _webServerSettings;
-    std::list<RdJson::NameValuePair> _standardHeaders;
+    RaftWebServerSettings _defaultWebServerSettings;
+    RaftWebServerSettings& _webServerSettings = _defaultWebServerSettings;
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_POS = 0;

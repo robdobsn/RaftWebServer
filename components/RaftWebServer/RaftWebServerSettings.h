@@ -10,6 +10,7 @@
 
 #include "lwip/api.h"
 #include <ArduinoOrAlt.h>
+#include <vector>
 
 class RaftWebServerSettings
 {
@@ -18,6 +19,8 @@ public:
     static const int DEFAULT_CONN_SLOTS = 10;
     static const int DEFAULT_ENABLE_WEBSOCKETS = true;
     static const int DEFAULT_ENABLE_FILE_SERVER = true;
+    static constexpr const char* DEFAULT_REST_API_PREFIX = "/api";
+    static const std::vector<String> DEFAULT_STD_RESPONSE_HEADERS;
 
     // Task settings
     static const int DEFAULT_TASK_CORE = 0;
@@ -36,8 +39,9 @@ public:
             uint32_t taskPriority, uint32_t taskStackSize,
             uint32_t sendBufferMaxLen,
             uint32_t restAPIChannelID, 
-            const char* p404PageSource = nullptr,
-            const char* pMimeTypes = nullptr)
+            std::vector<String>& stdRespHeaders,
+            const char* p404PageSource,
+            const char* pMimeTypes)
     {
         _serverTCPPort = port;
         _numConnSlots = connSlots;
@@ -48,8 +52,15 @@ public:
         _taskStackSize = taskStackSize;
         _sendBufferMaxLen = sendBufferMaxLen;
         _restAPIChannelID = restAPIChannelID;
-        _p404PageSource = p404PageSource;
-        _pMimeTypes = pMimeTypes;
+        _404PageSource = p404PageSource ? p404PageSource : "";
+        _mimeTypes = pMimeTypes ? pMimeTypes : "";
+        String headersStr;
+        for (auto& header : stdRespHeaders)
+        {
+            headersStr += header;
+            headersStr += "\r\n";
+        }
+        _stdRespHeaders = headersStr;
     }
 
     // TCP port of server
@@ -75,11 +86,14 @@ public:
     // Channel ID for REST API
     uint32_t _restAPIChannelID = UINT32_MAX;
 
+    // Standard response headers - added to every response
+    String _stdRespHeaders;
+
     // 404 page source - note that this MUST be either NULL or a pointer to a string that is
     // valid for the lifetime of the program
-    const char* _p404PageSource = nullptr;
+    String _404PageSource;
 
     // MIME types for file serving - this must be a string in the form ext1=type1,ext2=type2,..
     // or NULL for the default
-    const char* _pMimeTypes = nullptr;    
+    String _mimeTypes;
 };

@@ -61,7 +61,7 @@ RaftWebConnManager_original::~RaftWebConnManager_original()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::setup(RaftWebServerSettings &settings)
+void RaftWebConnManager_original::setup(const RaftWebServerSettings &settings)
 {
     // Store settings
     _webServerSettings = settings;
@@ -226,9 +226,6 @@ bool RaftWebConnManager_original::addHandler(RaftWebHandler *pHandler)
         
     // Give handler the web-server settings
     pHandler->setWebServerSettings(_webServerSettings);
-
-    // Give handler the standard headers
-    pHandler->setStandardHeaders(_stdResponseHeaders);
 
     // Check if we can add this handler
     if (pHandler->isFileHandler() && !_webServerSettings._enableFileServer)

@@ -30,7 +30,7 @@ FetchContent_Populate(raftcore)
 FetchContent_Populate(mongoose)
 
 # Copy CMakeLists.txt to mongoose source directory
-message(STATUS "----------------- Copying mongoose CMakeLists.txt... from ${CMAKE_CURRENT_SOURCE_DIR}/mongoose/CMakeLists.txt to ${mongoose_SOURCE_DIR}/CMakeLists.txt")
+message(STATUS "Copying mongoose CMakeLists.txt... from ${CMAKE_CURRENT_SOURCE_DIR}/mongoose/CMakeLists.txt to ${mongoose_SOURCE_DIR}/CMakeLists.txt")
 configure_file(../../components/RaftWebServer/mongoose/CMakeLists.txt ${mongoose_SOURCE_DIR}/CMakeLists.txt COPYONLY)
 
 # Fetch raftcore

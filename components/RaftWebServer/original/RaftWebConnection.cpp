@@ -348,7 +348,7 @@ void RaftWebConnection::service()
 #endif
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
         String debugStr;
-        Utils::getHexStrFromBytes(pData, rxData.size(), debugStr);
+        Raft::getHexStrFromBytes(pData, rxData.size(), debugStr);
         LOG_I(MODULE_PREFIX, "connId %d RX: %s", _pClientConn->getClientId(), debugStr.c_str());
 #endif
     }
@@ -1084,17 +1084,27 @@ bool RaftWebConnection::sendStandardHeaders()
     // Send standard headers
     if (_pConnManager)
     {
-        std::list<RdJson::NameValuePair>* pRespHeaders = _pConnManager->getStdResponseHeaders();
-        for (RdJson::NameValuePair& nvPair : *pRespHeaders)
+        const String& respHeaders = _pConnManager->getServerSettings()._stdRespHeaders;
+        int sepPos = -1;
+        while(true)
         {
-            snprintf(respLine, sizeof(respLine), "%s: %s\r\n", nvPair.name.c_str(), nvPair.value.c_str());
-            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+            // Find next separator
+            int nextSepPos = respHeaders.indexOf('\n', sepPos + 1);
+            int segEndPos = nextSepPos == -1 ? respHeaders.length() : nextSepPos + 1;
+            String headerStr = respHeaders.substring(sepPos + 1, segEndPos);
+            sepPos = nextSepPos;
+            if (rawSendOnConn((const uint8_t*)headerStr.c_str(), headerStr.length(), MAX_HEADER_SEND_RETRY_MS) != 
+                                RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
                 return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
             // Debug
-            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
+            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", headerStr.c_str(), _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
+            
+            // Check if done
+            if (sepPos == -1)
+                break;
         }
     }
 
@@ -1105,7 +1115,8 @@ bool RaftWebConnection::sendStandardHeaders()
         for (RdJson::NameValuePair& nvPair : *pRespHeaders)
         {
             snprintf(respLine, sizeof(respLine), "%s: %s\r\n", nvPair.name.c_str(), nvPair.value.c_str());
-            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != 
+                                RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
                 return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL

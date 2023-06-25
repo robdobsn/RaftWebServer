@@ -26,7 +26,7 @@ public:
     virtual ~RaftWebConnManager_mongoose();
 
     // Setup
-    void setup(RaftWebServerSettings& settings);
+    void setup(const RaftWebServerSettings& settings);
 
     // Service
     void service();
@@ -34,20 +34,8 @@ public:
     // Handler
     bool addHandler(RaftWebHandler* pHandler);
 
-    // Add response headers
-    void addResponseHeader(RdJson::NameValuePair headerInfo)
-    {
-        _stdResponseHeaders.push_back(headerInfo);
-    }
-
-    // Get standard response headers
-    std::list<RdJson::NameValuePair>* getStdResponseHeaders()
-    {
-        return &_stdResponseHeaders;
-    }
-
     // Get server settings
-    RaftWebServerSettings getServerSettings()
+    const RaftWebServerSettings& getServerSettings() const
     {
         return _webServerSettings;
     }
@@ -61,13 +49,13 @@ public:
     // Send to all server-side events
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 
+    // Convert mongoose event to string
+    static const char* mongooseEventToString(int ev);
+
 private:
 
     // Web server settings
     RaftWebServerSettings _webServerSettings;
-
-    // Standard response headers
-    std::list<RdJson::NameValuePair> _stdResponseHeaders;
 
     // Handlers
     std::list<RaftWebHandler*> _webHandlers;
@@ -87,9 +75,6 @@ private:
 
     // Non-static connection handler
     void eventHandler(struct mg_connection *pConn, int ev, void *ev_data);
-
-    // Convert mongoose event to string
-    static const char* mongooseEventToString(int ev);
 
     // Debug event
     void debugEvent(struct mg_connection *pConn, int ev, void *ev_data);

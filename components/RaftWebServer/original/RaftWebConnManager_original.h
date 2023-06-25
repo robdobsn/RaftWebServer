@@ -30,7 +30,7 @@ public:
     virtual ~RaftWebConnManager_original();
 
     // Setup
-    void setup(RaftWebServerSettings& settings);
+    void setup(const RaftWebServerSettings& settings);
 
     // Service
     void service();
@@ -44,26 +44,14 @@ public:
     // Handler
     bool addHandler(RaftWebHandler* pHandler);
 
-    // Add response headers
-    void addResponseHeader(RdJson::NameValuePair headerInfo)
-    {
-        _stdResponseHeaders.push_back(headerInfo);
-    }
-
     // Get new responder
     // NOTE: this returns a new object or NULL
     // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
     RaftWebResponder* getNewResponder(const RaftWebRequestHeader& header, 
                 const RaftWebRequestParams& params, RaftHttpStatusCode& statusCode);
 
-    // Get standard response headers
-    std::list<RdJson::NameValuePair>* getStdResponseHeaders()
-    {
-        return &_stdResponseHeaders;
-    }
-
     // Get server settings
-    RaftWebServerSettings getServerSettings()
+    const RaftWebServerSettings& getServerSettings() const
     {
         return _webServerSettings;
     }
@@ -87,9 +75,6 @@ private:
 
     // Handlers
     std::list<RaftWebHandler*> _webHandlers;
-
-    // Standard response headers
-    std::list<RdJson::NameValuePair> _stdResponseHeaders;
 
     // Connections
     std::vector<RaftWebConnection> _webConnections;

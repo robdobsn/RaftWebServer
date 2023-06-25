@@ -17,9 +17,16 @@
 
 class RaftWebRequestHeader;
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Web handler for static files
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class RaftWebHandlerStaticFiles : public RaftWebHandler
 {
 public:
+    /// @brief Constructor of static files handler
+    /// @param pServePaths (comma separated and can include uri=path pairs separated by =)
+    /// @param pCacheControl (eg "no-cache, no-store, must-revalidate")
     RaftWebHandlerStaticFiles(const char* pServePaths, const char* pCacheControl);
     virtual ~RaftWebHandlerStaticFiles();
     virtual const char* getName() const override;

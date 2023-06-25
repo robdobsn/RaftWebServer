@@ -227,7 +227,10 @@ extern "C" void app_main(void)
             RaftWebServerSettings::DEFAULT_TASK_PRIORITY,
             RaftWebServerSettings::DEFAULT_TASK_STACK_BYTES,
             RaftWebServerSettings::DEFAULT_SEND_BUFFER_MAX_LEN,
-            CommsCoreIF::CHANNEL_ID_REST_API);
+            CommsCoreIF::CHANNEL_ID_REST_API,
+            nullptr,
+            nullptr,
+            nullptr;
     webServer.setup(settings);
 
     // Log out system info

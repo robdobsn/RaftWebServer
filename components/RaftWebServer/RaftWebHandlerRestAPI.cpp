@@ -11,11 +11,14 @@
 // #define DEBUG_WEB_HANDLER_REST_API
 // #define DEBUG_WEB_HANDLER_REST_API_DETAIL
 // #define DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
+// #define DEBUG_WEB_HANDLER_REST_API_BODY_VERBOSE
 // #define DEBUG_WEB_HANDLER_REST_API_CHUNK_VERBOSE
+// #define DEBUG_WEB_HANDLER_REST_API_EVENT_VERBOSE
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <MongooseMultipartState.h>
 #include <FileStreamBlock.h>
+#include <RaftWebConnManager_mongoose.h>
 #endif
 
 #if defined(DEBUG_WEB_HANDLER_REST_API)
@@ -91,10 +94,10 @@ RaftWebResponder* RaftWebHandlerRestAPI::getNewResponder(const RaftWebRequestHea
 
 bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
 {
-#ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
+#ifdef DEBUG_WEB_HANDLER_REST_API_EVENT_VERBOSE
     if (ev != MG_EV_POLL)
     {
-        LOG_I(MODULE_PREFIX, "handleRequest ev %d", ev);
+        LOG_I(MODULE_PREFIX, "handleRequest ev %s", RaftWebConnManager_mongoose::mongooseEventToString(ev));
     }    
 #endif
 
@@ -127,10 +130,11 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
     RaftWebServerRestEndpoint endpoint;
     bool canHandle = false;
     RaftWebServerMethod method = convMongooseMethodToRaftMethod(methodStr);
+    String endpointName = reqStr;
     if (reqStr.startsWith(_restAPIPrefix))
     {
         // Endpoint name is after prefix
-        String endpointName = reqStr.substring(_restAPIPrefix.length());
+        endpointName = reqStr.substring(_restAPIPrefix.length());
 #ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
         LOG_I(MODULE_PREFIX, "handleRequest testing endpointName %s method %s for match", 
                     endpointName.c_str(), methodStr.c_str());
@@ -181,125 +185,151 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         uint32_t contentPos = pMultipartState->contentPos;
 
         // Get content-length if present
-        uint32_t contentLength = 0;
         struct mg_str* cl = mg_http_get_header(hm, "Content-Length");
-        if (cl)
-        {
-            contentLength = atol(cl->ptr);
-        }
+        uint32_t contentLength = cl ? atol(cl->ptr) : 0;
+
+        // Check if content is chunked
+        struct mg_str *te = mg_http_get_header(hm, "Transfer-Encoding");
+        bool isChunked = te ? mg_vcasecmp(te, "chunked") == 0 : false;
 
 #ifdef DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
-            if (hm->body.len < 1000)
-            {
-                LOG_I(MODULE_PREFIX, "handleRequest multipart data body\n----------\n%s\n----------\n", String(hm->body.ptr, hm->body.len).c_str());
-            }
-#endif
-
-        // Extract information from multipart message
-        struct mg_http_part part;
-        size_t ofs = 0;
-        while ((ofs = mg_http_next_multipart(hm->body, ofs, &part)) != 0)
         {
-            // Extract filename if present
-            if (part.filename.len > 0)
+            const int DEBUG_MAX_STRING_LENGTH = 500;
+            String hmBody(hm->body.ptr, hm->body.len > DEBUG_MAX_STRING_LENGTH ? DEBUG_MAX_STRING_LENGTH : hm->body.len);
+            if (hm->body.len > DEBUG_MAX_STRING_LENGTH)
+                hmBody += "...";
+            LOG_I(MODULE_PREFIX, "handleRequest raw %s data body\n----------\n%s\n----------\n", 
+                                isChunked ? "CHUNKED" : "NOT CHUNKED",
+                                hmBody.c_str());
+        }
+#endif
+
+        // Check if chunked
+        if (isChunked)
+        {
+
+            // Extract information from multipart message
+            struct mg_http_part part;
+            size_t ofs = 0;
+            while ((ofs = mg_http_next_multipart(hm->body, ofs, &part)) != 0)
             {
-                String fileName = String(part.filename.ptr, part.filename.len);
-                if (fileName != pMultipartState->fileName)
+                // Extract filename if present
+                if (part.filename.len > 0)
                 {
-#ifdef DEBUG_WEB_HANDLER_REST_API
-                    // Debug
-                    LOG_I(MODULE_PREFIX, "handleRequest multipart data new filename %s", fileName.c_str());
-#endif
+                    String fileName = String(part.filename.ptr, part.filename.len);
+                    if (fileName != pMultipartState->fileName)
+                    {
+    #ifdef DEBUG_WEB_HANDLER_REST_API
+                        // Debug
+                        LOG_I(MODULE_PREFIX, "handleRequest multipart data new filename %s", fileName.c_str());
+    #endif
 
-                    contentPos = 0;
+                        contentPos = 0;
+                    }
+                    pMultipartState->fileName = fileName;
                 }
-                pMultipartState->fileName = fileName;
+
+    #ifdef DEBUG_WEB_HANDLER_REST_API
+                // Debug
+                LOG_I(MODULE_PREFIX, "handleRequest multipart data nameLen %d filenameLen %d bodyLen %d contentPos %d contentLen %d ofs %d",
+                            part.name.len, part.filename.len, part.body.len, contentPos, contentLength, ofs);
+    #endif
+
+    #ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
+                if (part.body.len < 50)
+                {
+                    LOG_I(MODULE_PREFIX, "handleRequest multipart data body %s", String(part.body.ptr, part.body.len).c_str());
+                }
+    #endif
+
+                // Check we have a filename
+                if (pMultipartState->fileName.length() != 0)
+                {
+    #ifdef DEBUG_WEB_HANDLER_REST_API
+                    LOG_I(MODULE_PREFIX, "handleRequest multipart sending to API");
+    #endif
+                    // Prepare block
+                    FileStreamBlock fileStreamBlock(
+                        pMultipartState->fileName.c_str(),
+                        contentLength, 
+                        contentPos, 
+                        (uint8_t*)part.body.ptr, 
+                        part.body.len,
+                        false,
+                        0, 
+                        false, 
+                        0, 
+                        false, 
+                        contentPos==0);
+                    // Check for callback
+                    APISourceInfo apiSourceInfo(_webServerSettings._restAPIChannelID);
+                    if (endpoint.restApiFnChunk) 
+                        endpoint.restApiFnChunk(endpointName, fileStreamBlock, apiSourceInfo);
+                }
+
+                // Update content pos
+                contentPos += part.body.len;
             }
 
-#ifdef DEBUG_WEB_HANDLER_REST_API_CHUNK_VERBOSE
-            if (part.body.len < 1000)
-            {
-                LOG_I(MODULE_PREFIX, "handleRequest multipart data body\n----------\n%s\n----------\n", String(part.body.ptr, part.body.len).c_str());
-            }
-#endif
+            // Delete the mulipart chunk now that we have processed it
+            mg_http_delete_chunk(pConn, hm);
 
-#ifdef DEBUG_WEB_HANDLER_REST_API
-            // Debug
-            LOG_I(MODULE_PREFIX, "handleRequest multipart data nameLen %d filenameLen %d bodyLen %d contentPos %d contentLen %d ofs %d",
-                        part.name.len, part.filename.len, part.body.len, contentPos, contentLength, ofs);
-#endif
+            // Update multipart state
+            pMultipartState->contentPos = contentPos;
 
-#ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
-            if (part.body.len < 50)
-            {
-                LOG_I(MODULE_PREFIX, "handleRequest multipart data body %s", String(part.body.ptr, part.body.len).c_str());
-            }
-#endif
+            // Check for last chunk
+            if (hm->chunk.len == 0) {
 
-            // Check we have a filename
-            if (pMultipartState->fileName.length() != 0)
-            {
-#ifdef DEBUG_WEB_HANDLER_REST_API
-                LOG_I(MODULE_PREFIX, "handleRequest multipart sending to API");
-#endif
-                // Prepare block
+    #ifdef DEBUG_WEB_HANDLER_REST_API
+                // Debug
+                LOG_I(MODULE_PREFIX, "handleRequest multipart data last chunk");
+    #endif
+
+                // Prepare final block
                 FileStreamBlock fileStreamBlock(
                     pMultipartState->fileName.c_str(),
                     contentLength, 
                     contentPos, 
-                    (uint8_t*)part.body.ptr, 
-                    part.body.len,
+                    nullptr, 
+                    0,
                     false,
                     0, 
                     false, 
                     0, 
                     false, 
-                    contentPos==0);
+                    false);
                 // Check for callback
                 APISourceInfo apiSourceInfo(_webServerSettings._restAPIChannelID);
-                if (endpoint.restApiFnChunk) 
-                    endpoint.restApiFnChunk(reqStr, fileStreamBlock, apiSourceInfo);
-            }
+                if (endpoint.restApiFnChunk)
+                    endpoint.restApiFnChunk(endpointName, fileStreamBlock, apiSourceInfo);
 
-            // Update content pos
-            contentPos += part.body.len;
+                // Last chunk received
+                lastChunkReceived = true;
+                multipartStateCleanup(pConn);
+            }
         }
 
-        // Delete the mulipart chunk now that we have processed it
-        mg_http_delete_chunk(pConn, hm);
-
-        // Update multipart state
-        pMultipartState->contentPos = contentPos;
-
-        // Check for last chunk
-        if (hm->chunk.len == 0) {
-
-#ifdef DEBUG_WEB_HANDLER_REST_API
-            // Debug
-            LOG_I(MODULE_PREFIX, "handleRequest multipart data last chunk");
-#endif
-
-            // Prepare final block
-            FileStreamBlock fileStreamBlock(
-                pMultipartState->fileName.c_str(),
-                contentLength, 
-                contentPos, 
-                nullptr, 
-                0,
-                false,
-                0, 
-                false, 
-                0, 
-                false, 
-                false);
-            // Check for callback
+        // Not chunked - send content to body function
+        else
+        {
+            // Call body method with contents
             APISourceInfo apiSourceInfo(_webServerSettings._restAPIChannelID);
-            if (endpoint.restApiFnChunk)
-                endpoint.restApiFnChunk(reqStr, fileStreamBlock, apiSourceInfo);
+            if (endpoint.restApiFnBody)
+                endpoint.restApiFnBody(endpointName, (uint8_t*)hm->body.ptr, hm->body.len, 
+                            contentPos, contentLength, apiSourceInfo);
 
-            // Last chunk received
-            lastChunkReceived = true;
-            multipartStateCleanup(pConn);
+            // Debug
+#ifdef DEBUG_WEB_HANDLER_REST_API_BODY_VERBOSE
+            {
+                const int DEBUG_MAX_STRING_LENGTH = 500;
+                String hmBody(hm->body.ptr, hm->body.len > DEBUG_MAX_STRING_LENGTH ? DEBUG_MAX_STRING_LENGTH : hm->body.len);
+                if (hm->body.len > DEBUG_MAX_STRING_LENGTH)
+                    hmBody += "...";
+                LOG_I(MODULE_PREFIX, "handleRequest body API call contentPos %d contentLen %d channelID %d\n----------\n%s\n----------\n", 
+                                contentPos, contentLength, _webServerSettings._restAPIChannelID,
+                                hmBody.c_str());
+            }
+#endif
         }
     }
 
@@ -309,12 +339,22 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         // Clear multipart offset (in case multiple files are uploaded)
         Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS, 0);
 
+#ifdef DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
+        {
+            const int DEBUG_MAX_STRING_LENGTH = 500;
+            String hmBody(hm->body.ptr, hm->body.len > DEBUG_MAX_STRING_LENGTH ? DEBUG_MAX_STRING_LENGTH : hm->body.len);
+            if (hm->body.len > DEBUG_MAX_STRING_LENGTH)
+                hmBody += "...";
+            LOG_I(MODULE_PREFIX, "handleRequest raw body\n----------\n%s\n----------\n", hmBody.c_str());
+        }
+#endif
+
         // Check endpoint callback
         String respStr;
         if (endpoint.restApiFn)
         {
             // Call endpoint
-            endpoint.restApiFn(reqStr, respStr, _webServerSettings._restAPIChannelID);
+            endpoint.restApiFn(endpointName, respStr, _webServerSettings._restAPIChannelID);
 
             // Debug
 #ifdef DEBUG_WEB_HANDLER_REST_API
@@ -322,21 +362,8 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
 #endif
         }
 
-        // Send start of response
-        mg_printf(pConn, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n");
-
-        // Add standard headers
-        for (auto& header : _standardHeaders)
-        {
-            mg_printf(pConn, "%s: %s\r\n", header.name.c_str(), header.value.c_str());
-        }
-
-        // End of header
-        mg_printf(pConn, "\r\n");
-
-        // Send response
-        mg_http_write_chunk(pConn, respStr.c_str(), respStr.length());
-        mg_http_printf_chunk(pConn, "");
+        // Response
+        mg_http_reply(pConn, 200, _webServerSettings._stdRespHeaders.c_str(), "%s", respStr.c_str());
 
         // Cleanup multipart state
         multipartStateCleanup(pConn);

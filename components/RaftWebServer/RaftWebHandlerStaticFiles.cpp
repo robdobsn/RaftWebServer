@@ -12,6 +12,7 @@
 #include "RaftWebResponderFile.h"
 #include <Logger.h>
 #include <FileSystem.h>
+#include <RdJson.h>
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
 #endif
@@ -57,17 +58,17 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
             String uri = folder.substring(0, eqPos);
             String path = folder.substring(eqPos+1);
 
-            // Ensure paths and URLs have a leading /
-            if (uri.length() == 0 || uri[0] != '/')
-                uri = "/" + uri;
-            if (path.length() == 0 || path[0] != '/')
-                path = "/" + path;
-
             // Remove trailing /
             if (uri.endsWith("/"))
                 uri.remove(uri.length()-1);
             if (path.endsWith("/"))
                 path.remove(path.length()-1);
+
+            // Ensure paths and URLs have a leading /
+            if (uri.length() == 0 || uri[0] != '/')
+                uri = "/" + uri;
+            if (path.length() == 0 || path[0] != '/')
+                path = "/" + path;
 
             // Add to vector
             RdJson::NameValuePair nvPair(uri, path);
@@ -75,13 +76,13 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
         }
         else
         {
-            // Ensure paths and URLs have a leading /
-            if (folder.length() == 0 || folder[0] != '/')
-                folder = "/" + folder;
-
             // Remove trailing /
             if (folder.endsWith("/"))
                 folder.remove(folder.length()-1);
+
+            // Ensure paths and URLs have a leading /
+            if (folder.length() == 0 || folder[0] != '/')
+                folder = "/" + folder;
 
             // Add to vector
             RdJson::NameValuePair nvPair("/", folder);
@@ -136,7 +137,11 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
     // Debug
 #ifdef DEBUG_STATIC_FILE_HANDLER
     uint64_t getResponderStartUs = micros();
-    LOG_I(MODULE_PREFIX, "getNewResponder reqURL %s paths %s", requestHeader.URL.c_str(), _servePaths.c_str());    
+    LOG_I(MODULE_PREFIX, "getNewResponder reqURL %s paths %s", requestHeader.URL.c_str(), _servePaths.c_str());
+    for (auto& servePath : _servedPathPairs)
+    {
+        LOG_I(MODULE_PREFIX, "getNewResponder servePath name %s -> value %s", servePath.name.c_str(), servePath.value.c_str());
+    }
 #endif
 
     // Must be a GET
@@ -229,7 +234,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
 String RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
 {
     // Iterate MIME types str
-    const char* pCurMime = _webServerSettings._pMimeTypes ? _webServerSettings._pMimeTypes : _mimeTypesStr;
+    const char* pCurMime = _webServerSettings._mimeTypes.length() > 0 ? _webServerSettings._mimeTypes.c_str() : _mimeTypesStr;
     while (pCurMime != NULL)
     {
         // Get extension
@@ -262,22 +267,19 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *pConn, int e
     // Check event
     if (ev == MG_EV_HTTP_MSG) 
     {
-        // Update extra headers string
-        _extraHeadersStr = "";
-        for (auto& header : _standardHeaders)
-        {
-            _extraHeadersStr += header.name + ": " + header.value + "\r\n";
-        }
-
+        // Debug
+#ifdef DEBUG_STATIC_FILE_HANDLER
+        LOG_I(MODULE_PREFIX, "handleRequest stdRespHeaders %s", _webServerSettings._stdRespHeaders.c_str());
+#endif
         // Extract message
         struct mg_http_message *hm = (struct mg_http_message *)ev_data;
         struct mg_http_serve_opts opts = 
         {
             .root_dir = _servePaths.c_str(),
             .ssi_pattern = NULL,
-            .extra_headers = _extraHeadersStr.c_str(),
-            .mime_types = _webServerSettings._pMimeTypes ? _webServerSettings._pMimeTypes : _mimeTypesStr,
-            .page404 = _webServerSettings._p404PageSource,
+            .extra_headers = _webServerSettings._stdRespHeaders.length() > 0 ? _webServerSettings._stdRespHeaders.c_str() : NULL,
+            .mime_types = _webServerSettings._mimeTypes.length() > 0 ? _webServerSettings._mimeTypes.c_str() : _mimeTypesStr,
+            .page404 = _webServerSettings._404PageSource.length() > 0 ? _webServerSettings._404PageSource.c_str() : NULL,
             .fs = NULL,
         };
         mg_http_serve_dir(pConn, hm, &opts);
@@ -288,13 +290,13 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *pConn, int e
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
         struct mg_http_message tmp = {0};
 #pragma GCC diagnostic pop
-        mg_http_parse((char *) pConn->send.buf, c->send.len, &tmp);
+        mg_http_parse((char *) pConn->send.buf, pConn->send.len, &tmp);
         struct mg_str unknown = mg_str_n("?", 1), *cl;
         cl = mg_http_get_header(&tmp, "Content-Length");
         if (cl == NULL) cl = &unknown;
-        MG_INFO(("%.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
+        LOG_I(MODULE_PREFIX, "handleRequest %.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
                 (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
-                (int) cl->len, cl->ptr));
+                (int) cl->len, cl->ptr);
 #endif
         return true;
     }

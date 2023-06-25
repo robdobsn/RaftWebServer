@@ -9,13 +9,49 @@
 #include "RaftWebHandlerWS.h"
 #include <RaftUtils.h>
 
+// #define WARN_WS_CLOSE_UNKNOWN_CONNECTION
 // #define DEBUG_WS_SEND_APP_DATA_FAIL
 // #define DEBUG_WEB_HANDLER_WS
 // #define DEBUG_WS_SEND_APP_DATA
 // #define DEBUG_WS_RECV_APP_DATA
 // #define DEBUG_WS_OPEN_CLOSE
+// #define DEBUG_WS_PING_PONG
 
 static const char* MODULE_PREFIX = "RaftWebHandlerWS";
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Constructor
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftWebHandlerWS::RaftWebHandlerWS(const ConfigBase& config,
+        RaftWebSocketCanAcceptCB canAcceptRxMsgCB, RaftWebSocketMsgCB rxMsgCB)
+        :   _canAcceptRxMsgCB(canAcceptRxMsgCB), 
+            _rxMsgCB(rxMsgCB)
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+            , _txQueue(config.getLong("txQueueMax", 10))
+#endif
+{
+    // Websocket config
+    _wsPath = config.getString("pfix", "ws");
+    _wsPath = _wsPath.startsWith("/") ? _wsPath : "/" + _wsPath;
+    _pktMaxBytes = config.getLong("pktMaxBytes", DEFAULT_WS_PKT_MAX_BYTES);
+    _txQueueMax = config.getLong("txQueueMax", DEFAULT_WS_TX_QUEUE_MAX);
+    _pingIntervalMs = config.getLong("pingMs", DEFAULT_WS_PING_MS);
+    _noPongMs = config.getLong("noPongMs", DEFAULT_WS_NO_PONG_MS);
+    _isBinaryWS = config.getString("content", "binary").equalsIgnoreCase("binary");
+
+    // Setup channelIDs mapping
+    _maxConnections = config.getLong("maxConn", 1);
+    _connectionSlots.clear();
+    _connectionSlots.resize(_maxConnections);
+
+#ifdef DEBUG_WS_OPEN_CLOSE
+    // Debug
+    LOG_I(MODULE_PREFIX, "RaftWebHandlerWS: wsPath %s pktMaxBytes %d txQueueMax %d pingMs %d noPongMs %d isBinary %s obj %p",
+            _wsPath.c_str(), _pktMaxBytes, _txQueueMax, _pingIntervalMs, _noPongMs, _isBinaryWS ? "Y" : "N", this);
+#endif
+}
 
 #if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
 
@@ -32,57 +68,46 @@ RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& 
     if (requestHeader.reqConnType != REQ_CONN_TYPE_WEBSOCKET)
         return NULL;
 
-    String wsPath = _wsConfig.getString("pfix", "ws");
-    wsPath = wsPath.startsWith("/") ? wsPath : "/" + wsPath;
-
 #ifdef DEBUG_WEB_HANDLER_WS
-    LOG_I(MODULE_PREFIX, "getNewResponder: req %s this prefix %s", requestHeader.URIAndParams.c_str(), wsPath.c_str());
+    LOG_I(MODULE_PREFIX, "getNewResponder: req %s this prefix %s", requestHeader.URIAndParams.c_str(), _wsPath.c_str());
 #endif
 
     // Check for WS prefix
-    if (!requestHeader.URL.startsWith(wsPath))
+    if (!requestHeader.URL.startsWith(_wsPath))
     {
 #ifdef DEBUG_WEB_HANDLER_WS        
         LOG_I(MODULE_PREFIX, "getNewResponder unmatched ws req %s != expected %s", 
-                        requestHeader.URL.c_str(), wsPath.c_str());
+                        requestHeader.URL.c_str(), _wsPath.c_str());
 #endif
         // We don't change the status code here as we didn't find a match
         return NULL;
     }
 
-    // Check limits on connections
-    uint32_t wsConnIdxAvailable = UINT32_MAX;
-    for (uint32_t wsConnIdx = 0; wsConnIdx < _channelIDUsage.size(); wsConnIdx++)
-    {
-        if (!_channelIDUsage[wsConnIdx].isUsed)
-        {
-            wsConnIdxAvailable = wsConnIdx;
-            break;
-        }
-    }
-    if (wsConnIdxAvailable == UINT32_MAX)
+    // Find a free connection slot
+    int connSlotIdx = findFreeConnectionSlot();
+    if (connSlotIdx < 0)
     {
         statusCode = HTTP_STATUS_SERVICEUNAVAILABLE;
-        LOG_W(MODULE_PREFIX, "getNewResponder pfix %s no free connections", wsPath.c_str());
+        LOG_W(MODULE_PREFIX, "getNewResponder pfix %s no free connections", _wsPath.c_str());
         return NULL;
     }
 
     // Looks like we can handle this so create a new responder object
-    uint32_t channelID = _channelIDUsage[wsConnIdxAvailable].channelID;
+    uint32_t channelID = _connectionSlots[connSlotIdx].channelID;
     RaftWebResponder* pResponder = new RaftWebResponderWS(this, params, requestHeader.URL, 
                 _canAcceptRxMsgCB, _rxMsgCB, 
                 channelID,
-                _wsConfig.getLong("pktMaxBytes", 1000),
-                _wsConfig.getLong("txQueueMax", 10),
-                _wsConfig.getLong("pingMs", 2000),
-                _wsConfig.getLong("noPongMs", 5000),
-                _wsConfig.getString("content", "binary")
+                _pktMaxBytes,
+                txQueueMax,
+                pingMs,
+                noPongMs,
+                contentType
                 );
 
     if (pResponder)
     {
         statusCode = HTTP_STATUS_OK;
-        _channelIDUsage[wsConnIdxAvailable].isUsed = true;
+        _connectionSlots[connSlotIdx].isUsed = true;
     }
 
     // Debug
@@ -104,30 +129,27 @@ void RaftWebHandlerWS::responderDelete(RaftWebResponderWS* pResponder)
     uint32_t channelID = UINT32_MAX;
     if (pResponder->getChannelID(channelID))
     {
-        // Find the channelID slot
-        for (auto &channelIDUsage : _channelIDUsage)
+        // Find the connection slot
+        int connSlotIdx = findConnectionSlotByChannelID(channelID);
+        if (connSlotIdx < 0)
         {
-            if (channelIDUsage.isUsed && (channelIDUsage.channelID == channelID))
-            {
-                channelIDUsage.isUsed = false;
-                // Debug
-                LOG_I(MODULE_PREFIX, "responderDelete deleted responder %p channelID %d OK", pResponder, channelID);
-                return;
-            }
+            LOG_W(MODULE_PREFIX, "responderDelete NOT FOUND responder %p channelID %d", pResponder, channelID);
+            return;
         }
-        // Debug
-        LOG_W(MODULE_PREFIX, "responderDelete %p channelID %d NOT FOUND", pResponder, channelID);
+
+        // Clear the connection slot
+        _connectionSlots[connSlotIdx].isUsed = false;
     }
     else
     {
-        LOG_W(MODULE_PREFIX, "responderDelete responder %p channelID %d not available", pResponder, channelID);
+        LOG_W(MODULE_PREFIX, "responderDelete FAIL NO CHANNELID responder %p channelID %d", pResponder, channelID);
     }
 }
 
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// handleRequest
+// handleRequest (mongoose)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
@@ -138,30 +160,25 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *
         // Mongoose http message
         struct mg_http_message *hm = (struct mg_http_message *) ev_data;
 
-        // Get request string and method string
+        // Get request string
         String reqStr = String(hm->uri.ptr, hm->uri.len);
-        String methodStr = String(hm->method.ptr, hm->method.len);
 
-        // Check for WS endpoint
-        String wsPath = _wsConfig.getString("pfix", "ws");
-        wsPath = wsPath.startsWith("/") ? wsPath : "/" + wsPath;        
-        if (!reqStr.startsWith(wsPath))
+        // Check if this is for the right WS endpoint
+        if (!reqStr.startsWith(_wsPath))
             return false;
 
-        // Check limits on connections
-        uint32_t wsConnIdxAvailable = UINT32_MAX;
-        for (uint32_t wsConnIdx = 0; wsConnIdx < _channelIDUsage.size(); wsConnIdx++)
+        // Get method string
+        String methodStr = String(hm->method.ptr, hm->method.len);
+
+        // Check for an available connection slot
+        int connSlotIdx = findFreeConnectionSlot();
+        if (connSlotIdx < 0)
         {
-            if (!_channelIDUsage[wsConnIdx].isUsed)
-            {
-                wsConnIdxAvailable = wsConnIdx;
-                break;
-            }
-        }
-        if (wsConnIdxAvailable == UINT32_MAX)
-        {
+            // No free connection slots
             mg_http_reply(pConn, HTTP_STATUS_SERVICEUNAVAILABLE, "", "");
-            LOG_W(MODULE_PREFIX, "handleRequest pfix %s no free connections", wsPath.c_str());
+            LOG_W(MODULE_PREFIX, "handleRequest FAIL pfix %s no free channels", _wsPath.c_str());
+
+            // Return true to indicate we "handled" the request
             return true;
         }
 
@@ -169,64 +186,78 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *
         mg_ws_upgrade(pConn, hm, NULL);
 
         // Put the channel ID into the connection data field
-        Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_CHANNEL_ID_POS, _channelIDUsage[wsConnIdxAvailable].channelID);
-        _channelIDUsage[wsConnIdxAvailable].isUsed = true;
+        setChannelIDInConnInfo(pConn, _connectionSlots[connSlotIdx].channelID);
+        _connectionSlots[connSlotIdx].isUsed = true;
+        _connectionSlots[connSlotIdx].pConn = pConn;
+        _connectionSlots[connSlotIdx].lastPingRequestTimeMs = millis();
 
         // Debug
 #ifdef DEBUG_WS_OPEN_CLOSE        
-        LOG_I(MODULE_PREFIX, "handleRequest WS conn upgraded ok reqStr %s connIdxAvail %d channelID %d", 
-                        reqStr.c_str(), wsConnIdxAvailable, _channelIDUsage[wsConnIdxAvailable].channelID);
+        LOG_I(MODULE_PREFIX, "handleRequest upgraded OK reqStr %s connSlotIdx %d chID %d pConn %p", 
+                        reqStr.c_str(), connSlotIdx, _connectionSlots[connSlotIdx].channelID, pConn);
 #endif
 
         // Handled ok
         return true;
     }
 
-    // Check for WS message
+    // Check for incoming WS message
     if (ev == MG_EV_WS_MSG)
     {
+        // Check this WS handler is for this connection
+        if (findConnectionSlotByConn(pConn) < 0)
+        {
+            // Not for us
+            return false;
+        }
+
         // WS message
         struct mg_ws_message *wm = (struct mg_ws_message *) ev_data;
 
-        // Get the channel ID from the connection data field
-        const uint8_t* pData = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
-        uint32_t channelID = Raft::getBEUint32AndInc(pData);
+        // Check the message type
+        uint8_t wsMsgType = wm->flags & 0x0F;
 
-#ifdef DEBUG_WEB_HANDLER_WS
-        // Debug
-        LOG_I(MODULE_PREFIX, "handleRequest WS channelID %d len %d", channelID, wm->data.len);
-#endif
-
-        // Check message callback
-        if (_rxMsgCB)
+        // Handle text and binary messages
+        if ((wsMsgType == WEBSOCKET_OP_TEXT) || (wsMsgType == WEBSOCKET_OP_BINARY))
         {
-            // Call callback with the message
-            _rxMsgCB(channelID, (const uint8_t*)wm->data.ptr, wm->data.len);
+            // Get the channel ID from the connection data field
+            uint32_t channelID = getChannelIDFromConnInfo(pConn);
+
+    #ifdef DEBUG_WEB_HANDLER_WS
+            // Debug
+            LOG_I(MODULE_PREFIX, "handleRequest incomingMsg chID %d len %d pConn %p obj %p", channelID, wm->data.len, pConn, this);
+    #endif
+
+            // Check message callback
+            if (_rxMsgCB)
+            {
+                // Call callback with the message
+                _rxMsgCB(channelID, (const uint8_t*)wm->data.ptr, wm->data.len);
+            }
+            return true;
         }
-        return true;
     }
 
     // Check for WS close
     if (ev == MG_EV_CLOSE)
     {
-        // Get the channel ID from the connection data field
-        const uint8_t* pData = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
-        uint32_t channelID = Raft::getBEUint32AndInc(pData);
+        // Find the connection
+        int connSlotIdx = findConnectionSlotByConn(pConn);
+        if (connSlotIdx < 0)
+        {
+            // Not handled by this WS handler
+            return false;
+        }
 
         // Debug
 #ifdef DEBUG_WS_OPEN_CLOSE
-        LOG_I(MODULE_PREFIX, "handleRequest WS channelID %d closed", channelID);
+        uint32_t channelID = _connectionSlots[connSlotIdx].channelID;
+        LOG_I(MODULE_PREFIX, "handleRequest CLOSED chID %d, pConn %p obj %p", channelID, pConn, this);
 #endif
 
-        // Clear the channel ID usage
-        for (auto &channelIDUsage : _channelIDUsage)
-        {
-            if (channelIDUsage.isUsed && (channelIDUsage.channelID == channelID))
-            {
-                channelIDUsage.isUsed = false;
-                break;
-            }
-        }
+        // Slot no longer used
+        _connectionSlots[connSlotIdx].isUsed = false;
+        _connectionSlots[connSlotIdx].pConn = nullptr;
         return true;
     }
 
@@ -239,19 +270,18 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *
         if (_txQueue.peek(frame))
         {
             // Get the channel ID from the connection data field
-            const uint8_t* pData = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
-            uint32_t channelID = Raft::getBEUint32AndInc(pData);
+            uint32_t channelID = getChannelIDFromConnInfo(pConn);
 
-            // Check the channel ID is for this channel
+            // Check the message is for this channel
             if (channelID == frame.getChannelID())
             {
-
                 // Send the message
-                mg_ws_send(pConn, frame.getData(), frame.getLen(), WEBSOCKET_OP_BINARY);
+                mg_ws_send(pConn, frame.getData(), frame.getLen(), _isBinaryWS ? WEBSOCKET_OP_BINARY : WEBSOCKET_OP_TEXT);
 
                 // Debug
 #ifdef DEBUG_WS_SEND_APP_DATA
-                LOG_I(MODULE_PREFIX, "sendMsg channelID %d len %d", channelID, frame.getLen());
+                LOG_I(MODULE_PREFIX, "sendMsg OK %s chID %d len %d pConn %p obj %p", 
+                                _isBinaryWS ? "BINARY" : "TEXT", channelID, frame.getLen(),  pConn, this);
 #endif
                 // Remove from queue
                 _txQueue.get(frame);
@@ -264,9 +294,44 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *
                     // Timeout - remove from queue
                     _txQueue.get(frame);
 #ifdef DEBUG_WS_SEND_APP_DATA_FAIL                    
-                    LOG_W(MODULE_PREFIX, "sendMsg timeout channelID %d len %d", channelID, frame.getLen());
+                    LOG_W(MODULE_PREFIX, "sendMsg FAILED timeout chID %d len %d pConn %p obj %p", 
+                                channelID, frame.getLen(), pConn, this);
 #endif
                 }
+            }
+        }
+        else
+        {
+            // See if a connectivity checks are due
+            if (Raft::isTimeout(millis(), _lastConnCheckTimeMs, CONNECTIVITY_CHECK_INTERVAL_MS))
+            {
+                // Update last ping connectivity check time
+                _lastConnCheckTimeMs = millis();
+
+                // Find the connection
+                int connSlotIdx = findConnectionSlotByConn(pConn);
+                if (connSlotIdx < 0)
+                {
+                    // Not handled by this WS handler
+                    return false;
+                }
+
+                // Check if a ping on this connection is due
+                if (Raft::isTimeout(millis(), _connectionSlots[connSlotIdx].lastPingRequestTimeMs, _pingIntervalMs))
+                {
+                    // Send a ping
+                    mg_ws_send(pConn, NULL, 0, WEBSOCKET_OP_PING);
+
+                    // Debug
+#ifdef DEBUG_WS_PING_PONG
+                    LOG_I(MODULE_PREFIX, "sendMsg ping pConn %p obj %p", pConn, this);
+#endif
+                    // Update last ping time
+                    _connectionSlots[connSlotIdx].lastPingRequestTimeMs = millis();
+                }
+
+                // Handled
+                return true;
             }
         }
     }
@@ -280,18 +345,11 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *
 
 bool RaftWebHandlerWS::canSend(uint32_t& channelID, bool& noConn)
 {
-    // Check channel is connected
-    bool channelFound = false;
-    for (auto &channelIDUsage : _channelIDUsage)
+    // Find the connection slot
+    int connSlotIdx = findConnectionSlotByChannelID(channelID);
+    if (connSlotIdx < 0)
     {
-        if ((channelIDUsage.isUsed) && (channelIDUsage.channelID == channelID))
-        {
-            channelFound = true;
-            break;
-        }
-    }
-    if (!channelFound)
-    {
+        // Not found
         noConn = true;
         return false;
     }
@@ -307,6 +365,11 @@ bool RaftWebHandlerWS::canSend(uint32_t& channelID, bool& noConn)
 
 bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
+    // Find the connection slot
+    int connSlotIdx = findConnectionSlotByChannelID(channelID);
+    if (connSlotIdx < 0)
+        return false;
+
     // Add to queue - don't block if full
     RaftWebDataFrame frame(channelID, pBuf, bufLen, millis());
     bool putRslt = _txQueue.put(frame, MAX_WAIT_FOR_TX_QUEUE_MS);
@@ -321,6 +384,64 @@ bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t ch
         LOG_I(MODULE_PREFIX, "sendMsg len %d", bufLen);
 #endif
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Connection slot handling
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int RaftWebHandlerWS::findFreeConnectionSlot()
+{
+    // Find a free connection slot
+    for (int i = 0; i < _connectionSlots.size(); i++)
+    {
+        if (!_connectionSlots[i].isUsed)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int RaftWebHandlerWS::findConnectionSlotByChannelID(uint32_t channelID)
+{
+    // Find a free connection slot
+    for (int i = 0; i < _connectionSlots.size(); i++)
+    {
+        if (_connectionSlots[i].isUsed && (_connectionSlots[i].channelID == channelID))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int RaftWebHandlerWS::findConnectionSlotByConn(struct mg_connection* pConn)
+{
+    // Find a free connection slot
+    for (int i = 0; i < _connectionSlots.size(); i++)
+    {
+        if (_connectionSlots[i].isUsed && (_connectionSlots[i].pConn == pConn))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ChannelID handling
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32_t RaftWebHandlerWS::getChannelIDFromConnInfo(struct mg_connection *pConn)
+{
+    const uint8_t* pData = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
+    return Raft::getBEUint32AndInc(pData);
+}
+
+void RaftWebHandlerWS::setChannelIDInConnInfo(struct mg_connection *pConn, uint32_t channelID)
+{
+    Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_CHANNEL_ID_POS, channelID);
 }
 
 #endif
