@@ -14,7 +14,7 @@ message(STATUS "FS_IMAGE_PATH: ${FS_IMAGE_PATH}")
 FetchContent_Declare(
   raftcore
   GIT_REPOSITORY https://github.com/robdobsn/RaftCore.git
-  GIT_TAG        v0.4.11
+  GIT_TAG        v0.4.13
 )
 
 # Fetch the mongoose web library

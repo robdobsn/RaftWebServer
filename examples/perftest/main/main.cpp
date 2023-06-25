@@ -101,7 +101,7 @@ void uploadFileComplete(const String &reqStr, String &respStr, const APISourceIn
 
 FILE* pGlobalFilePtr = NULL;
 
-UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
+RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
 {
     LOG_I(MODULE_PREFIX, "uploadFileBlock %s filename %s blockLen %d firstBlock %d finalBlock %d",
             req.c_str(), fileStreamBlock.filename, fileStreamBlock.blockLen, 
@@ -116,7 +116,7 @@ UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileSt
             LOG_E(MODULE_PREFIX, "uploadFileBlock file already open, closing");
             fclose(pGlobalFilePtr);
             pGlobalFilePtr = NULL;
-            return UtilsRetCode::BUSY;
+            return RaftRetCode::BUSY;
         }
 
         // Open file
@@ -125,7 +125,7 @@ UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileSt
         if (!pGlobalFilePtr)
         {
             LOG_E(MODULE_PREFIX, "uploadFileBlock failed to open file %s", filename.c_str());
-            return UtilsRetCode::CANNOT_START;
+            return RaftRetCode::CANNOT_START;
         }
 
         // Debug
@@ -136,14 +136,14 @@ UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileSt
     if (!pGlobalFilePtr)
     {
         LOG_E(MODULE_PREFIX, "uploadFileBlock file not open");
-        return UtilsRetCode::CANNOT_START;
+        return RaftRetCode::CANNOT_START;
     }
 
     // Seek to position
     if (fseek(pGlobalFilePtr, fileStreamBlock.filePos, SEEK_SET) != 0)
     {
         LOG_E(MODULE_PREFIX, "uploadFileBlock failed to seek to position %d", fileStreamBlock.filePos);
-        return UtilsRetCode::OTHER_FAILURE;
+        return RaftRetCode::OTHER_FAILURE;
     }
 
     // Write data to file
@@ -161,7 +161,7 @@ UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileSt
         {
             LOG_E(MODULE_PREFIX, "uploadFileBlock failed to write len %d at %d - total blockLen %d", 
                     writeLen, dataPos, fileStreamBlock.blockLen);
-            return UtilsRetCode::OTHER_FAILURE;
+            return RaftRetCode::OTHER_FAILURE;
         }
         dataPos += writeLen;
     }
@@ -176,7 +176,7 @@ UtilsRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileSt
         // Debug
         LOG_I(MODULE_PREFIX, "uploadFileBlock closed file %s", fileStreamBlock.filename);
     }
-    return UtilsRetCode::OK;
+    return RaftRetCode::OK;
 }
 
 extern "C" void app_main(void)
@@ -218,6 +218,9 @@ extern "C" void app_main(void)
     RaftWebServer webServer;
 
     // Settings
+    std::vector<String> stdRespHeaders = {
+        {"Access-Control-Allow-Origin", "*"}
+    };
     RaftWebServerSettings settings(
             RaftWebServerSettings::DEFAULT_HTTP_PORT, 
             RaftWebServerSettings::DEFAULT_CONN_SLOTS, 
@@ -228,9 +231,9 @@ extern "C" void app_main(void)
             RaftWebServerSettings::DEFAULT_TASK_STACK_BYTES,
             RaftWebServerSettings::DEFAULT_SEND_BUFFER_MAX_LEN,
             CommsCoreIF::CHANNEL_ID_REST_API,
+            stdRespHeaders,
             nullptr,
-            nullptr,
-            nullptr;
+            nullptr);
     webServer.setup(settings);
 
     // Log out system info
@@ -304,9 +307,6 @@ extern "C" void app_main(void)
             pHandlerWS->setupWebSocketChannelID(i, i + CHANNEL_ID_NUMBER_BASE);
         }
     }
-
-    // Add headers
-    webServer.addResponseHeader({"Access-Control-Allow-Origin", "*"});
 
     // Test creating a small file and reading it back to ensure the filesystem works
     String testFileName = "/local/test.txt";
