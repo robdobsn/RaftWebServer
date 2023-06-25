@@ -14,7 +14,9 @@
 #include <RaftUtils.h>
 
 // Debug
+// #define DEBUG_WEB_SERVER_MONGOOSE_LOG_LEVEL MG_LL_DEBUG
 // #define DEBUG_WEB_SERVER_MONGOOSE
+// #define DEBUG_WEB_SERVER_EVENT
 // #define DEBUG_WEB_SERVER_HANDLERS
 // #define DEBUG_WEB_SERVER_EVENT_DETAILS
 // #define DEBUG_WEB_SERVER_EVENT_VERBOSE
@@ -55,9 +57,9 @@ void RaftWebConnManager_mongoose::setup(const RaftWebServerSettings &settings)
     // Setup listening address
     _mongooseListeningAddr = "http://0.0.0.0:" + String(settings._serverTCPPort);
 
-#ifdef DEBUG_WEB_SERVER_MONGOOSE
+#ifdef DEBUG_WEB_SERVER_MONGOOSE_LOG_LEVEL
     // Debug
-    mg_log_set(MG_LL_DEBUG);  // Set log level
+    mg_log_set(DEBUG_WEB_SERVER_MONGOOSE_LOG_LEVEL);  // Set log level
 #endif
 
     // Init manager
@@ -215,11 +217,16 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *pConn, int 
         if (pHandler->isFileHandler())
             continue;
         bool rslt = pHandler->handleRequest(pConn, ev, ev_data);
-#ifdef DEBUG_WEB_SERVER_MONGOOSE
+#ifdef DEBUG_WEB_SERVER_EVENT
         if (ev != MG_EV_POLL)
         {
-            LOG_I(MODULE_PREFIX, "eventHandler - event %s handler %s rslt %d", 
-                    mongooseEventToString(ev), pHandler->getName(), rslt);
+#ifndef DEBUG_WEB_SERVER_EVENT_VERBOSE
+            if (rslt)
+#endif
+            {
+                LOG_I(MODULE_PREFIX, "eventHandler - event %s memAvailable %d handler %s rslt %d", 
+                        mongooseEventToString(ev), heap_caps_get_free_size(MALLOC_CAP_8BIT), pHandler->getName(), rslt);
+            }
         }
 #endif
         if (rslt)
@@ -237,8 +244,13 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *pConn, int 
 #ifdef DEBUG_WEB_SERVER_MONGOOSE
         if (ev != MG_EV_POLL)
         {
-            LOG_I(MODULE_PREFIX, "eventHandler - event %s handler %s rslt %d", 
-                    mongooseEventToString(ev), pHandler->getName(), rslt);
+#ifndef DEBUG_WEB_SERVER_EVENT_VERBOSE
+            if (rslt)
+#endif
+            {
+                LOG_I(MODULE_PREFIX, "eventHandler - event %s handler %s rslt %d", 
+                        mongooseEventToString(ev), pHandler->getName(), rslt);
+            }
         }
 #endif
         if (rslt)

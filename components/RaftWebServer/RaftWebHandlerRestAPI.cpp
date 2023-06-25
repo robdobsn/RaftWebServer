@@ -10,10 +10,12 @@
 
 // #define DEBUG_WEB_HANDLER_REST_API
 // #define DEBUG_WEB_HANDLER_REST_API_DETAIL
+// #define DEBUG_WEB_HANDLER_REST_API_RAW_BODY_INFO
 // #define DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
 // #define DEBUG_WEB_HANDLER_REST_API_BODY_VERBOSE
 // #define DEBUG_WEB_HANDLER_REST_API_CHUNK_VERBOSE
 // #define DEBUG_WEB_HANDLER_REST_API_EVENT_VERBOSE
+// #define DEBUG_WEB_HANDLER_REST_API_MATCH_DETAIL
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <MongooseMultipartState.h>
@@ -135,7 +137,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
     {
         // Endpoint name is after prefix
         endpointName = reqStr.substring(_restAPIPrefix.length());
-#ifdef DEBUG_WEB_HANDLER_REST_API_DETAIL
+#ifdef DEBUG_WEB_HANDLER_REST_API_MATCH_DETAIL
         LOG_I(MODULE_PREFIX, "handleRequest testing endpointName %s method %s for match", 
                     endpointName.c_str(), methodStr.c_str());
 #endif
@@ -159,7 +161,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
     // The connection state data must be initialised to nullptr on CONNECT or ACCEPT
     MongooseMultipartState* pMultipartState = multipartStateGetPtr(pConn);
 
-    // Check if handling chunked data
+    // Check if handling a chunk - this is not just for "TransferEncoding: chunked" but any body data it seems
     bool lastChunkReceived = false;
     if (ev == MG_EV_HTTP_CHUNK)
     {
@@ -188,30 +190,44 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         struct mg_str* cl = mg_http_get_header(hm, "Content-Length");
         uint32_t contentLength = cl ? atol(cl->ptr) : 0;
 
-        // Check if content is chunked
-        struct mg_str *te = mg_http_get_header(hm, "Transfer-Encoding");
-        bool isChunked = te ? mg_vcasecmp(te, "chunked") == 0 : false;
+        // Check if content is multipart-form-data
+        struct mg_str *contentType = mg_http_get_header(hm, "Content-Type");
+        bool isMultipartForm = false;
+        if (contentType)
+        {
+            String contentTypeStr(contentType->ptr, contentType->len);
+            // LOG_I(MODULE_PREFIX, "handleRequest content-type %s", contentTypeStr.c_str());
+            isMultipartForm = contentTypeStr.startsWith("multipart/form-data");
+        }
 
 #ifdef DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
+        // Debug
         {
             const int DEBUG_MAX_STRING_LENGTH = 500;
             String hmBody(hm->body.ptr, hm->body.len > DEBUG_MAX_STRING_LENGTH ? DEBUG_MAX_STRING_LENGTH : hm->body.len);
             if (hm->body.len > DEBUG_MAX_STRING_LENGTH)
                 hmBody += "...";
             LOG_I(MODULE_PREFIX, "handleRequest raw %s data body\n----------\n%s\n----------\n", 
-                                isChunked ? "CHUNKED" : "NOT CHUNKED",
+                                isMultipartForm ? "MULTIPART" : "NOT-MULTIPART",
                                 hmBody.c_str());
+        }
+#elif defined(DEBUG_WEB_HANDLER_REST_API_RAW_BODY_INFO)
+        // Debug
+        {
+            LOG_I(MODULE_PREFIX, "handleRequest raw %s data body len %d chunkLen %d", 
+                                isMultipartForm ? "MULTIPART" : "NOT-MULTIPART",
+                                hm->body.len, hm->chunk.len);
         }
 #endif
 
-        // Check if chunked
-        if (isChunked)
+        // Check if multipart form
+        if (isMultipartForm)
         {
 
             // Extract information from multipart message
             struct mg_http_part part;
             size_t ofs = 0;
-            while ((ofs = mg_http_next_multipart(hm->body, ofs, &part)) != 0)
+            while ((ofs = mg_http_next_multipart(hm->chunk, ofs, &part)) != 0)
             {
                 // Extract filename if present
                 if (part.filename.len > 0)
@@ -309,7 +325,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
             }
         }
 
-        // Not chunked - send content to body function
+        // Not multipart - send content to body function
         else
         {
             // Call body method with contents
@@ -329,6 +345,10 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
                                 contentPos, contentLength, _webServerSettings._restAPIChannelID,
                                 hmBody.c_str());
             }
+#elif DEBUG_WEB_HANDLER_REST_API_BODY_INFO
+            // Debug
+            LOG_I(MODULE_PREFIX, "handleRequest body API call contentPos %d contentLen %d channelID %d bodyLen %d chunkLen %d", 
+                                contentPos, contentLength, _webServerSettings._restAPIChannelID, hm->body.len, hm->chunk.len);
 #endif
         }
     }
