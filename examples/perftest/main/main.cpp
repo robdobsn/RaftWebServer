@@ -101,7 +101,7 @@ void uploadFileComplete(const String &reqStr, String &respStr, const APISourceIn
 
 FILE* pGlobalFilePtr = NULL;
 
-RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
+RaftRetCode uploadFileBlock(const String& req, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)
 {
     LOG_I(MODULE_PREFIX, "uploadFileBlock %s filename %s blockLen %d firstBlock %d finalBlock %d",
             req.c_str(), fileStreamBlock.filename, fileStreamBlock.blockLen, 
@@ -116,7 +116,7 @@ RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStr
             LOG_E(MODULE_PREFIX, "uploadFileBlock file already open, closing");
             fclose(pGlobalFilePtr);
             pGlobalFilePtr = NULL;
-            return RaftRetCode::BUSY;
+            return RaftRetCode::RAFT_RET_BUSY;
         }
 
         // Open file
@@ -125,7 +125,7 @@ RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStr
         if (!pGlobalFilePtr)
         {
             LOG_E(MODULE_PREFIX, "uploadFileBlock failed to open file %s", filename.c_str());
-            return RaftRetCode::CANNOT_START;
+            return RaftRetCode::RAFT_RET_CANNOT_START;
         }
 
         // Debug
@@ -136,14 +136,14 @@ RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStr
     if (!pGlobalFilePtr)
     {
         LOG_E(MODULE_PREFIX, "uploadFileBlock file not open");
-        return RaftRetCode::CANNOT_START;
+        return RaftRetCode::RAFT_RET_CANNOT_START;
     }
 
     // Seek to position
     if (fseek(pGlobalFilePtr, fileStreamBlock.filePos, SEEK_SET) != 0)
     {
         LOG_E(MODULE_PREFIX, "uploadFileBlock failed to seek to position %d", fileStreamBlock.filePos);
-        return RaftRetCode::OTHER_FAILURE;
+        return RaftRetCode::RAFT_RET_OTHER_FAILURE;
     }
 
     // Write data to file
@@ -161,7 +161,7 @@ RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStr
         {
             LOG_E(MODULE_PREFIX, "uploadFileBlock failed to write len %d at %d - total blockLen %d", 
                     writeLen, dataPos, fileStreamBlock.blockLen);
-            return RaftRetCode::OTHER_FAILURE;
+            return RaftRetCode::RAFT_RET_OTHER_FAILURE;
         }
         dataPos += writeLen;
     }
@@ -176,7 +176,7 @@ RaftRetCode::RetCode uploadFileBlock(const String& req, FileStreamBlock& fileStr
         // Debug
         LOG_I(MODULE_PREFIX, "uploadFileBlock closed file %s", fileStreamBlock.filename);
     }
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 extern "C" void app_main(void)
