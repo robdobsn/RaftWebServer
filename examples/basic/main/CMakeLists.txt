@@ -3,10 +3,10 @@ idf_component_register(
                     "main.cpp"
                 INCLUDE_DIRS
                     "."
-                    "../../../src"
                 REQUIRES 
                     raftcore-src
-                )
+                    RaftWebServer
+)
 
 # Create a SPIFFS image from the contents of the FS_IMAGE_PATH directory
 # that fits the partition named 'spiffs'. FLASH_IN_PROJECT indicates that

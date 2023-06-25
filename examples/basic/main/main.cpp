@@ -8,11 +8,15 @@
 #define SYSTEM_VERSION "1.0"
 #define DEFAULT_FRIENDLY_NAME SYSTEM_NAME
 
-#define SSID "SET_SSID_HERE"
-#define PASSWORD "SET_PASSWORD_HERE"
-
 #if __has_include("wifi_credentials.h")
 #include "wifi_credentials.h"
+#endif
+
+#ifndef SSID
+#define SSID "SET_SSID_HERE"
+#endif
+#ifndef PASSWORD
+#define PASSWORD "SET_PASSWORD_HERE"
 #endif
 
 static const char* MODULE_PREFIX = "MainTask";
@@ -76,15 +80,22 @@ extern "C" void app_main(void)
     RaftWebServer webServer;
 
     // Settings
-    RaftWebServerSettings settings(80, 
-            10, 
-            false, 
-            true, 
-            0,
-            9,
-            3000,
-            1000,
-            CommsCoreIF::CHANNEL_ID_REST_API);
+    std::vector<String> stdRespHeaders = {
+        {"Access-Control-Allow-Origin", "*"}
+    };
+    RaftWebServerSettings settings(
+            RaftWebServerSettings::DEFAULT_HTTP_PORT, 
+            RaftWebServerSettings::DEFAULT_CONN_SLOTS, 
+            RaftWebServerSettings::DEFAULT_ENABLE_WEBSOCKETS, 
+            RaftWebServerSettings::DEFAULT_ENABLE_FILE_SERVER, 
+            RaftWebServerSettings::DEFAULT_TASK_CORE,
+            RaftWebServerSettings::DEFAULT_TASK_PRIORITY,
+            RaftWebServerSettings::DEFAULT_TASK_STACK_BYTES,
+            RaftWebServerSettings::DEFAULT_SEND_BUFFER_MAX_LEN,
+            CommsCoreIF::CHANNEL_ID_REST_API,
+            stdRespHeaders,
+            nullptr,
+            nullptr);
     webServer.setup(settings);
 
     // Log out system info
@@ -92,14 +103,14 @@ extern "C" void app_main(void)
                         SYSTEM_NAME, SYSTEM_VERSION, heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     // Web server static files
-    String baseUrl = "/";
-    String baseFolder = ("/" + fileSystem.getDefaultFSRoot());
-    RaftWebHandlerStaticFiles* pHandler = new RaftWebHandlerStaticFiles(baseUrl.c_str(), baseFolder.c_str(), NULL, "index.html");
-    bool handlerAddOk = webServer.addHandler(pHandler);
-    LOG_I(MODULE_PREFIX, "serveStaticFiles url %s folder %s addResult %s", baseUrl.c_str(), baseFolder.c_str(), 
-                handlerAddOk ? "OK" : "FILE SERVER DISABLED");
+    String servePaths = "/" + fileSystem.getDefaultFSRoot() + ",/files/local=/local,/files/sd=/sd";
+    RaftWebHandlerStaticFiles* pHandlerFiles = new RaftWebHandlerStaticFiles(servePaths.c_str(), NULL);
+    bool handlerAddOk = webServer.addHandler(pHandlerFiles);
+    LOG_I(MODULE_PREFIX, "serveStaticFiles paths %s addResult %s", 
+                        servePaths.c_str(), 
+                        handlerAddOk ? "OK" : "FILE SERVER DISABLED");
     if (!handlerAddOk)
-        delete pHandler;
+        delete pHandlerFiles;
 
     // Loop forever
     while (1)
