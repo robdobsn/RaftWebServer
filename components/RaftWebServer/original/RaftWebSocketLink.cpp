@@ -64,7 +64,7 @@ RaftWebSocketLink::~RaftWebSocketLink()
 
 void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn rawConnSendFn,
                 uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs,
-                const String& contentType)
+                bool isBinary)
 {
     _webSocketCB = webSocketCB;
     _rawConnSendFn = rawConnSendFn;
@@ -74,7 +74,7 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
     _disconnIfNoPongMs = disconnIfNoPongMs;
     _maskSentData = !roleIsServer;
     _isActive = true;
-    _defaultContentOpCode = contentType.equalsIgnoreCase("text") ? WEBSOCKET_OPCODE_TEXT : WEBSOCKET_OPCODE_BINARY;
+    _defaultContentOpCode = isBinary ? WEBSOCKET_OPCODE_TEXT : WEBSOCKET_OPCODE_BINARY;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

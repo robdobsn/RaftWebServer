@@ -39,7 +39,7 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
             const String& reqStr,
             RaftWebSocketCanAcceptCB canAcceptMsgCB, RaftWebSocketMsgCB sendMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
-            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, const String& contentType)
+            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, bool isBinary)
     :   _reqParams(params), _canAcceptMsgCB(canAcceptMsgCB), 
         _sendMsgCB(sendMsgCB), _txQueue(txQueueSize)
 {
@@ -52,7 +52,7 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
     // Init socket link
     _webSocketLink.setup(std::bind(&RaftWebResponderWS::webSocketCallback, this, 
                             std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-                params.getWebConnRawSend(), pingIntervalMs, true, disconnIfNoPongMs, contentType);
+                params.getWebConnRawSend(), pingIntervalMs, true, disconnIfNoPongMs, isBinary);
 }
 
 RaftWebResponderWS::~RaftWebResponderWS()

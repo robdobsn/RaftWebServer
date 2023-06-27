@@ -45,6 +45,7 @@ public:
     {
         return false;
     }
+#endif
     virtual bool canSend(uint32_t& channelID, bool& noConn)
     {
         noConn = true;
@@ -54,7 +55,6 @@ public:
     {
         return false;
     }
-#endif
     virtual bool isFileHandler() const
     {
         return false;

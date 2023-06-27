@@ -29,7 +29,7 @@ public:
             const String& reqStr,
             RaftWebSocketCanAcceptCB canAcceptMsgCB, RaftWebSocketMsgCB sendMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
-            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, const String& contentType);
+            uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, bool isBinary);
     virtual ~RaftWebResponderWS();
 
     // Service - called frequently

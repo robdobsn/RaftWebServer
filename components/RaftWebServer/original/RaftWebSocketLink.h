@@ -25,7 +25,7 @@ public:
     // Setup the web socket
     void setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn rawConnSendFn, 
             uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs, 
-            const String& contentType);
+            bool isBinary);
 
     // Service - called frequently
     void service();

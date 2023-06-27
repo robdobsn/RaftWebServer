@@ -98,10 +98,10 @@ RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& 
                 _canAcceptRxMsgCB, _rxMsgCB, 
                 channelID,
                 _pktMaxBytes,
-                txQueueMax,
-                pingMs,
-                noPongMs,
-                contentType
+                _txQueueMax,
+                _pingIntervalMs,
+                _noPongMs,
+                _isBinaryWS
                 );
 
     if (pResponder)
@@ -340,6 +340,21 @@ bool RaftWebHandlerWS::handleRequest(struct mg_connection *pConn, int ev, void *
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ChannelID handling
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32_t RaftWebHandlerWS::getChannelIDFromConnInfo(struct mg_connection *pConn)
+{
+    const uint8_t* pData = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
+    return Raft::getBEUint32AndInc(pData);
+}
+
+void RaftWebHandlerWS::setChannelIDInConnInfo(struct mg_connection *pConn, uint32_t channelID)
+{
+    Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_CHANNEL_ID_POS, channelID);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // canSend
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -390,6 +405,25 @@ bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t ch
 // Connection slot handling
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+int RaftWebHandlerWS::findConnectionSlotByConn(struct mg_connection* pConn)
+{
+    // Find a free connection slot
+    for (int i = 0; i < _connectionSlots.size(); i++)
+    {
+        if (_connectionSlots[i].isUsed && (_connectionSlots[i].pConn == pConn))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+#endif
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Connection slot handling
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 int RaftWebHandlerWS::findFreeConnectionSlot()
 {
     // Find a free connection slot
@@ -415,33 +449,3 @@ int RaftWebHandlerWS::findConnectionSlotByChannelID(uint32_t channelID)
     }
     return -1;
 }
-
-int RaftWebHandlerWS::findConnectionSlotByConn(struct mg_connection* pConn)
-{
-    // Find a free connection slot
-    for (int i = 0; i < _connectionSlots.size(); i++)
-    {
-        if (_connectionSlots[i].isUsed && (_connectionSlots[i].pConn == pConn))
-        {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ChannelID handling
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t RaftWebHandlerWS::getChannelIDFromConnInfo(struct mg_connection *pConn)
-{
-    const uint8_t* pData = (uint8_t*)pConn->data + RAFT_MG_HTTP_DATA_CHANNEL_ID_POS;
-    return Raft::getBEUint32AndInc(pData);
-}
-
-void RaftWebHandlerWS::setChannelIDInConnInfo(struct mg_connection *pConn, uint32_t channelID)
-{
-    Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_CHANNEL_ID_POS, channelID);
-}
-
-#endif

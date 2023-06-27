@@ -58,11 +58,11 @@ public:
                 ) override final;
 
     void responderDelete(RaftWebResponderWS* pResponder);
-
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
     // Handle request
     virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
+
     // Check is a message can be sent
     virtual bool canSend(uint32_t& channelID, bool& noConn) override final;
     // Send message (on a channel)
@@ -125,20 +125,22 @@ private:
     static const uint32_t DEFAULT_WS_NO_PONG_MS = 6000;
     static const uint32_t DEFAULT_WS_IDLE_CLOSE_MS = 0;
 
+    // Handle connection slots
+    int findFreeConnectionSlot();
+    int findConnectionSlotByChannelID(uint32_t channelID);
+
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     // Queue for sending frames over the web socket
     ThreadSafeQueue<RaftWebDataFrame> _txQueue;
     static const uint32_t MAX_WAIT_FOR_TX_QUEUE_MS = 2;
     static const uint32_t MAX_TIME_IN_QUEUE_MS = 5000;
 
-    // Handle connection slots
-    int findFreeConnectionSlot();
-    int findConnectionSlotByConn(struct mg_connection *pConn);
-    int findConnectionSlotByChannelID(uint32_t channelID);
-
     // Get/set channel ID in connection info
     uint32_t getChannelIDFromConnInfo(struct mg_connection *pConn);
-    void setChannelIDInConnInfo(struct mg_connection *pConn, uint32_t channelID);
-    
+    void setChannelIDInConnInfo(struct mg_connection *pConn, uint32_t channelID);  
+
+    // Handle connection slots
+    int findConnectionSlotByConn(struct mg_connection *pConn);
+
 #endif
 };
