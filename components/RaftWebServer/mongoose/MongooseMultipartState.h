@@ -10,6 +10,7 @@
 
 #include <ArduinoOrAlt.h>
 #include <stdint.h>
+#include "RaftWebMultipart.h"
 
 // #define DEBUG_MONGOOSE_CONN_STATE
 
@@ -34,4 +35,25 @@ public:
 
     // File name
     String fileName;
+
+    // Chunk offset
+    uint32_t chunkOffset = 0;
+
+    // Content length
+    uint32_t contentLength = 0;
+
+    // Last block in section received
+    bool lastBlock = false;
+
+    // Multipart parser
+    RaftWebMultipart multipartParser;
+
+    // Matched endpoint
+    RaftWebServerRestEndpoint endpoint;
+
+    // Channel ID
+    uint32_t channelID = 0;
+
+    // Req str
+    String reqStr;
 };

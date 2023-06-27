@@ -16,6 +16,7 @@ extern "C"
 #include "lwip/err.h"
 }
 #include <http_parser.h>
+#include <RaftRetCode.h>
 
 class FileStreamBlock;
 class String;
@@ -137,10 +138,10 @@ public:
 };
 
 // Endpoint functions
-typedef std::function<void(String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RaftWebAPIFunction;
-typedef std::function<void(String &reqStr, const uint8_t *pData, size_t len, size_t index, 
+typedef std::function<RaftRetCode(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)> RaftWebAPIFunction;
+typedef std::function<RaftRetCode(const String &reqStr, const uint8_t *pData, size_t len, size_t index, 
 					size_t total, const APISourceInfo& sourceInfo)> RaftWebAPIFnBody;
-typedef std::function<void(String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RaftWebAPIFnChunk;
+typedef std::function<RaftRetCode(const String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RaftWebAPIFnChunk;
 typedef std::function<bool(const APISourceInfo& sourceInfo)> RaftWebAPIFnIsReady;
 
 // REST API support
@@ -154,6 +155,13 @@ public:
         restApiFnChunk = nullptr;
 		restApiFnIsReady = nullptr;
     }
+	RaftWebServerRestEndpoint(const RaftWebServerRestEndpoint& other)
+	{
+		restApiFn = other.restApiFn;
+		restApiFnBody = other.restApiFnBody;
+		restApiFnChunk = other.restApiFnChunk;
+		restApiFnIsReady = other.restApiFnIsReady;
+	}
     RaftWebAPIFunction restApiFn;
     RaftWebAPIFnBody restApiFnBody;
     RaftWebAPIFnChunk restApiFnChunk;

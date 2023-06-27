@@ -46,12 +46,12 @@ RaftWebResponderRestAPI::RaftWebResponderRestAPI(const RaftWebServerRestEndpoint
 
     // Hook up callbacks
     _multipartParser.onEvent = std::bind(&RaftWebResponderRestAPI::multipartOnEvent, this, 
-            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
     _multipartParser.onData = std::bind(&RaftWebResponderRestAPI::multipartOnData, this, 
             std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, 
-            std::placeholders::_5);
+            std::placeholders::_5, std::placeholders::_6);
     _multipartParser.onHeaderNameValue = std::bind(&RaftWebResponderRestAPI::multipartOnHeaderNameValue, this, 
-            std::placeholders::_1, std::placeholders::_2);
+            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
     // Check if multipart
     if (_headerExtract.isMultipart)
@@ -223,14 +223,14 @@ bool RaftWebResponderRestAPI::readyForData()
 // Callbacks on multipart parser
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebResponderRestAPI::multipartOnEvent(RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos)
+void RaftWebResponderRestAPI::multipartOnEvent(void* pCtx, RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos)
 {
 #ifdef DEBUG_MULTIPART_EVENTS
     LOG_W(MODULE_PREFIX, "multipartEvent event %s (%d) pos %d", RaftWebMultipart::getEventText(event), event, pos);
 #endif
 }
 
-void RaftWebResponderRestAPI::multipartOnData(const uint8_t *pBuf, uint32_t bufLen, RaftMultipartForm& formInfo, 
+RaftRetCode RaftWebResponderRestAPI::multipartOnData(void* pCtx, const uint8_t *pBuf, uint32_t bufLen, RaftMultipartForm& formInfo, 
                     uint32_t contentPos, bool isFinalPart)
 {
 #ifdef DEBUG_MULTIPART_DATA
@@ -244,10 +244,11 @@ void RaftWebResponderRestAPI::multipartOnData(const uint8_t *pBuf, uint32_t bufL
                     formInfo._fileLenBytes, formInfo._fileLenValid, contentPos==0);
     // Check for callback
     if (_endpoint.restApiFnChunk)
-        _endpoint.restApiFnChunk(_requestStr, fileStreamBlock, _apiSourceInfo);
+        return _endpoint.restApiFnChunk(_requestStr, fileStreamBlock, _apiSourceInfo);
+    return RAFT_RET_NOT_IMPLEMENTED;
 }
 
-void RaftWebResponderRestAPI::multipartOnHeaderNameValue(const String& name, const String& val)
+void RaftWebResponderRestAPI::multipartOnHeaderNameValue(void* pCtx, const String& name, const String& val)
 {
 #ifdef DEBUG_MULTIPART_HEADERS
     LOG_W(MODULE_PREFIX, "multipartHeaderNameValue %s = %s", name.c_str(), val.c_str());

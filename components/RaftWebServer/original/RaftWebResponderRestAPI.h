@@ -94,8 +94,8 @@ private:
 #endif
 
     // Helpers
-    void multipartOnEvent(RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos);
-    void multipartOnData(const uint8_t *pBuf, uint32_t len, RaftMultipartForm& formInfo, 
+    void multipartOnEvent(void* pCtx, RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos);
+    RaftRetCode multipartOnData(void* pCtx, const uint8_t *pBuf, uint32_t len, RaftMultipartForm& formInfo, 
                 uint32_t contentPos, bool isFinalPart);
-    void multipartOnHeaderNameValue(const String& name, const String& val);
+    void multipartOnHeaderNameValue(void* pCtx, const String& name, const String& val);
 };

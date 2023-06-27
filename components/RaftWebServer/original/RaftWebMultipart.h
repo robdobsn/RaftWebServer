@@ -12,6 +12,7 @@
 #include <ArduinoOrAlt.h>
 #include <functional>
 #include <vector>
+#include <RaftRetCode.h>
 
 class RaftMultipartForm
 {
@@ -54,10 +55,10 @@ enum RaftMultipartEvent
     RDMULTIPART_EVENT_END,
 };
 
-typedef std::function<void(RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos)> RaftMultipartEventCB;
-typedef std::function<void(const uint8_t *pBuf, uint32_t len, RaftMultipartForm& formInfo, 
+typedef std::function<void(void* pCtx, RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos)> RaftMultipartEventCB;
+typedef std::function<RaftRetCode(void* pCtx, const uint8_t *pBuf, uint32_t len, RaftMultipartForm& formInfo, 
                 uint32_t contentPos, bool isFinalPart)> RaftMultipartDataCB;
-typedef std::function<void(const String& name, const String& val)> RaftMultipartHeaderNameValueCB;
+typedef std::function<void(void* pCtx, const String& name, const String& val)> RaftMultipartHeaderNameValueCB;
 
 class RaftWebMultipart
 {
@@ -71,10 +72,14 @@ public:
     ~RaftWebMultipart();
     void clear();
     void setBoundary(const String &boundary);
-    bool handleData(const uint8_t *pBuf, uint32_t len);
+    RaftRetCode handleData(const uint8_t *pBuf, uint32_t len);
     bool succeeded() const;
     bool hasError() const;
     bool stopped() const;
+    void setContext(void* pCtx)
+    {
+        _pCtx = pCtx;
+    }
 
     static const char* getEventText(RaftMultipartEvent event)
     {
@@ -143,6 +148,12 @@ private:
 
     // Form info
     RaftMultipartForm _formInfo;
+
+    // Context pointer - passed back to callbacks
+    void* _pCtx = nullptr;
+
+    // Error result on last data callback
+    RaftRetCode _lastDataCallbackResult = RAFT_RET_OK;
 
     // Debug
     uint32_t _debugBytesHandled;

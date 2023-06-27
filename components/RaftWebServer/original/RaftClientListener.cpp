@@ -32,13 +32,16 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
 #ifdef WEB_CONN_USE_BERKELEY_SOCKETS
 
         // Create socket
-        int listenerSocketId = socket(AF_INET , SOCK_STREAM , 0);
+        int listenerSocketId = socket(AF_INET , SOCK_STREAM, 0);
         if (listenerSocketId < 0)
         {
             LOG_W(MODULE_PREFIX, "socketListenerTask failed to create socket");
             vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
             continue;
         }
+
+        // Set non-blocking
+        fcntl(listenerSocketId, F_SETFL, fcntl(listenerSocketId, F_GETFL, 0) | O_NONBLOCK);
 
         // Form address to be used in bind call - IPV4 assumed
         struct sockaddr_in bindAddr;

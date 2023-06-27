@@ -11,12 +11,14 @@
 #include <RaftUtils.h>
 #include <RdJson.h>
 
-static const char *MODULE_PREFIX = "RaftMultipart";
-
 // #define WARN_ON_MULTIPART_ERRORS
 // #define DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
 // #define DEBUG_MULTIPART_PAYLOAD
 // #define DEBUG_MULTIPART_BOUNDARY
+
+#if defined(DEBUG_MULTIPART_PAYLOAD) || defined(DEBUG_MULTIPART_BOUNDARY) || defined(DEBUG_MULTIPART_RECEIVE_ASCII_ONLY) || defined(WARN_ON_MULTIPART_ERRORS)
+static const char *MODULE_PREFIX = "RaftMultipart";
+#endif
 
 const bool RaftWebMultipart::IS_VALID_TCHAR[] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,    // CTRL chars
@@ -97,7 +99,7 @@ void RaftWebMultipart::setBoundary(const String &boundaryStr)
 // Handle data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
+RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 {
     // Debug
     _debugBytesHandled += bufLen;
@@ -105,8 +107,10 @@ bool RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
     // Check valid
     if (_parseState == RDMULTIPART_ERROR)
     {
+#ifdef WARN_ON_MULTIPART_ERRORS
         LOG_W(MODULE_PREFIX, "hit an error previously - can't handle");
-        return false;
+#endif
+        return RAFT_RET_INVALID_OPERATION;
     }
 
 #ifdef DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
@@ -141,7 +145,11 @@ bool RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
     if (_parseState == RDMULTIPART_PART_DATA)
         processPayload(buffer, bufPos, bufLen);
 
-    return _parseState != RDMULTIPART_ERROR;
+    if (_parseState == RDMULTIPART_ERROR) 
+        return RAFT_RET_OTHER_FAILURE;
+    RaftRetCode result = _lastDataCallbackResult;
+    _lastDataCallbackResult = RAFT_RET_OK;
+    return result;
 }
 
 bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos, uint32_t bufLen)
@@ -521,7 +529,7 @@ void RaftWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint3
 
     // Callback on header info
     if (onHeaderNameValue)
-        onHeaderNameValue(_headerName, headerValue);
+        onHeaderNameValue(_pCtx, _headerName, headerValue);
 
     // Clear header info
     _headerName.clear();
@@ -534,7 +542,7 @@ void RaftWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint3
 void RaftWebMultipart::stateCallback(RaftMultipartEvent event, const uint8_t *buffer, uint32_t pos)
 {
     if (onEvent != NULL)
-        onEvent(event, buffer, pos);
+        onEvent(_pCtx, event, buffer, pos);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -545,11 +553,10 @@ void RaftWebMultipart::dataCallback(const uint8_t *pBuf, uint32_t pos, uint32_t 
 {
     // Callback with data
     if (onData)
-        onData(pBuf + pos, bufLen, _formInfo, _contentPos, _isFinalPart);
+        _lastDataCallbackResult = onData(_pCtx, pBuf + pos, bufLen, _formInfo, _contentPos, _isFinalPart);
 
     // Move content pos on
     _contentPos += bufLen;
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

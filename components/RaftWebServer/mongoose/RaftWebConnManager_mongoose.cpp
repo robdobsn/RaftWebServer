@@ -268,7 +268,6 @@ void RaftWebConnManager_mongoose::eventHandler(struct mg_connection *pConn, int 
 
 const char* RaftWebConnManager_mongoose::mongooseEventToString(int ev)
 {
-#ifdef DEBUG_WEB_SERVER_MONGOOSE
     switch (ev)
     {
     case MG_EV_ERROR: return "MG_EV_ERROR";
@@ -293,8 +292,6 @@ const char* RaftWebConnManager_mongoose::mongooseEventToString(int ev)
     case MG_EV_USER: return "MG_EV_USER";
     default: return "UNKNOWN";
     }
-#endif
-    return "";
 }
 
 void RaftWebConnManager_mongoose::debugEvent(struct mg_connection *pConn, int ev, void *ev_data)
@@ -344,16 +341,6 @@ void RaftWebConnManager_mongoose::debugEvent(struct mg_connection *pConn, int ev
 #endif
 
     }
-    // else if (ev == MG_EV_HTTP_CHUNK)
-    // {
-    //     // Debug Mongoose message
-    //     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-    //     LOG_I(MODULE_PREFIX, "%p %s %.*s %.*s chunkLen %d", pConn, 
-    //             mongooseEventToString(ev),
-    //             (int) hm->method.len, hm->method.ptr,
-    //             (int) hm->uri.len, hm->uri.ptr, 
-    //             hm->chunk.len);
-    // }
     else if (ev != MG_EV_POLL)
     {
         LOG_I(MODULE_PREFIX, "%p %s", pConn, mongooseEventToString(ev));
