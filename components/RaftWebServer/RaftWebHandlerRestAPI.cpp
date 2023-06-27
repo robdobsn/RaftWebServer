@@ -20,6 +20,7 @@
 // #define DEBUG_MULTIPART_DATA
 // #define DEBUG_MULTIPART_EVENTS
 // #define DEBUG_MULTIPART_HEADERS
+#define DEBUG_WEB_HANDLER_STATE_MANAGEMENT
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <MongooseMultipartState.h>
@@ -27,7 +28,7 @@
 #include <RaftWebConnManager_mongoose.h>
 #endif
 
-#if defined(DEBUG_WEB_HANDLER_REST_API) || defined(WARN_ON_MULIPART_API_ERROR)
+#if defined(DEBUG_WEB_HANDLER_REST_API) || defined(WARN_ON_MULIPART_API_ERROR) || defined(DEBUG_WEB_HANDLER_STATE_MANAGEMENT)
 static const char* MODULE_PREFIX = "RaftWebHandlerRestAPI";
 #endif
 
@@ -186,8 +187,9 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         if (!pMultipartState)
         {
             // No multipart state
-#ifdef DEBUG_WEB_HANDLER_REST_API
-            LOG_I(MODULE_PREFIX, "handleRequest no connection state - so creating");
+#ifdef DEBUG_WEB_HANDLER_STATE_MANAGEMENT
+            LOG_I(MODULE_PREFIX, "handleRequest no connection state - so creating - mem free %d",
+                            heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 #endif
 
             // Create new connection state
@@ -339,7 +341,7 @@ void RaftWebHandlerRestAPI::multipartStateCleanup(struct mg_connection *pConn)
     // Get multipart state ptr
     MongooseMultipartState* pMultipartState = multipartStateGetPtr(pConn);
 
-#ifdef DEBUG_WEB_HANDLER_REST_API
+#ifdef DEBUG_WEB_HANDLER_STATE_MANAGEMENT
         // Debug
         LOG_I(MODULE_PREFIX, "multipartStateCleanup checking ptr %p", pMultipartState);
 #endif
@@ -350,9 +352,10 @@ void RaftWebHandlerRestAPI::multipartStateCleanup(struct mg_connection *pConn)
         // Delete the multipart state
         delete pMultipartState;
 
-#ifdef DEBUG_WEB_HANDLER_REST_API
+#ifdef DEBUG_WEB_HANDLER_STATE_MANAGEMENT
         // Debug
-        LOG_I(MODULE_PREFIX, "multipartStateCleanup DELETING multipart state info");
+        LOG_I(MODULE_PREFIX, "multipartStateCleanup DELETING multipart state info - mem free %d",
+                        heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 #endif
 
         // Set save ptr to null
