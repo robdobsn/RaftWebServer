@@ -6,3 +6,5 @@ To be done for Mongoose implementation:
 - Implement https support
 - Add support for server-sent events
 - What about long responses - chunked API response?
+- Implement ETAGs
+
