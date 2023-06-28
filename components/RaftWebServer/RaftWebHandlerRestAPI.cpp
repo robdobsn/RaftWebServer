@@ -30,7 +30,8 @@
 #include <APISourceInfo.h>
 #endif
 
-#if defined(DEBUG_WEB_HANDLER_REST_API) || defined(WARN_ON_MULIPART_API_ERROR) || defined(DEBUG_WEB_HANDLER_STATE_MANAGEMENT)
+#if defined(DEBUG_WEB_HANDLER_REST_API) || defined(WARN_ON_MULIPART_API_ERROR) || \
+        (defined(FEATURE_WEB_SERVER_USE_MONGOOSE) && defined(DEBUG_WEB_HANDLER_STATE_MANAGEMENT))
 static const char* MODULE_PREFIX = "RaftWebHandlerRestAPI";
 #endif
 
