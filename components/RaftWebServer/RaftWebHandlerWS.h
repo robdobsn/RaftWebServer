@@ -11,13 +11,15 @@
 #include "RaftWebHandler.h"
 #include <ArduinoOrAlt.h>
 #include <Logger.h>
-#include <RaftWebRequestHeader.h>
-#include <RaftWebResponderWS.h>
 #include <ConfigBase.h>
 #include <vector>
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
 #include <ThreadSafeQueue.h>
+#include <RaftWebDataFrame.h>
+#else
+#include <RaftWebRequestHeader.h>
+#include <RaftWebResponderWS.h>
 #endif
 
 class RaftWebHandlerWS : public RaftWebHandler
@@ -51,14 +53,7 @@ public:
         _connectionSlots[wsConnIdx].isUsed = false;
     }
 
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
-    virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-                const RaftWebRequestParams& params, 
-                RaftHttpStatusCode &statusCode
-                ) override final;
-
-    void responderDelete(RaftWebResponderWS* pResponder);
-#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
     // Handle request
     virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
@@ -67,6 +62,15 @@ public:
     virtual bool canSend(uint32_t& channelID, bool& noConn) override final;
     // Send message (on a channel)
     virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID) override final;
+
+#else
+
+    virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
+                const RaftWebRequestParams& params, 
+                RaftHttpStatusCode &statusCode
+                ) override final;
+
+    void responderDelete(RaftWebResponderWS* pResponder);
 
 #endif
 

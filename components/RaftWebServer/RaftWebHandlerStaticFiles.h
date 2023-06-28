@@ -13,9 +13,9 @@
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
-#endif
-
+#else
 class RaftWebRequestHeader;
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Web handler for static files
@@ -30,12 +30,12 @@ public:
     RaftWebHandlerStaticFiles(const char* pServePaths, const char* pCacheControl);
     virtual ~RaftWebHandlerStaticFiles();
     virtual const char* getName() const override;
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
+#else
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final;
-#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
 #endif
     virtual bool isFileHandler() const override final
     {
@@ -51,7 +51,12 @@ private:
     // Cache
     String _cacheControl;
 
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+
+    // Extra headers as a string
+    String _extraHeadersStr;
+
+#else
 
     // Cache
     String _lastModifiedTimeStr;
@@ -65,11 +70,6 @@ private:
 
     // Helpers
     String getContentType(const String& filePath) const;
-
-#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-
-    // Extra headers as a string
-    String _extraHeadersStr;
 
 #endif
 

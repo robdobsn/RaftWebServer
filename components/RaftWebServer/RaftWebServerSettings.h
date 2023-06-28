@@ -28,7 +28,7 @@ public:
     static const int DEFAULT_TASK_STACK_BYTES = 4000;   
 
     // Send buffer max length
-    static const int DEFAULT_SEND_BUFFER_MAX_LEN = 1000;
+    static const int DEFAULT_SEND_BUFFER_MAX_LEN = 2000;
 
     // Constructor
     RaftWebServerSettings()

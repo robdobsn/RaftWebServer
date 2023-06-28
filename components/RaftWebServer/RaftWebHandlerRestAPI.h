@@ -10,12 +10,13 @@
 
 #include <Logger.h>
 #include "RaftWebHandler.h"
-#include "RaftWebInterface.h"
-#include "RaftWebRequestHeader.h"
-#include "RaftWebResponderRestAPI.h"
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
 class MongooseMultipartState;
+#include "RaftWebMultipart.h"
+#else
+#include "RaftWebRequestHeader.h"
+#include "RaftWebResponderRestAPI.h"
 #endif
 
 // #define DEBUG_WEB_HANDLER_REST_API
@@ -47,16 +48,16 @@ public:
     {
         return "HandlerRESTAPI";
     }
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
-    virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
-            const RaftWebRequestParams& params, 
-            RaftHttpStatusCode &statusCode) override final;
-#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     /// @brief Handle request (mongoose)
     /// @param pConn Mongoose connection
     /// @param ev Mongoose event
     /// @param ev_data Mongoose event data (this is a pointer to the mongoose event data structure)
     virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
+#else
+    virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
+            const RaftWebRequestParams& params, 
+            RaftHttpStatusCode &statusCode) override final;
 #endif
 
 private:

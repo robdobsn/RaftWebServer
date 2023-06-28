@@ -6,6 +6,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <RaftUtils.h>
 #include "RaftWebHandlerRestAPI.h"
 
 // #define WARN_ON_MULIPART_API_ERROR
@@ -26,6 +27,7 @@
 #include <MongooseMultipartState.h>
 #include <FileStreamBlock.h>
 #include <RaftWebConnManager_mongoose.h>
+#include <APISourceInfo.h>
 #endif
 
 #if defined(DEBUG_WEB_HANDLER_REST_API) || defined(WARN_ON_MULIPART_API_ERROR) || defined(DEBUG_WEB_HANDLER_STATE_MANAGEMENT)
@@ -36,7 +38,7 @@ static const char* MODULE_PREFIX = "RaftWebHandlerRestAPI";
 // Handle request (Original)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef FEATURE_WEB_SERVER_USE_ORIGINAL
+#ifndef FEATURE_WEB_SERVER_USE_MONGOOSE
 
 RaftWebResponder* RaftWebHandlerRestAPI::getNewResponder(const RaftWebRequestHeader& requestHeader, 
         const RaftWebRequestParams& params, 
@@ -91,7 +93,7 @@ RaftWebResponder* RaftWebHandlerRestAPI::getNewResponder(const RaftWebRequestHea
     return pResponder;
 }
 
-#endif // FEATURE_WEB_SERVER_USE_ORIGINAL
+#endif // FEATURE_WEB_SERVER_USE_MONGOOSE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Mongoose handlers

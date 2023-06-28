@@ -29,6 +29,9 @@ public:
     // Called frequently
     void service();
 
+    // Check if we can send
+    RaftWebConnSendRetVal canSendOnConn();
+
     // Send on connection
     bool sendOnConn(const uint8_t* pBuf, uint32_t bufLen);
 

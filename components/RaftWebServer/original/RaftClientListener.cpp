@@ -89,7 +89,6 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
             int errorNumber = errno;
             if(sockClient < 0)
             {
-                LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d port %d) failed to accept errno %d", listenerSocketId, port, errorNumber);
                 bool socketReconnNeeded = false;
                 switch(errorNumber)
                 {
@@ -103,6 +102,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                     case EOPNOTSUPP:
                     case ENETUNREACH:
                     case ENFILE:
+                        LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d port %d) failed to accept errno %d", listenerSocketId, port, errorNumber);
                         vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
                         consecErrorCount++;
                         break;
@@ -119,6 +119,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                             listenerSocketId, port, errorNumber, socketReconnNeeded, consecErrorCount);
                     break;
                 }
+                vTaskDelay(1);
                 continue;
             }
             else

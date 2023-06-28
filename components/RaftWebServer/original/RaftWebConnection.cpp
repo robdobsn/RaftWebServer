@@ -41,6 +41,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // #define DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS 50
 // #define DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS 50
 // #define DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS 50
+#define DEBUG_RESPONDER_FAILURE
 
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
 #include "esp_heap_trace.h"
@@ -972,6 +973,19 @@ void RaftWebConnection::setHTTPResponseStatus(RaftHttpStatusCode responseCode)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check if we can send on the connection
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
+{
+    if (!_pClientConn)
+    {
+        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+    }
+    return _pClientConn->canSend();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Raw send on connection
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -989,6 +1003,13 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
     {
         LOG_W(MODULE_PREFIX, "rawSendOnConn pBuf is nullptr");
         return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+    }
+
+    // Check if we can send
+    RaftWebConnSendRetVal canSendRetVal = canSendOnConn();
+    if (canSendRetVal != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+    {
+        return canSendRetVal;
     }
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
@@ -1174,6 +1195,21 @@ bool RaftWebConnection::handleResponseChunk()
     uint32_t debugRawSendOnConnMs = 0;
 #endif
 
+    // Check if the connection is busy
+    RaftWebConnSendRetVal sendBusyRetVal = canSendOnConn();
+    if (sendBusyRetVal == RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN)
+        return true;
+
+    // Check if connection is closed
+    if (sendBusyRetVal != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+    {
+        // Debug
+#ifdef DEBUG_WEB_CONN_OPEN_CLOSE
+        LOG_I(MODULE_PREFIX, "handleResponseChunk conn closed connId %d", _pClientConn ? _pClientConn->getClientId() : 0);
+#endif
+        return false;
+    }
+
     // Check if standard reponse to be sent first
     if (_isStdHeaderRequired && _pResponder->isStdHeaderRequired())
     {
@@ -1221,8 +1257,15 @@ bool RaftWebConnection::handleResponseChunk()
 #endif
 
             // Handle failure
-            if (retVal == RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL)
-                return false;
+            if (retVal != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+            {
+#ifdef DEBUG_RESPONDER_FAILURE
+                LOG_I(MODULE_PREFIX, "handleResponseChunk failed retVal %s connId %d", 
+                        RaftWebConnDefs::getSendRetValStr(retVal), _pClientConn ? _pClientConn->getClientId() : 0);
+#endif
+                if (retVal != RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN)
+                    return false;
+            }
         }
     }
 

@@ -162,6 +162,14 @@ public:
 		restApiFnChunk = other.restApiFnChunk;
 		restApiFnIsReady = other.restApiFnIsReady;
 	}
+	RaftWebServerRestEndpoint& operator=(const RaftWebServerRestEndpoint& other)
+	{
+		restApiFn = other.restApiFn;
+		restApiFnBody = other.restApiFnBody;
+		restApiFnChunk = other.restApiFnChunk;
+		restApiFnIsReady = other.restApiFnIsReady;
+		return *this;
+	}
     RaftWebAPIFunction restApiFn;
     RaftWebAPIFnBody restApiFnBody;
     RaftWebAPIFnChunk restApiFnChunk;

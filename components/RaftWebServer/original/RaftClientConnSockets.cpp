@@ -66,6 +66,28 @@ void RaftClientConnSockets::setup(bool blocking)
     setsockopt(_client, IPPROTO_TCP, TCP_NODELAY, (char *) &on, sizeof(on));
 }
 
+RaftWebConnSendRetVal RaftClientConnSockets::canSend()
+{
+    // Use select to check if socket is ready to send
+    fd_set writefds;
+    FD_ZERO(&writefds);
+    FD_SET(_client, &writefds);
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int rslt = select(_client + 1, NULL, &writefds, NULL, &tv);
+    if (rslt < 0)
+    {
+        LOG_W(MODULE_PREFIX, "canSend conn %d select error %d", getClientId(), errno);
+        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+    }
+    if (rslt == 0)
+    {
+        return RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN;
+    }
+    return RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
+}
+
 RaftWebConnSendRetVal RaftClientConnSockets::write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs)
 {
     // Check active

@@ -24,6 +24,9 @@ public:
         return (uint32_t) _client;
     }
 
+    // Check if sending is ok
+    virtual RaftWebConnSendRetVal canSend() override final;
+    
     // Write
     virtual RaftWebConnSendRetVal write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs) override final;
 

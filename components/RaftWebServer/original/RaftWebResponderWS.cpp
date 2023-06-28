@@ -57,7 +57,7 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
 
 RaftWebResponderWS::~RaftWebResponderWS()
 {
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)    
+#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     if (_pWebHandler)
         _pWebHandler->responderDelete(this);
 #endif

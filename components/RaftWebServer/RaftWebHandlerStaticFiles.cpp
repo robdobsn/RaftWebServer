@@ -7,14 +7,15 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RaftWebHandlerStaticFiles.h"
-#include "RaftWebConnection.h"
-#include "RaftWebResponder.h"
-#include "RaftWebResponderFile.h"
 #include <Logger.h>
 #include <FileSystem.h>
 #include <RdJson.h>
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
+#else
+#include "RaftWebConnection.h"
+#include "RaftWebResponder.h"
+#include "RaftWebResponderFile.h"
 #endif
 
 // #define DEBUG_STATIC_FILE_HANDLER
@@ -35,7 +36,7 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
     if (pCacheControl)
         _cacheControl = pCacheControl;
 
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
     // Split the base folders by comma
     String baseFolders = _servePaths;
@@ -128,7 +129,7 @@ const char* RaftWebHandlerStaticFiles::getName() const
 // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
 RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebRequestHeader& requestHeader, 
             const RaftWebRequestParams& params,

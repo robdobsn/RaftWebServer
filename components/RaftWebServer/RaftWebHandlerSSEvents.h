@@ -10,9 +10,13 @@
 
 #include "RaftWebHandler.h"
 #include <Logger.h>
-#include <RaftWebRequestHeader.h>
 #include <functional>
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#include <mongoose.h>
+#else
+#include "RaftWebRequestHeader.h"
 #include <RaftWebResponderSSEvents.h>
+#endif
 
 class RaftWebHandlerSSEvents : public RaftWebHandler
 {
@@ -29,7 +33,7 @@ public:
     {
         return "HandlerSSEvents";
     }
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final

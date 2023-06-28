@@ -53,7 +53,7 @@ RaftWebHandlerWS::RaftWebHandlerWS(const ConfigBase& config,
 #endif
 }
 
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // getNewResponder

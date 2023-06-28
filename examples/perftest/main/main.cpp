@@ -76,9 +76,10 @@ bool matchEndpoint(const char* url, RaftWebServerMethod method,
     return false;
 }
 
-void testEndpointCallback(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode testEndpointCallback(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
     respStr = "Hello from testEndpointCallback";
+    return RAFT_RET_OK;
 }
 
 bool wsCanAccept(uint32_t channelID)
@@ -91,12 +92,12 @@ void wsHandleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t ms
     // LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);
 }
 
-void uploadFileComplete(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+RaftRetCode uploadFileComplete(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
 #ifdef DEBUG_FILE_MANAGER_UPLOAD
     LOG_I(MODULE_PREFIX, "uploadFileComplete %s", reqStr.c_str());
 #endif
-    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+    return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
 }
 
 FILE* pGlobalFilePtr = NULL;

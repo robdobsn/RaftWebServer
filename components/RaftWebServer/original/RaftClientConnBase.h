@@ -47,6 +47,9 @@ public:
         return 0;
     }
 
+    // Check if sending is ok
+    virtual RaftWebConnSendRetVal canSend() = 0;
+
     // Write
     virtual RaftWebConnSendRetVal write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs) = 0;
 

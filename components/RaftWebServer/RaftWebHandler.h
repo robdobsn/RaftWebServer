@@ -14,7 +14,7 @@
 #include <RaftWebServerSettings.h>
 #include <RdJson.h>
 
-#ifdef FEATURE_WEB_SERVER_USE_ORIGINAL
+#ifndef FEATURE_WEB_SERVER_USE_MONGOOSE
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
 class RaftWebResponder;
@@ -33,17 +33,17 @@ public:
     {
         return "HandlerBase";
     }
-#if defined(FEATURE_WEB_SERVER_USE_ORIGINAL)
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
+    {
+        return false;
+    }
+#else
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params,
                 RaftHttpStatusCode &statusCode)
     {
         return NULL;
-    }
-#elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
-    {
-        return false;
     }
 #endif
     virtual bool canSend(uint32_t& channelID, bool& noConn)
