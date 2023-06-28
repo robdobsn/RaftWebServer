@@ -41,7 +41,7 @@ public:
     // Check if sending is ok
     virtual RaftWebConnSendRetVal canSend() override final
     {
-        return true;
+        return RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
     }
 
     // Write

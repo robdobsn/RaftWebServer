@@ -10,6 +10,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # message(STATUS "==========================================================")
 
+set(RAFT_COMPONENT_EXTRA_PATH "./")
 set(RAFT_WEBSERVER_REQUIRES raftcore-src mbedtls esp_http_server)
 set(RAFT_WEBSERVER_SOURCES 
     ${RAFT_COMPONENT_EXTRA_PATH}RaftWebServer.cpp
@@ -19,30 +20,32 @@ set(RAFT_WEBSERVER_SOURCES
     ${RAFT_COMPONENT_EXTRA_PATH}RaftWebMultipart.cpp
     ${RAFT_COMPONENT_EXTRA_PATH}RaftWebInterface.cpp
 )
-set(RAFT_WEBSERVER_INCLUDES ".")
+set(RAFT_WEBSERVER_INCLUDES ${RAFT_COMPONENT_EXTRA_PATH})
 
 # Check if mongoose component is present
-set(TEST_VAR_1 ${BUILD_COMPONENT_DIRS})
-string(REGEX MATCH "mongoose" TEST_VAR_2 ${TEST_VAR_1})
-if(NOT "${TEST_VAR_2}" STREQUAL "")
-  set(RAFT_WEBSERVER_REQUIRES ${RAFT_WEBSERVER_REQUIRES} mongoose-src)
-  set(RAFT_WEBSERVER_SOURCES ${RAFT_WEBSERVER_SOURCES} 
-    ${RAFT_COMPONENT_EXTRA_PATH}mongoose/RaftWebConnManager_mongoose.cpp
-  )
-  set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} "mongoose")
+set(TEST_MONGOOSE_FOLDER ${COMPONENT_DIR}/../mongoose-src)
+get_filename_component(TEST_MONGOOSE_SRC ${TEST_MONGOOSE_FOLDER} REALPATH)
+if (EXISTS "${TEST_MONGOOSE_SRC}")
+    message(STATUS "Mongoose component found")
+    set(RAFT_WEBSERVER_SOURCES ${RAFT_WEBSERVER_SOURCES} 
+            ${RAFT_COMPONENT_EXTRA_PATH}mongoose/RaftWebConnManager_mongoose.cpp
+    )
+    set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} ${RAFT_COMPONENT_EXTRA_PATH}mongoose)
+    set(RAFT_WEBSERVER_REQUIRES ${RAFT_WEBSERVER_REQUIRES} mongoose-src)
 else()
-  set(RAFT_WEBSERVER_SOURCES ${RAFT_WEBSERVER_SOURCES} 
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientConnNetconn.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientConnSockets.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientListener.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebConnection.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebConnManager_original.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderFile.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderRestAPI.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderWS.cpp
-    ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebSocketLink.cpp
-  )
-  set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} "original")
+    message(STATUS "Mongoose component NOT found")
+    set(RAFT_WEBSERVER_SOURCES ${RAFT_WEBSERVER_SOURCES} 
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientConnNetconn.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientConnSockets.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientListener.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebConnection.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebConnManager_original.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderFile.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderRestAPI.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderWS.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebSocketLink.cpp
+    )
+    set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} ${RAFT_COMPONENT_EXTRA_PATH}original)
 endif()
 
 idf_component_register(
