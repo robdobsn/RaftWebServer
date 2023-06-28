@@ -7,4 +7,5 @@ To be done for Mongoose implementation:
 - Add support for server-sent events
 - What about long responses - chunked API response?
 - Implement ETAGs
+- Add option to define file paths to serve from SysTypes.json
 
