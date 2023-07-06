@@ -179,6 +179,6 @@ public:
 typedef std::function<bool(const char* url, RaftWebServerMethod method, RaftWebServerRestEndpoint& endpoint)> RaftWebAPIMatchEndpointCB;
 
 // Websocket support
-typedef std::function<bool(uint32_t channelID)> RaftWebSocketCanAcceptCB;
-typedef std::function<void(uint32_t channelID, const uint8_t* pBuf, uint32_t bufLen)> RaftWebSocketMsgCB;
+typedef std::function<bool(uint32_t channelID)> RaftWebSocketCanAcceptInboundCB;
+typedef std::function<void(uint32_t channelID, const uint8_t* pBuf, uint32_t bufLen)> RaftWebSocketInboundMsgCB;
 

@@ -82,7 +82,7 @@ RaftRetCode testEndpointCallback(const String &reqStr, String &respStr, const AP
     return RAFT_RET_OK;
 }
 
-bool wsCanAccept(uint32_t channelID)
+bool wsCanAcceptInbound(uint32_t channelID)
 {
     return true;
 }
@@ -288,7 +288,7 @@ extern "C" void app_main(void)
         }
     )";
     RaftWebHandlerWS* pHandlerWS = new RaftWebHandlerWS(wsJsonConfig, 
-            wsCanAccept,
+            wsCanAcceptInbound,
             wsHandleInboundMessage
          );
     const uint32_t CHANNEL_ID_NUMBER_BASE = 200;

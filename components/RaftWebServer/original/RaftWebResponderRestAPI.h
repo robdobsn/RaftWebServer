@@ -55,8 +55,8 @@ public:
         return "API";
     }
 
-    // Ready for data
-    virtual bool readyForData() override final;
+    // Ready to receive data
+    virtual bool readyToReceiveData() override final;
 
 private:
     // Endpoint

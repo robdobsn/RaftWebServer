@@ -26,7 +26,8 @@ class RaftWebHandlerWS : public RaftWebHandler
 {
 public:
     RaftWebHandlerWS(const ConfigBase& config,
-            RaftWebSocketCanAcceptCB canAcceptRxMsgCB, RaftWebSocketMsgCB rxMsgCB);
+            RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
+            RaftWebSocketInboundMsgCB rxMsgCB);
     virtual ~RaftWebHandlerWS()
     {
     }
@@ -102,8 +103,8 @@ private:
     bool _isBinaryWS = true;
 
     // WS interface functions
-    RaftWebSocketCanAcceptCB _canAcceptRxMsgCB;
-    RaftWebSocketMsgCB _rxMsgCB;
+    RaftWebSocketCanAcceptInboundCB _canAcceptInboundMsgCB;
+    RaftWebSocketInboundMsgCB _rxMsgCB;
 
     // Web socket protocol connection slot info
     class ConnSlotRec
@@ -130,8 +131,8 @@ private:
     static const uint32_t CONNECTIVITY_CHECK_INTERVAL_MS = 1000;
 
     // Defaults
-    static const uint32_t DEFAULT_WS_PKT_MAX_BYTES = 1024;
-    static const uint32_t DEFAULT_WS_TX_QUEUE_MAX = 10;
+    static const uint32_t DEFAULT_WS_PKT_MAX_BYTES = 100000;
+    static const uint32_t DEFAULT_WS_TX_QUEUE_MAX = 20;
     static const uint32_t DEFAULT_WS_PING_MS = 2000;
     static const uint32_t DEFAULT_WS_NO_PONG_MS = 6000;
     static const uint32_t DEFAULT_WS_IDLE_CLOSE_MS = 0;

@@ -27,6 +27,7 @@
 // #define DEBUG_WEBSOCKETS_TRAFFIC_BINARY_DETAIL
 // #define DEBUG_WEBSOCKETS_PING_PONG
 // #define DEBUG_WS_IS_ACTIVE
+// #define DEBUG_WS_SERVICE
 
 #if defined(WARN_WS_SEND_APP_DATA_FAIL)
 static const char *MODULE_PREFIX = "RaftWebRespWS";
@@ -38,11 +39,12 @@ static const char *MODULE_PREFIX = "RaftWebRespWS";
 
 RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const RaftWebRequestParams& params, 
             const String& reqStr,
-            RaftWebSocketCanAcceptCB canAcceptMsgCB, RaftWebSocketMsgCB sendMsgCB,
+            RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
+            RaftWebSocketInboundMsgCB inboundMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
             uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, bool isBinary)
-    :   _reqParams(params), _canAcceptMsgCB(canAcceptMsgCB), 
-        _sendMsgCB(sendMsgCB), _txQueue(txQueueSize)
+    :   _reqParams(params), _canAcceptInboundMsgCB(canAcceptInboundMsgCB), 
+        _inboundMsgCB(inboundMsgCB), _txQueue(txQueueSize)
 {
     // Store socket info
     _pWebHandler = pWebHandler;
@@ -74,6 +76,15 @@ void RaftWebResponderWS::service()
     // Service the link
     _webSocketLink.service();
 
+#ifdef DEBUG_WS_SERVICE
+    if (Raft::isTimeout(millis(), _debugLastServiceMs, 1000))
+    {
+        _debugLastServiceMs = millis();
+        LOG_I(MODULE_PREFIX, "service isActive %d _txQueueCount %d", 
+                _isActive, _txQueue.count());
+    }
+#endif
+
     // Check if line active
     if (!_webSocketLink.isActive())
     {
@@ -88,11 +99,14 @@ void RaftWebResponderWS::service()
     RaftWebDataFrame frame;
     if (_txQueue.get(frame))
     {
-#ifdef DEBUG_WS_SEND_APP_DATA
-        LOG_W(MODULE_PREFIX, "service sendMsg len %d", frame.getLen());
-#endif
         // Send
         RaftWebConnSendRetVal retVal = _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), frame.getData(), frame.getLen());
+
+#ifdef DEBUG_WS_SEND_APP_DATA
+        LOG_W(MODULE_PREFIX, "service sendMsg sent len %d retc %d", frame.getLen(), retVal);
+#endif
+
+        // Check result
         if (retVal == WEB_CONN_SEND_FAIL)
         {
             _isActive = false;
@@ -152,13 +166,13 @@ bool RaftWebResponderWS::handleData(const uint8_t* pBuf, uint32_t dataLen)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Ready for data
+// Can send outbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderWS::readyForData()
+bool RaftWebResponderWS::readyToSendData()
 {
-    if (_canAcceptMsgCB)
-        return _canAcceptMsgCB(_channelID);
+    if (_canAcceptInboundMsgCB)
+        return _canAcceptInboundMsgCB(_channelID);
     return false;
 }
 
@@ -306,9 +320,9 @@ void RaftWebResponderWS::webSocketCallback(RaftWebSocketEventCode eventCode, con
         }
 		case WEBSOCKET_EVENT_TEXT:
         {
-            // Send the message
-            if (_sendMsgCB && (pBuf != NULL))
-                _sendMsgCB(_channelID, (uint8_t*) pBuf, bufLen);
+            // Handle the inbound message
+            if (_inboundMsgCB && (pBuf != NULL))
+                _inboundMsgCB(_channelID, (uint8_t*) pBuf, bufLen);
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC
             String msgText;
             if (pBuf)
@@ -319,9 +333,9 @@ void RaftWebResponderWS::webSocketCallback(RaftWebSocketEventCode eventCode, con
         }
 		case WEBSOCKET_EVENT_BINARY:
         {
-            // Send the message
-            if (_sendMsgCB && (pBuf != NULL))
-                _sendMsgCB(_channelID, (uint8_t*) pBuf, bufLen);
+            // Handle the inbound message
+            if (_inboundMsgCB && (pBuf != NULL))
+                _inboundMsgCB(_channelID, (uint8_t*) pBuf, bufLen);
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC
 			LOG_I(MODULE_PREFIX, "webSocketCallback rx binary len %i", bufLen);
 #endif

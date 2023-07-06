@@ -102,6 +102,13 @@ RaftWebConnSendRetVal RaftClientConnSockets::write(const uint8_t* pBuf, uint32_t
     while (true)
     {
         int rslt = send(_client, pBuf, bufLen, 0);
+
+#ifdef DEBUG_SOCKET_SEND
+        // Debug
+        LOG_I(MODULE_PREFIX, "write bufLen %d rslt %d errno %d elapsed %d", 
+                    bufLen, rslt, errno, (int) Raft::timeElapsed(millis(), startMs));
+#endif
+
         if (rslt < 0)
         {
             if (errno == EAGAIN)

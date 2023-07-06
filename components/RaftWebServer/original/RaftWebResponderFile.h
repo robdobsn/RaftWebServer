@@ -49,12 +49,6 @@ public:
         return "FILE";
     }
 
-    // Ready for data
-    virtual bool readyForData() override final
-    {
-        return true;
-    }
-
 private:
     String _filePath;
     RaftWebHandler* _pWebHandler = nullptr;

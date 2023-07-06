@@ -24,6 +24,7 @@ static const char *MODULE_PREFIX = "RaftWSLink";
 // Warn
 #define WARN_WEBSOCKET_EXCESS_DATA_AFTER_UPGRADE
 #define WARN_WEBSOCKET_DATA_DISCARD_AS_EXCEEDS_MSG_SIZE
+#define WARN_ON_WS_LINK_SEND_TOO_LONG
 
 // Debug
 // #define DEBUG_WEBSOCKET_LINK
@@ -299,14 +300,14 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     // Check valid
     if (frameLen >= MAX_WS_MESSAGE_SIZE)
     {
-#ifdef DEBUG_WEBSOCKET_SEND
+#ifdef WARN_ON_WS_LINK_SEND_TOO_LONG
         LOG_W(MODULE_PREFIX, "WebSocket sendMsg too long %d > %d", frameLen, MAX_WS_MESSAGE_SIZE);
 #endif
         return WEB_CONN_SEND_TOO_LONG;
     }
 
     // Buffer
-    std::vector<uint8_t> frameBuffer(frameLen);
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frameBuffer(frameLen);
 
     // Setup header
     frameBuffer[0] = 0x80 | opCode;
@@ -361,7 +362,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     if (_rawConnSendFn)
         sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
 
-#ifdef DEBUG_WEBSOCKET_SEND
+#ifdef DEBUG_WEBSOCKET_LINK_SEND
     LOG_I(MODULE_PREFIX, "WebSocket sendMsg result %s send %d bytes", 
             RaftWebConnDefs::getSendRetValStr(sendRetc), 
             frameBuffer.size());

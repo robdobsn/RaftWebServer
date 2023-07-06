@@ -27,7 +27,8 @@ class RaftWebResponderWS : public RaftWebResponder
 public:
     RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const RaftWebRequestParams& params,
             const String& reqStr,
-            RaftWebSocketCanAcceptCB canAcceptMsgCB, RaftWebSocketMsgCB sendMsgCB,
+            RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
+            RaftWebSocketInboundMsgCB inboundMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
             uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, bool isBinary);
     virtual ~RaftWebResponderWS();
@@ -72,8 +73,8 @@ public:
         return true;
     }
 
-    // Ready for data
-    virtual bool readyForData() override final;
+    // Ready to send data
+    virtual bool readyToSendData() override final;
 
 private:
     // Handler
@@ -91,11 +92,11 @@ private:
     // Is binary
     bool _isBinary = false;
 
-    // Can accept message function
-    RaftWebSocketCanAcceptCB _canAcceptMsgCB;
+    // Can accept inbound message
+    RaftWebSocketCanAcceptInboundCB _canAcceptInboundMsgCB;
 
-    // Send message function
-    RaftWebSocketMsgCB _sendMsgCB;
+    // Inbound message callback
+    RaftWebSocketInboundMsgCB _inboundMsgCB;
 
     // ChannelID
     uint32_t _channelID = UINT32_MAX;
@@ -109,6 +110,9 @@ private:
 
     // Max packet size
     uint32_t _packetMaxBytes = 5000;
+
+    // Debug last service
+    uint32_t _debugLastServiceMs = 0;
 
     // Callback on websocket activity
     void webSocketCallback(RaftWebSocketEventCode eventCode, const uint8_t* pBuf, uint32_t bufLen);

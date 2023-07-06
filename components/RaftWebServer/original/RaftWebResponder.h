@@ -111,8 +111,14 @@ public:
         return false;
     }
 
-    // Ready for data
-    virtual bool readyForData()
+    // Ready to send data
+    virtual bool readyToSendData()
+    {
+        return true;
+    }
+
+    // Ready to receive data
+    virtual bool readyToReceiveData()
     {
         return true;
     }

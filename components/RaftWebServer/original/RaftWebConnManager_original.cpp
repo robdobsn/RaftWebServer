@@ -32,6 +32,7 @@ const static char* MODULE_PREFIX = "WebConnMgr";
 // #define DEBUG_WEB_CONN_MANAGER
 // #define DEBUG_WEB_SERVER_HANDLERS
 // #define DEBUG_WEBSOCKETS
+// #define DEBUG_WEBSOCKETS_SEND
 // #define DEBUG_WEBSOCKETS_SEND_DETAIL
 // #define DEBUG_NEW_RESPONDER
 
@@ -326,7 +327,7 @@ bool RaftWebConnManager_original::canSend(uint32_t channelID, bool& noConn)
         // Check for channelID match
         if (usedChannelID == channelID)
         {
-            return pResponder->readyForData();
+            return _webConnections[i].canSendOnConn() == RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
         }
     }
 
@@ -379,6 +380,17 @@ bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
 
         // Send if appropriate
         sendOk = _webConnections[i].sendOnConn(pBuf, bufLen);
+
+        // Debug
+#ifdef DEBUG_WEBSOCKETS_SEND
+        LOG_I(MODULE_PREFIX, "sendMsg webConn %d active %d responder %p chanID %d sendOk %d",
+              i,
+              _webConnections[i].isActive(),
+              _webConnections[i].getResponder(),
+              usedChannelID,
+              sendOk);
+#endif
+
     }
     return sendOk;
 }

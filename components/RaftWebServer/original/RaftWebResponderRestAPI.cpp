@@ -201,16 +201,16 @@ bool RaftWebResponderRestAPI::leaveConnOpen()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Check if ready for data
+// Check if ready to receive data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderRestAPI::readyForData()
+bool RaftWebResponderRestAPI::readyToReceiveData()
 {
 #ifdef APPLY_MIN_GAP_BETWEEN_API_CALLS_MS
     if (!Raft::isTimeout(millis(), _lastFileReqMs, APPLY_MIN_GAP_BETWEEN_API_CALLS_MS))
         return false;
     _lastFileReqMs = millis();
-    LOG_I(MODULE_PREFIX, "readyForData time %d", _lastFileReqMs);
+    LOG_I(MODULE_PREFIX, "readyToReceiveData time %d", _lastFileReqMs);
 #endif
 
     // Check if endpoint specifies a ready function
