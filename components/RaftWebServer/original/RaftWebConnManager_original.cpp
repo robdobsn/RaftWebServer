@@ -224,6 +224,9 @@ bool RaftWebConnManager_original::addHandler(RaftWebHandler *pHandler)
     if (!pHandler)
         return false;
         
+    // Give handler pointer to connManager
+    pHandler->setConnManager(this);
+
     // Give handler the web-server settings
     pHandler->setWebServerSettings(_webServerSettings);
 
@@ -301,7 +304,7 @@ RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequ
 // Check if channel is ready to send
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::canSend(uint32_t& channelID, bool& noConn)
+bool RaftWebConnManager_original::canSend(uint32_t channelID, bool& noConn)
 {
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)

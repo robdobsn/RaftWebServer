@@ -21,11 +21,12 @@
 // Debug
 // #define DEBUG_RESPONDER_WS
 // #define DEBUG_WS_SEND_APP_DATA
-// #define DEBUG_WS_SEND_APP_DATA_ASCII
+// #define DEBUG_WS_SEND_APP_DATA_DETAIL
 // #define DEBUG_WEBSOCKETS_OPEN_CLOSE
 // #define DEBUG_WEBSOCKETS_TRAFFIC
 // #define DEBUG_WEBSOCKETS_TRAFFIC_BINARY_DETAIL
 // #define DEBUG_WEBSOCKETS_PING_PONG
+// #define DEBUG_WS_IS_ACTIVE
 
 #if defined(WARN_WS_SEND_APP_DATA_FAIL)
 static const char *MODULE_PREFIX = "RaftWebRespWS";
@@ -48,6 +49,7 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
     _requestStr = reqStr;
     _channelID = channelID;
     _packetMaxBytes = packetMaxBytes;
+    _isBinary = isBinary;
 
     // Init socket link
     _webSocketLink.setup(std::bind(&RaftWebResponderWS::webSocketCallback, this, 
@@ -75,6 +77,9 @@ void RaftWebResponderWS::service()
     // Check if line active
     if (!_webSocketLink.isActive())
     {
+#ifdef DEBUG_WS_IS_ACTIVE
+        LOG_I(MODULE_PREFIX, "service INACTIVE link");
+#endif
         _isActive = false;
         return;
     }
@@ -87,8 +92,20 @@ void RaftWebResponderWS::service()
         LOG_W(MODULE_PREFIX, "service sendMsg len %d", frame.getLen());
 #endif
         // Send
-        if (!_webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), frame.getData(), frame.getLen()))
+        RaftWebConnSendRetVal retVal = _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), frame.getData(), frame.getLen());
+        if (retVal == WEB_CONN_SEND_FAIL)
+        {
             _isActive = false;
+#ifdef DEBUG_WS_IS_ACTIVE
+            LOG_I(MODULE_PREFIX, "service INACTIVE sendMsg failed");
+#endif
+        }
+        else if (retVal != WEB_CONN_SEND_OK)
+        {
+#ifdef DEBUG_WS_SEND_APP_DATA
+            LOG_W(MODULE_PREFIX, "service send msg failed retVal %s", RaftWebConnDefs::getSendRetValStr(retVal));      
+#endif
+        }
     }
 }
 
@@ -99,11 +116,21 @@ void RaftWebResponderWS::service()
 bool RaftWebResponderWS::handleData(const uint8_t* pBuf, uint32_t dataLen)
 {
 #ifdef DEBUG_RESPONDER_WS
-#ifdef DEBUG_WS_SEND_APP_DATA_ASCII
-    String outStr;
-    Raft::strFromBuffer(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
-    LOG_I(MODULE_PREFIX, "handleData len %d %s%s", dataLen, outStr.c_str(),
-                dataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
+#ifdef DEBUG_WS_SEND_APP_DATA_DETAIL
+    if (_isBinary)
+    {
+        String outStr;
+        Raft::getHexStrFromBytes(pBuf, dataLen < MAX_DEBUG_BIN_HEX_LEN ? dataLen : MAX_DEBUG_BIN_HEX_LEN, outStr);
+        LOG_I(MODULE_PREFIX, "handleData len %d %s%s", dataLen, outStr.c_str(),
+                    dataLen < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
+    }
+    else
+    {
+        String outStr;
+        Raft::strFromBuffer(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
+        LOG_I(MODULE_PREFIX, "handleData len %d %s%s", dataLen, outStr.c_str(),
+                    dataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
+    }
 #else
     LOG_I(MODULE_PREFIX, "handleData len %d", dataLen);
 #endif
@@ -115,6 +142,9 @@ bool RaftWebResponderWS::handleData(const uint8_t* pBuf, uint32_t dataLen)
     // Check if the link is still active
     if (!_webSocketLink.isActive())
     {
+#ifdef DEBUG_WS_IS_ACTIVE
+        LOG_I(MODULE_PREFIX, "handleData INACTIVE link");
+#endif
         _isActive = false;
     }
 
@@ -144,8 +174,8 @@ bool RaftWebResponderWS::startResponding(RaftWebConnection& request)
 
     // Now active
     _isActive = true;
-#ifdef DEBUG_RESPONDER_WS
-    LOG_I(MODULE_PREFIX, "startResponding isActive %d", _isActive);
+#if defined(DEBUG_RESPONDER_WS) || defined(DEBUG_WS_IS_ACTIVE)
+    LOG_I(MODULE_PREFIX, "startResponding ISACTIVE");
 #endif
     return _isActive;
 }
@@ -162,10 +192,21 @@ uint32_t RaftWebResponderWS::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
     // Done response
 #ifdef DEBUG_RESPONDER_WS
     if (respLen > 0) {
-#ifdef DEBUG_WS_SEND_APP_DATA_ASCII
-    String outStr;
-    Raft::strFromBuffer(pBuf, respLen, outStr, false);
-    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d %s", respLen, _isActive, outStr.c_str());
+#ifdef DEBUG_WS_SEND_APP_DATA_DETAIL
+    if (_isBinary)
+    {
+        String outStr;
+        Raft::getHexStrFromBytes(pBuf, respLen < MAX_DEBUG_BIN_HEX_LEN ? respLen : MAX_DEBUG_BIN_HEX_LEN, outStr);
+        LOG_I(MODULE_PREFIX, "getResponseNext isActive %d len %d %s%s", _isActive, respLen, outStr.c_str(),
+                    respLen < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
+    }
+    else
+    {
+        String outStr;
+        Raft::strFromBuffer(pBuf, respLen < MAX_DEBUG_TEXT_STR_LEN ? respLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
+        LOG_I(MODULE_PREFIX, "getResponseNext isActive %d len %d %s%s", _isActive, respLen, outStr.c_str(),
+                    respLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
+    }
 #else
     LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respLen, _isActive);
 #endif

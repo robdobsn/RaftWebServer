@@ -40,7 +40,7 @@ public:
     uint32_t getTxData(uint8_t*& pBuf, uint32_t bufMaxLen);
 
     // Send message
-    bool sendMsg(RaftWebSocketOpCodes opCode, const uint8_t* pBuf, uint32_t bufLen);
+    RaftWebConnSendRetVal sendMsg(RaftWebSocketOpCodes opCode, const uint8_t* pBuf, uint32_t bufLen);
 
     // Check active
     bool isActive()
@@ -71,8 +71,8 @@ public:
 
 private:
     // State
-    bool _upgradeReqReceived;
-    bool _upgradeRespSent;
+    bool _upgradeReqReceived = false;
+    bool _upgradeRespSent = false;
 
     // WS Upgrade info
     String _wsKey;
@@ -80,22 +80,22 @@ private:
 
     // Data to be sent to callback when complete
     std::vector<uint8_t> _callbackData;
-    RaftWebSocketCB _webSocketCB;
+    RaftWebSocketCB _webSocketCB = nullptr;
 
     // Received data not yet processed
     std::vector<uint8_t> _rxDataToProcess;
 
     // Raw send on the connection
-    RaftWebConnSendFn _rawConnSendFn;
+    RaftWebConnSendFn _rawConnSendFn = nullptr;
 
     // Data to be sent
     String _wsUpgradeResponse;
 
     // Active
-    bool _isActive;
+    bool _isActive = false;
 
     // Mask sent data
-    bool _maskSentData;
+    bool _maskSentData = false;
 
     // Max message size
     static const uint32_t MAX_WS_MESSAGE_SIZE = 5000;
@@ -105,10 +105,10 @@ private:
 
     // Ping/Pong sending
     // Set _pingIntervalMs to 0 to disable pings from server
-    uint32_t _pingIntervalMs;
-    uint32_t _pingTimeLastMs;
-    uint32_t _pongRxLastMs;
-    uint32_t _disconnIfNoPongMs;
+    uint32_t _pingIntervalMs = 0;
+    uint32_t _pingTimeLastMs = 0;
+    uint32_t _pongRxLastMs = 0;
+    uint32_t _disconnIfNoPongMs = 0;
     bool _warnNoPongShown = false;
     
     // Default content opcode

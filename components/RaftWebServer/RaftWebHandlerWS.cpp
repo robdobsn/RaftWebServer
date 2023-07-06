@@ -9,6 +9,12 @@
 #include "RaftWebHandlerWS.h"
 #include <RaftUtils.h>
 
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+#include <RaftWebConnManager_mongoose.h>
+#else
+#include <RaftWebConnManager_original.h>
+#endif
+
 // #define WARN_WS_CLOSE_UNKNOWN_CONNECTION
 // #define DEBUG_WS_SEND_APP_DATA_FAIL
 // #define DEBUG_WEB_HANDLER_WS
@@ -145,6 +151,25 @@ void RaftWebHandlerWS::responderDelete(RaftWebResponderWS* pResponder)
         LOG_W(MODULE_PREFIX, "responderDelete FAIL NO CHANNELID responder %p channelID %d", pResponder, channelID);
     }
 }
+
+// Check if channel can send
+bool RaftWebHandlerWS::canSend(uint32_t channelID, bool& noConn)
+{
+    if (_pConnManager)
+        return _pConnManager->canSend(channelID, noConn);
+    noConn = true;
+    return false;
+}
+
+// Send message on a channel
+bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
+            uint32_t channelID)
+{
+    if (_pConnManager)
+        return _pConnManager->sendMsg(pBuf, bufLen, channelID);
+    return false;
+}
+
 
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
@@ -358,7 +383,7 @@ void RaftWebHandlerWS::setChannelIDInConnInfo(struct mg_connection *pConn, uint3
 // canSend
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebHandlerWS::canSend(uint32_t& channelID, bool& noConn)
+bool RaftWebHandlerWS::canSend(uint32_t channelID, bool& noConn)
 {
     // Find the connection slot
     int connSlotIdx = findConnectionSlotByChannelID(channelID);

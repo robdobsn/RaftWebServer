@@ -59,7 +59,7 @@ public:
     virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
 
     // Check is a message can be sent
-    virtual bool canSend(uint32_t& channelID, bool& noConn) override final;
+    virtual bool canSend(uint32_t channelID, bool& noConn) override final;
     // Send message (on a channel)
     virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID) override final;
 
@@ -71,6 +71,13 @@ public:
                 ) override final;
 
     void responderDelete(RaftWebResponderWS* pResponder);
+
+    // Check if channel can send
+    virtual bool canSend(uint32_t channelID, bool& noConn) override final;
+
+    // Send message on a channel
+    virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
+                uint32_t channelID) override final;
 
 #endif
 

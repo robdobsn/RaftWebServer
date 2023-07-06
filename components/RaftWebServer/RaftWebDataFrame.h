@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <vector>
+#include <SpiramAwareAllocator.h>
 
 // Buffer for tx queue
 class RaftWebDataFrame
@@ -43,7 +44,7 @@ public:
         return _frameTimeMs;
     }
 private:
-    std::vector<uint8_t> frame;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frame;
     uint32_t _channelID = UINT32_MAX;
     uint32_t _frameTimeMs = 0;
 };

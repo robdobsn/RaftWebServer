@@ -88,6 +88,9 @@ private:
     // Websocket link
     RaftWebSocketLink _webSocketLink;
 
+    // Is binary
+    bool _isBinary = false;
+
     // Can accept message function
     RaftWebSocketCanAcceptCB _canAcceptMsgCB;
 

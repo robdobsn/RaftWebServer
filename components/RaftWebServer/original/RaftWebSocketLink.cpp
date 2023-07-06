@@ -44,14 +44,6 @@ static const char *MODULE_PREFIX = "RaftWSLink";
 
 RaftWebSocketLink::RaftWebSocketLink()
 {
-    _upgradeReqReceived = false;
-    _upgradeRespSent = false;
-    _webSocketCB = NULL;
-    _rawConnSendFn = NULL;
-    _isActive = false;
-    _pingTimeLastMs = 0;
-    _pongRxLastMs = 0;
-    _disconnIfNoPongMs = 0;
 }
 
 RaftWebSocketLink::~RaftWebSocketLink()
@@ -74,7 +66,7 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
     _disconnIfNoPongMs = disconnIfNoPongMs;
     _maskSentData = !roleIsServer;
     _isActive = true;
-    _defaultContentOpCode = isBinary ? WEBSOCKET_OPCODE_TEXT : WEBSOCKET_OPCODE_BINARY;
+    _defaultContentOpCode = isBinary ? WEBSOCKET_OPCODE_BINARY : WEBSOCKET_OPCODE_TEXT;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -286,7 +278,7 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 // Send message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen)
+RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen)
 {
     // Get length of frame
     uint32_t frameLen = bufLen + 2;
@@ -310,7 +302,7 @@ bool RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf
 #ifdef DEBUG_WEBSOCKET_SEND
         LOG_W(MODULE_PREFIX, "WebSocket sendMsg too long %d > %d", frameLen, MAX_WS_MESSAGE_SIZE);
 #endif
-        return false;
+        return WEB_CONN_SEND_TOO_LONG;
     }
 
     // Buffer
@@ -351,7 +343,7 @@ bool RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf
     if (pos + bufLen != frameBuffer.size())
     {
         LOG_W(MODULE_PREFIX, "sendMsg something awry with frameLen %d + %d != %d", pos, bufLen, frameBuffer.size());
-        return false;
+        return WEB_CONN_SEND_FRAME_ERROR;
     }
 
     // Copy the data
@@ -375,7 +367,7 @@ bool RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf
             frameBuffer.size());
 #endif
 
-    return sendRetc == RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
+    return sendRetc;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

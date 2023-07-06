@@ -14,7 +14,10 @@
 #include <RaftWebServerSettings.h>
 #include <RdJson.h>
 
-#ifndef FEATURE_WEB_SERVER_USE_MONGOOSE
+#ifdef FEATURE_WEB_SERVER_USE_MONGOOSE
+class RaftWebConnManager_mongoose;
+#else
+class RaftWebConnManager_original;
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
 class RaftWebResponder;
@@ -46,10 +49,10 @@ public:
         return NULL;
     }
 #endif
-    virtual bool canSend(uint32_t& channelID, bool& noConn)
+    virtual bool canSend(uint32_t channelID, bool& noConn)
     {
-        noConn = true;
-        return false;
+        noConn = false;
+        return true;
     }
     virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
     {
@@ -71,6 +74,23 @@ public:
     {
         return _webServerSettings._sendBufferMaxLen;
     }
+
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    // Connection manager
+    RaftWebConnManager_mongoose* _pConnManager = nullptr;
+    void setConnManager(RaftWebConnManager_mongoose* pConnManager)
+    {
+        _pConnManager = pConnManager;
+    }
+#else
+    // Connection manager
+    RaftWebConnManager_original* _pConnManager = nullptr;
+    void setConnManager(RaftWebConnManager_original* pConnManager)
+    {
+        _pConnManager = pConnManager;
+    }
+#endif
+
 protected:
     RaftWebServerSettings _defaultWebServerSettings;
     RaftWebServerSettings& _webServerSettings = _defaultWebServerSettings;
