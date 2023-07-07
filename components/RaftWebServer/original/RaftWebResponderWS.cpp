@@ -20,6 +20,7 @@
 
 // Debug
 // #define DEBUG_RESPONDER_WS
+// #define DEBUG_RESPONDER_IS_READY_TO_SEND
 // #define DEBUG_WS_SEND_APP_DATA
 // #define DEBUG_WS_SEND_APP_DATA_DETAIL
 // #define DEBUG_WEBSOCKETS_OPEN_CLOSE
@@ -29,7 +30,7 @@
 // #define DEBUG_WS_IS_ACTIVE
 // #define DEBUG_WS_SERVICE
 
-#if defined(DEBUG_RESPONDER_WS) || (defined(WEBSOCKET_SEND_USE_TX_QUEUE) && defined(WARN_WS_SEND_APP_DATA_FAIL))
+#if defined(DEBUG_RESPONDER_WS) || defined(DEBUG_RESPONDER_IS_READY_TO_SEND) || (defined(WEBSOCKET_SEND_USE_TX_QUEUE) && defined(WARN_WS_SEND_APP_DATA_FAIL))
 static const char *MODULE_PREFIX = "RaftWebRespWS";
 #endif
 
@@ -247,11 +248,13 @@ bool RaftWebResponderWS::leaveConnOpen()
 
 bool RaftWebResponderWS::isReadyToSend()
 {
-    if (!_webSocketLink.isActiveAndUpgraded())
-        return false;
-    if (_reqParams.getWebConnReadyToSend())
-        return _reqParams.getWebConnReadyToSend()() == WEB_CONN_SEND_OK;
-    return true;
+    bool isReady = _webSocketLink.isActiveAndUpgraded();
+    if (isReady)
+        isReady = _reqParams.getWebConnReadyToSend() ? _reqParams.getWebConnReadyToSend()() == WEB_CONN_SEND_OK : true;
+#ifdef DEBUG_RESPONDER_IS_READY_TO_SEND
+    LOG_I(MODULE_PREFIX, "isReadyToSend %d", isReady);
+#endif
+    return isReady;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

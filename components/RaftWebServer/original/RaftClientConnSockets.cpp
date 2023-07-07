@@ -22,6 +22,7 @@ static const char *MODULE_PREFIX = "RaftClientConnSockets";
 // Debug
 // #define DEBUG_SOCKET_EAGAIN
 // #define DEBUG_SOCKET_SEND
+// #define DEBUG_SOCKET_SEND_VERBOSE
 
 RaftClientConnSockets::RaftClientConnSockets(int client, bool traceConn)
 {
@@ -100,16 +101,19 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
     }
 
     // Write using socket
+#ifdef DEBUG_SOCKET_SEND
+    uint64_t startUs = micros();
+#endif
     uint32_t startMs = millis();
     while (true)
     {
         int rslt = send(_client, pBuf, bufLen, 0);
         int opErrno = errno;
 
-#ifdef DEBUG_SOCKET_SEND
+#ifdef DEBUG_SOCKET_SEND_VERBOSE
         // Debug
-        LOG_I(MODULE_PREFIX, "write bufLen %d rslt %d errno %d elapsed %d", 
-                    bufLen, rslt, opErrno, (int) Raft::timeElapsed(millis(), startMs));
+        LOG_I(MODULE_PREFIX, "sendDataBuffer bufLen %d rslt %d errno %s elapsed %duS", 
+                    bufLen, rslt, rslt < 0 ? String(opErrno).c_str() : "N/A", (int) Raft::timeElapsed(micros(), startUs));
 #endif
 
         if (rslt < 0)
@@ -121,11 +125,11 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                     if (maxRetryMs != 0)
                     {
 #ifdef WARN_SOCKET_SEND_FAIL
-                        LOG_W(MODULE_PREFIX, "write EAGAIN timed-out conn %d bufLen %d retry %dms", 
+                        LOG_W(MODULE_PREFIX, "sendDataBuffer EAGAIN timed-out conn %d bufLen %d retry %dms", 
                                         getClientId(), bufLen, maxRetryMs);
 #else
 #ifdef DEBUG_SOCKET_EAGAIN
-                        LOG_I(MODULE_PREFIX, "write EAGAIN timed-out conn %d bufLen %d retry %dms", 
+                        LOG_I(MODULE_PREFIX, "sendDataBuffer EAGAIN timed-out conn %d bufLen %d retry %dms", 
                                         getClientId(), bufLen, maxRetryMs);
 #endif
 #endif
@@ -133,28 +137,33 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                     else
                     {
 #ifdef DEBUG_SOCKET_EAGAIN
-                        LOG_I(MODULE_PREFIX, "write EAGAIN returning conn %d bufLen %d retry %dms", 
+                        LOG_I(MODULE_PREFIX, "sendDataBuffer EAGAIN returning conn %d bufLen %d retry %dms", 
                                         getClientId(), bufLen, maxRetryMs);
 #endif
                     }
                     return RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN;
                 }
 #ifdef DEBUG_SOCKET_EAGAIN
-                LOG_I(MODULE_PREFIX, "write failed errno %d conn %d bufLen %d retrying for %dms", 
+                LOG_I(MODULE_PREFIX, "sendDataBuffer failed errno %d conn %d bufLen %d retrying for %dms", 
                                 opErrno, getClientId(), bufLen, maxRetryMs);
 #endif
                 vTaskDelay(1);
                 continue;
             }
 #ifdef WARN_SOCKET_SEND_FAIL
-            LOG_W(MODULE_PREFIX, "write failed errno error %d conn %d bufLen %d totalMs %d", 
+            LOG_W(MODULE_PREFIX, "sendDataBuffer failed errno error %d conn %d bufLen %d totalMs %d", 
                         opErrno, getClientId(), bufLen, Raft::timeElapsed(millis(), startMs));
 #endif
             return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
         }
 
+        // Ok - rslt is number of bytes written
+        bytesWritten = rslt;
+
 #ifdef DEBUG_SOCKET_SEND
-        LOG_I(MODULE_PREFIX, "write ok conn %d bufLen %d bytesWritten %d", getClientId(), bufLen, bytesWritten);
+        uint64_t elapsedUs = Raft::timeElapsed(micros(), startUs);
+        LOG_I(MODULE_PREFIX, "sendDataBuffer ok conn %d bufLen %d bytesWritten %d took %duS",
+                    getClientId(), bufLen, bytesWritten, (int)elapsedUs);
 #endif
 
         // Update stats
@@ -164,7 +173,6 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
 #endif
 
         // Success
-        bytesWritten = rslt;
         return RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
     }
 }

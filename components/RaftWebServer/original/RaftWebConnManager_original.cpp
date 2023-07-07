@@ -28,6 +28,9 @@ const static char* MODULE_PREFIX = "WebConnMgr";
 #include "esp_heap_trace.h"
 #endif
 
+// Warn
+#define WARN_ON_NO_EMPTY_SLOTS_FOR_CONNECTION
+
 // Debug
 // #define DEBUG_WEB_CONN_MANAGER
 // #define DEBUG_WEB_SERVER_HANDLERS
@@ -182,7 +185,12 @@ bool RaftWebConnManager_original::accommodateConnection(RaftClientConnBase* pCli
     // Handle the new connection if we can
     uint32_t slotIdx = 0;
     if (!findEmptySlot(slotIdx))
+    {
+#ifdef WARN_ON_NO_EMPTY_SLOTS_FOR_CONNECTION
+        LOG_W(MODULE_PREFIX, "accommodateConnection no empty slot for connClient %d", pClientConn->getClientId());
+#endif
         return false;
+    }
 
         // Debug
 #ifdef DEBUG_WEB_CONN_MANAGER

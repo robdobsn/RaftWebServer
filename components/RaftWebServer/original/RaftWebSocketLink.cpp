@@ -28,6 +28,7 @@ static const char *MODULE_PREFIX = "RaftWSLink";
 
 // Debug
 // #define DEBUG_WEBSOCKET_LINK
+// #define DEBUG_WEBSOCKET_LINK_SEND
 // #define DEBUG_WEBSOCKET_LINK_EVENTS
 // #define DEBUG_WEBSOCKET_PING_PONG
 // #define DEBUG_WEBSOCKET_LINK_HEADER_DETAIL
@@ -301,7 +302,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     if (frameLen >= MAX_WS_MESSAGE_SIZE)
     {
 #ifdef WARN_ON_WS_LINK_SEND_TOO_LONG
-        LOG_W(MODULE_PREFIX, "WebSocket sendMsg too long %d > %d", frameLen, MAX_WS_MESSAGE_SIZE);
+        LOG_W(MODULE_PREFIX, "sendMsg too long %d > %d", frameLen, MAX_WS_MESSAGE_SIZE);
 #endif
         return WEB_CONN_SEND_TOO_LONG;
     }
@@ -358,14 +359,18 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     }
 
     // Send
+#ifdef DEBUG_WEBSOCKET_LINK_SEND
+    uint64_t timeNowUs = micros();
+#endif
     RaftWebConnSendRetVal sendRetc = RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     if (_rawConnSendFn)
         sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
 
 #ifdef DEBUG_WEBSOCKET_LINK_SEND
-    LOG_I(MODULE_PREFIX, "WebSocket sendMsg result %s send %d bytes", 
+    uint64_t timeTakenUs = micros() - timeNowUs;
+    LOG_I(MODULE_PREFIX, "sendMsg result %s send %d bytes took %dus", 
             RaftWebConnDefs::getSendRetValStr(sendRetc), 
-            frameBuffer.size());
+            frameBuffer.size(), (int)timeTakenUs);
 #endif
 
     return sendRetc;
