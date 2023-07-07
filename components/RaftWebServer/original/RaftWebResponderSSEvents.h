@@ -36,7 +36,7 @@ public:
     virtual void service() override final;
 
     // Handle inbound data
-    virtual bool handleData(const uint8_t* pBuf, uint32_t dataLen) override final;
+    virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen) override final;
 
     // Start responding
     virtual bool startResponding(RaftWebConnection& request) override final;

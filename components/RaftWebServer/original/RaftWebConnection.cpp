@@ -22,6 +22,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // Warn
 #define WARN_WEB_CONN_ERROR_CLOSE
 #define WARN_WEB_CONN_CANNOT_SEND
+#define WARN_ON_PACKET_SEND_MISMATCH
 
 // Debug
 // #define DEBUG_WEB_REQUEST_HEADERS
@@ -42,7 +43,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // #define DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS 50
 // #define DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS 50
 // #define DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS 50
-#define DEBUG_RESPONDER_FAILURE
+// #define DEBUG_RESPONDER_FAILURE
 
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
 #include "esp_heap_trace.h"
@@ -198,25 +199,6 @@ void RaftWebConnection::clearAfterSendCompletion()
 bool RaftWebConnection::isActive()
 {
     return _pClientConn && _pClientConn->isActive();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Send on connection
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool RaftWebConnection::sendOnConn(const uint8_t* pBuf, uint32_t bufLen)
-{
-#ifdef DEBUG_WEB_CONN_SEND
-    LOG_I(MODULE_PREFIX, "sendOnConnection len %d responder %d connId %d", bufLen, (uint32_t)_pResponder, 
-                    _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
-
-    // Send to responder
-    if (_pResponder)
-        return _pResponder->sendFrame(pBuf, bufLen);
-
-    // Failure
-    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -546,6 +528,7 @@ bool RaftWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataL
 
     // Get a responder (we are responsible for deletion)
     RaftWebRequestParams params(
+                std::bind(&RaftWebConnection::canSendOnConn, this),
                 std::bind(&RaftWebConnection::rawSendOnConn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
     _pResponder = _pConnManager->getNewResponder(_header, params, statusCode);
 #ifdef DEBUG_RESPONDER_CREATE_DELETE
@@ -613,7 +596,7 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
     bool errorOccurred = false;
     if (_pResponder && (curBufPos < dataLen) && pRxData)
     {
-        _pResponder->handleData(pRxData+curBufPos, dataLen-curBufPos);
+        _pResponder->handleInboundData(pRxData+curBufPos, dataLen-curBufPos);
 #ifdef DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS
         debugRespHdlDataHandleDataMs = millis() - debugRespHdlDataStartMs;
 #endif
@@ -678,7 +661,7 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
 #ifdef DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS
     if (millis() - debugRespHdlDataStartMs > DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS)
     {
-        LOG_I(MODULE_PREFIX, "responderHandleData total %ldms handleData %dms servResp %dms hdlResp %dms stdHdr %dms", 
+        LOG_I(MODULE_PREFIX, "responderHandleData total %ldms handleInboundData %dms servResp %dms hdlResp %dms stdHdr %dms", 
             millis() - debugRespHdlDataStartMs,
             debugRespHdlDataHandleDataMs, 
             debugResponderServiceElapMs,
@@ -785,7 +768,7 @@ bool RaftWebConnection::parseHeaderLine(const String& line)
         if (_header.isContinue)
         {
             const char response[] = "HTTP/1.1 100 Continue\r\n\r\n";
-            if (rawSendOnConn((const uint8_t*) response, sizeof(response)-1, MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+            if (rawSendOnConn((const uint8_t*) response, sizeof(response)-1, MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
                 return false;
         }
 
@@ -979,9 +962,14 @@ void RaftWebConnection::setHTTPResponseStatus(RaftHttpStatusCode responseCode)
 
 RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
 {
+    // Don't accept any more data while the buffer is not empty
+    if (_socketTxQueuedBuffer.size() != 0)
+    {
+        return WEB_CONN_SEND_EAGAIN;
+    }
     if (!_pClientConn)
     {
-        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+        return WEB_CONN_NO_CONNECTION;
     }
     return _pClientConn->canSend();
 }
@@ -998,7 +986,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 #ifdef WARN_WEB_CONN_CANNOT_SEND
         LOG_W(MODULE_PREFIX, "rawSendOnConn conn is nullptr");
 #endif
-        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+        return WEB_CONN_SEND_FAIL;
     }
 
     // Check buffer
@@ -1007,12 +995,12 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 #ifdef WARN_WEB_CONN_CANNOT_SEND
         LOG_W(MODULE_PREFIX, "rawSendOnConn pBuf is nullptr");
 #endif
-        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+        return WEB_CONN_SEND_FAIL;
     }
 
     // Check if we can send
     RaftWebConnSendRetVal canSendRetVal = canSendOnConn();
-    if (canSendRetVal != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+    if (canSendRetVal != WEB_CONN_SEND_OK)
     {
 #ifdef WARN_WEB_CONN_CANNOT_SEND
         LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d cannot send %s", 
@@ -1033,44 +1021,57 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
         LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d failed handleTxQueueData", _pClientConn->getClientId());
 #endif
-        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+        return WEB_CONN_SEND_FAIL;
     }
 
     // Check if data can be sent immediately
+    uint32_t bytesWritten = 0;
+    RaftWebConnSendRetVal retVal = WEB_CONN_SEND_FAIL;
     if (_socketTxQueuedBuffer.size() == 0)
     {
         // Queue is currently empty so try to send
-        RaftWebConnSendRetVal retVal = _pClientConn->write(pBuf, bufLen, maxRetryMs);
+        retVal = _pClientConn->sendDataBuffer(pBuf, bufLen, maxRetryMs, bytesWritten);
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send len %d result %s", 
-                    _pClientConn->getClientId(), bufLen, RaftWebConnDefs::getSendRetValStr(retVal));
+        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send len %d result %s bytesWritten %d", 
+                    _pClientConn->getClientId(), bufLen, RaftWebConnDefs::getSendRetValStr(retVal), bytesWritten);
 #endif
-        if (retVal != RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN)
+        if ((retVal == WEB_CONN_SEND_OK) && (bytesWritten == bufLen))
+            return WEB_CONN_SEND_OK;
+        if ((retVal != WEB_CONN_SEND_EAGAIN) && (retVal != WEB_CONN_SEND_OK))
             return retVal;
     }
 
     // Check queue max size
+    int32_t bytesToAddToQueue = bufLen - bytesWritten;
+    if (bytesToAddToQueue < 0)
+    {
+#ifdef WARN_ON_PACKET_SEND_MISMATCH
+        LOG_I(MODULE_PREFIX, "rawSendOnConn MISMATCH connId %d send len %d bytesWritten %d bytesToAddToQueue %d", 
+                    _pClientConn->getClientId(), bufLen, bytesWritten, bytesToAddToQueue);
+#endif
+        return WEB_CONN_SEND_FAIL;
+    }
     uint32_t curSize = _socketTxQueuedBuffer.size();
-    if (curSize + bufLen > _maxSendBufferBytes)
+    if (curSize + bytesToAddToQueue > _maxSendBufferBytes)
     {
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
         LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send buffer overflow was %d trying to add %d max %d", 
-                    _pClientConn->getClientId(), curSize, bufLen, _maxSendBufferBytes);
+                    _pClientConn->getClientId(), curSize, bytesToAddToQueue, _maxSendBufferBytes);
 #endif
-        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+        return WEB_CONN_SEND_FAIL;
     }
 
     // Append to buffer
-    _socketTxQueuedBuffer.resize(_socketTxQueuedBuffer.size() + bufLen);
-    memcpy(_socketTxQueuedBuffer.data() + curSize, pBuf, bufLen);
+    _socketTxQueuedBuffer.resize(_socketTxQueuedBuffer.size() + bytesToAddToQueue);
+    memcpy(_socketTxQueuedBuffer.data() + curSize, pBuf + bytesWritten, bytesToAddToQueue);
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-    LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d data added %d to send buffer newLen %d", 
-                _pClientConn->getClientId(), bufLen, _socketTxQueuedBuffer.size());
+    LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d added %d bytes to send buffer newLen %d", 
+                _pClientConn->getClientId(), bytesToAddToQueue, _socketTxQueuedBuffer.size());
 #endif
 
-    // Ok - the data will be sent later
-    return RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN;
+    // The data has been queued for sending (WEB_CONN_SEND_OK)
+    return WEB_CONN_SEND_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1083,7 +1084,7 @@ bool RaftWebConnection::sendStandardHeaders()
     char respLine[200];
     snprintf(respLine, sizeof(respLine), "HTTP/1.1 %d %s\r\n", _httpResponseStatus, 
                 RaftWebInterface::getHTTPStatusStr(_httpResponseStatus));
-    if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+    if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
         return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
@@ -1096,7 +1097,7 @@ bool RaftWebConnection::sendStandardHeaders()
     {
         // Header strings
         static const char* preFlightRespHeaders = "Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE\r\nAccess-Control-Allow-Headers: *\r\nVary: Access-Control-Request-Headers\r\nContent-Length: 0\r\n";
-        if (rawSendOnConn((const uint8_t*)preFlightRespHeaders, strlen(preFlightRespHeaders), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+        if (rawSendOnConn((const uint8_t*)preFlightRespHeaders, strlen(preFlightRespHeaders), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
             return false;
     }
 
@@ -1104,7 +1105,7 @@ bool RaftWebConnection::sendStandardHeaders()
     if (_pResponder && _pResponder->getContentType())
     {
         snprintf(respLine, sizeof(respLine), "Content-Type: %s\r\n", _pResponder->getContentType());
-        if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+        if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
             return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
@@ -1126,7 +1127,7 @@ bool RaftWebConnection::sendStandardHeaders()
             String headerStr = respHeaders.substring(sepPos + 1, segEndPos);
             sepPos = nextSepPos;
             if (rawSendOnConn((const uint8_t*)headerStr.c_str(), headerStr.length(), MAX_HEADER_SEND_RETRY_MS) != 
-                                RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+                                WEB_CONN_SEND_OK)
                 return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
@@ -1148,7 +1149,7 @@ bool RaftWebConnection::sendStandardHeaders()
         {
             snprintf(respLine, sizeof(respLine), "%s: %s\r\n", nvPair.name.c_str(), nvPair.value.c_str());
             if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != 
-                                RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+                                WEB_CONN_SEND_OK)
                 return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
@@ -1165,7 +1166,7 @@ bool RaftWebConnection::sendStandardHeaders()
         if (contentLength >= 0)
         {
             snprintf(respLine, sizeof(respLine), "Content-Length: %d\r\n", contentLength);
-            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
                 return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
@@ -1179,7 +1180,7 @@ bool RaftWebConnection::sendStandardHeaders()
     if (!_pResponder || !_pResponder->leaveConnOpen())
     {
         snprintf(respLine, sizeof(respLine), "Connection: close\r\n");
-        if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+        if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
             return false;
 
 #ifdef DEBUG_RESPONDER_HEADER_DETAIL
@@ -1189,7 +1190,7 @@ bool RaftWebConnection::sendStandardHeaders()
     }
 
     // Send end of header line
-    return rawSendOnConn((const uint8_t*)"\r\n", 2, MAX_HEADER_SEND_RETRY_MS) == RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
+    return rawSendOnConn((const uint8_t*)"\r\n", 2, MAX_HEADER_SEND_RETRY_MS) == WEB_CONN_SEND_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1208,11 +1209,11 @@ bool RaftWebConnection::handleResponseChunk()
 
     // Check if the connection is busy
     RaftWebConnSendRetVal sendBusyRetVal = canSendOnConn();
-    if (sendBusyRetVal == RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN)
+    if (sendBusyRetVal == WEB_CONN_SEND_EAGAIN)
         return true;
 
     // Check if connection is closed
-    if (sendBusyRetVal != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+    if (sendBusyRetVal != WEB_CONN_SEND_OK)
     {
         // Debug
 #ifdef DEBUG_WEB_CONN_OPEN_CLOSE
@@ -1268,13 +1269,13 @@ bool RaftWebConnection::handleResponseChunk()
 #endif
 
             // Handle failure
-            if (retVal != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+            if (retVal != WEB_CONN_SEND_OK)
             {
 #ifdef DEBUG_RESPONDER_FAILURE
                 LOG_I(MODULE_PREFIX, "handleResponseChunk failed retVal %s connId %d", 
                         RaftWebConnDefs::getSendRetValStr(retVal), _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
-                if (retVal != RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN)
+                if (retVal != WEB_CONN_SEND_EAGAIN)
                     return false;
             }
         }
@@ -1284,7 +1285,7 @@ bool RaftWebConnection::handleResponseChunk()
     if (millis() - debugHdlRespChunkStartMs > DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS)
     {
         debugRawSendOnConnMs = millis() - debugTimingStartMs;
-        LOG_I(MODULE_PREFIX, "handleResponseChunk timing sendHeaders %dms getRespNext %dms sendOnConn %dms connId %d respType %s", 
+        LOG_I(MODULE_PREFIX, "handleResponseChunk timing sendHeaders %dms getRespNext %dms rawsendOnConn %dms connId %d respType %s", 
                 debugSendHdrsMs, debugGetRespNextMs, debugRawSendOnConnMs, 
                 _pClientConn ? _pClientConn->getClientId() : 0,
                 _pResponder ? _pResponder->getResponderType() : "");
@@ -1304,17 +1305,26 @@ bool RaftWebConnection::handleTxQueuedData()
     if (_socketTxQueuedBuffer.size() > 0)
     {
         // Try to send
-        RaftWebConnSendRetVal retVal = _pClientConn->write(_socketTxQueuedBuffer.data(), _socketTxQueuedBuffer.size(), MAX_CONTENT_SEND_RETRY_MS);
-#ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "handleTxQueuedData connId %d result %s", _pClientConn->getClientId(), RaftWebConnDefs::getSendRetValStr(retVal));
-#endif
-        if (retVal == RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL)
-            return false;
-        else if (retVal == RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN)
+        uint32_t bytesWritten = 0;
+        uint32_t bytesToSend = _socketTxQueuedBuffer.size();
+        RaftWebConnSendRetVal retVal = _pClientConn->sendDataBuffer(_socketTxQueuedBuffer.data(), bytesToSend, 
+                        MAX_CONTENT_SEND_RETRY_MS, bytesWritten);
+        if (retVal == WEB_CONN_SEND_EAGAIN)
             return true;
+#ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
+        LOG_I(MODULE_PREFIX, "handleTxQueuedData connId %d result %s bytesWritten %d remaining %d", 
+                        _pClientConn->getClientId(), RaftWebConnDefs::getSendRetValStr(retVal), bytesWritten, 
+                        _socketTxQueuedBuffer.size()-bytesWritten);
+#endif
+        if (retVal == WEB_CONN_SEND_FAIL)
+        {
+            // Clear the send buffer
+            _socketTxQueuedBuffer.clear();
+            return false;
+        }
         
-        // Sent ok so clear queue
-        _socketTxQueuedBuffer.clear();
+        // Sent ok so clear items from the queue that were sent
+        _socketTxQueuedBuffer.erase(_socketTxQueuedBuffer.begin(), _socketTxQueuedBuffer.begin() + bytesWritten);
     }
     return true;
 }

@@ -69,12 +69,12 @@ void RaftWebResponderSSEvents::service()
 // Handle inbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderSSEvents::handleData(const uint8_t *pBuf, uint32_t dataLen)
+bool RaftWebResponderSSEvents::handleInboundData(const uint8_t *pBuf, uint32_t dataLen)
 {
 #ifdef DEBUG_RESPONDER_EVENTS
     String outStr;
     Raft::strFromBuffer(pBuf, dataLen, outStr, false);
-    LOG_I(MODULE_PREFIX, "handleData len %d %s", dataLen, outStr.c_str());
+    LOG_I(MODULE_PREFIX, "handleInboundData len %d %s", dataLen, outStr.c_str());
 #endif
     return true;
 }
@@ -171,13 +171,13 @@ void RaftWebResponderSSEvents::sendEvent(const char* eventContent, const char* e
     if (!putRslt)
     {
 #ifdef WARN_EVENTS_SEND_APP_DATA_FAIL
-        LOG_W(MODULE_PREFIX, "sendFrame failed group %s content %s", eventGroup, eventContent);
+        LOG_W(MODULE_PREFIX, "sendEvent failed group %s content %s", eventGroup, eventContent);
 #endif
     }
     else
     {
 #ifdef DEBUG_RESPONDER_EVENTS
-        LOG_W(MODULE_PREFIX, "sendFrame ok group %s content %s", eventGroup, eventContent);
+        LOG_W(MODULE_PREFIX, "sendEvent ok group %s content %s", eventGroup, eventContent);
 #endif
     }
 }

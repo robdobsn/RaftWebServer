@@ -16,15 +16,21 @@
 class RaftWebRequestParams
 {
 public:
-    RaftWebRequestParams(RaftWebConnSendFn webConnRawSend)
+    RaftWebRequestParams(RaftWebConnReadyToSendFn webConnReadyToSend, RaftWebConnSendFn webConnRawSend)
     {
+        _webConnReadyToSend = webConnReadyToSend;
         _webConnRawSend = webConnRawSend;
     }
     RaftWebConnSendFn getWebConnRawSend() const
     {
         return _webConnRawSend;
     }
+    RaftWebConnReadyToSendFn getWebConnReadyToSend() const
+    {
+        return _webConnReadyToSend;
+    }
     
 private:
     RaftWebConnSendFn _webConnRawSend;
+    RaftWebConnReadyToSendFn _webConnReadyToSend;
 };

@@ -32,9 +32,6 @@ public:
     // Check if we can send
     RaftWebConnSendRetVal canSendOnConn();
 
-    // Send on connection
-    bool sendOnConn(const uint8_t* pBuf, uint32_t bufLen);
-
     // Send on server-side events
     void sendOnSSEvents(const char* eventContent, const char* eventGroup);
 
@@ -104,7 +101,7 @@ private:
     uint32_t _maxSendBufferBytes;
 
     // Queued data to send
-    std::vector<uint8_t> _socketTxQueuedBuffer;
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _socketTxQueuedBuffer;
 
     // Debug
     uint32_t _debugDataRxCount;

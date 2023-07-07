@@ -22,6 +22,8 @@ class RaftWebHandlerWS;
 class RaftWebServerSettings;
 class ProtocolEndpointManager;
 
+// #define WEBSOCKET_SEND_USE_TX_QUEUE
+
 class RaftWebResponderWS : public RaftWebResponder
 {
 public:
@@ -37,7 +39,7 @@ public:
     virtual void service() override final;
 
     // Handle inbound data
-    virtual bool handleData(const uint8_t* pBuf, uint32_t dataLen) override final;
+    virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen) override final;
 
     // Start responding
     virtual bool startResponding(RaftWebConnection& request) override final;
@@ -57,8 +59,11 @@ public:
         return false;
     }
 
+    // Ready to send data
+    virtual bool isReadyToSend() override final;
+
     // Send a frame of data
-    virtual bool sendFrame(const uint8_t* pBuf, uint32_t bufLen) override final;
+    virtual bool encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen) override final;
 
     // Get responder type
     virtual const char* getResponderType() override final
@@ -72,9 +77,6 @@ public:
         channelID = _channelID;
         return true;
     }
-
-    // Ready to send data
-    virtual bool readyToSendData() override final;
 
 private:
     // Handler
@@ -104,9 +106,11 @@ private:
     // Vars
     String _requestStr;
 
+#ifdef WEBSOCKET_SEND_USE_TX_QUEUE
     // Queue for sending frames over the web socket
     ThreadSafeQueue<RaftWebDataFrame> _txQueue;
     static const uint32_t MAX_WAIT_FOR_TX_QUEUE_MS = 2;
+#endif
 
     // Max packet size
     uint32_t _packetMaxBytes = 5000;
@@ -115,7 +119,7 @@ private:
     uint32_t _debugLastServiceMs = 0;
 
     // Callback on websocket activity
-    void webSocketCallback(RaftWebSocketEventCode eventCode, const uint8_t* pBuf, uint32_t bufLen);
+    void onWebSocketEvent(RaftWebSocketEventCode eventCode, const uint8_t* pBuf, uint32_t bufLen);
 
     // Debug
     static const uint32_t MAX_DEBUG_TEXT_STR_LEN = 100;

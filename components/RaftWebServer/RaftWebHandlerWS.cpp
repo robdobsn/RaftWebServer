@@ -154,25 +154,6 @@ void RaftWebHandlerWS::responderDelete(RaftWebResponderWS* pResponder)
     }
 }
 
-// Check if channel can send
-bool RaftWebHandlerWS::canSend(uint32_t channelID, bool& noConn)
-{
-    if (_pConnManager)
-        return _pConnManager->canSend(channelID, noConn);
-    noConn = true;
-    return false;
-}
-
-// Send message on a channel
-bool RaftWebHandlerWS::sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
-            uint32_t channelID)
-{
-    if (_pConnManager)
-        return _pConnManager->sendMsg(pBuf, bufLen, channelID);
-    return false;
-}
-
-
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

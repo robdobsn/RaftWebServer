@@ -32,7 +32,8 @@ void RaftClientConnNetconn::setup(bool blocking)
        netconn_set_recvtimeout(_client, 1);
 }
 
-RaftWebConnSendRetVal RaftClientConnNetconn::write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs)
+RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
+            uint32_t maxRetryMs, uint32_t& bytesWritten)
 {
     // Check active
     if (!isActive())

@@ -305,7 +305,7 @@ RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequ
 // Check if channel is ready to send
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::canSend(uint32_t channelID, bool& noConn)
+bool RaftWebConnManager_original::canSendBufOnChannel(uint32_t channelID, bool& noConn)
 {
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -327,7 +327,7 @@ bool RaftWebConnManager_original::canSend(uint32_t channelID, bool& noConn)
         // Check for channelID match
         if (usedChannelID == channelID)
         {
-            return _webConnections[i].canSendOnConn() == RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
+            return pResponder->isReadyToSend();
         }
     }
 
@@ -338,10 +338,10 @@ bool RaftWebConnManager_original::canSend(uint32_t channelID, bool& noConn)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Send message on channel
+// Send buffer on channel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
+bool RaftWebConnManager_original::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
     bool sendOk = false;
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -379,7 +379,7 @@ bool RaftWebConnManager_original::sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
             continue;
 
         // Send if appropriate
-        sendOk = _webConnections[i].sendOnConn(pBuf, bufLen);
+        sendOk = pResponder->encodeAndSendData(pBuf, bufLen);
 
         // Debug
 #ifdef DEBUG_WEBSOCKETS_SEND

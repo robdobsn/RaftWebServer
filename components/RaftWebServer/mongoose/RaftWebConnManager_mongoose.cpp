@@ -122,7 +122,7 @@ bool RaftWebConnManager_mongoose::addHandler(RaftWebHandler *pHandler)
 // Check if channel can send a message
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_mongoose::canSend(uint32_t channelID, bool& noConn)
+bool RaftWebConnManager_mongoose::canSendBufOnChannel(uint32_t channelID, bool& noConn)
 {
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
@@ -144,10 +144,10 @@ bool RaftWebConnManager_mongoose::canSend(uint32_t channelID, bool& noConn)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Send a message on a channel
+// Send a buffer on a channel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_mongoose::sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
+bool RaftWebConnManager_mongoose::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 

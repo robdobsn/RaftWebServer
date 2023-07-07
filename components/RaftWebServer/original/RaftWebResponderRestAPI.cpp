@@ -73,7 +73,7 @@ RaftWebResponderRestAPI::~RaftWebResponderRestAPI()
 // Handle inbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderRestAPI::handleData(const uint8_t* pBuf, uint32_t dataLen)
+bool RaftWebResponderRestAPI::handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
 {
     // Record data received so we know when to respond
     uint32_t curBufPos = _numBytesReceived;
@@ -83,18 +83,18 @@ bool RaftWebResponderRestAPI::handleData(const uint8_t* pBuf, uint32_t dataLen)
     if (_headerExtract.isMultipart)
     {
 #ifdef DEBUG_RESPONDER_REST_API_MULTIPART_DATA
-        LOG_I(MODULE_PREFIX, "handleData multipart len %d", dataLen);
+        LOG_I(MODULE_PREFIX, "handleInboundData multipart len %d", dataLen);
 #endif
         _multipartParser.handleData(pBuf, dataLen);
 #ifdef DEBUG_RESPONDER_REST_API_MULTIPART_DATA
-        LOG_I(MODULE_PREFIX, "handleData multipart finished bytesRx %d contentLen %d", 
+        LOG_I(MODULE_PREFIX, "handleInboundData multipart finished bytesRx %d contentLen %d", 
                     _numBytesReceived, _headerExtract.contentLength);
 #endif
     }
     else
     {
 #ifdef DEBUG_RESPONDER_REST_API_NON_MULTIPART_DATA
-        LOG_I(MODULE_PREFIX, "handleData curPos %d bufLen %d totalLen %d", curBufPos, dataLen, _headerExtract.contentLength);
+        LOG_I(MODULE_PREFIX, "handleInboundData curPos %d bufLen %d totalLen %d", curBufPos, dataLen, _headerExtract.contentLength);
 #endif
         // Send as the body
         if (_endpoint.restApiFnBody)

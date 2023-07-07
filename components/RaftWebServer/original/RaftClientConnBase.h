@@ -51,7 +51,8 @@ public:
     virtual RaftWebConnSendRetVal canSend() = 0;
 
     // Write
-    virtual RaftWebConnSendRetVal write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs) = 0;
+    virtual RaftWebConnSendRetVal sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
+                uint32_t maxRetryMs, uint32_t& bytesWritten) = 0;
 
     // Setup
     virtual void setup(bool blocking) = 0;

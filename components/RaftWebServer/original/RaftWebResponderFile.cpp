@@ -91,10 +91,10 @@ RaftWebResponderFile::~RaftWebResponderFile()
 // Handle inbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderFile::handleData(const uint8_t* pBuf, uint32_t dataLen)
+bool RaftWebResponderFile::handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
 {
 #ifdef DEBUG_RESPONDER_FILE
-    LOG_I(MODULE_PREFIX, "handleData len %d filePath %s", dataLen, _filePath.c_str());
+    LOG_I(MODULE_PREFIX, "handleInboundData len %d filePath %s", dataLen, _filePath.c_str());
 #endif
     return true;
 }

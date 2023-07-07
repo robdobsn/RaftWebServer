@@ -35,15 +35,15 @@ public:
     bool addHandler(RaftWebHandler* pHandler);
 
     // Check if channel can send
-    bool canSend(uint32_t channelID, bool& noConn)
+    bool canSendBufferOnChannel(uint32_t channelID, bool& noConn)
     {
-        return _connManager.canSend(channelID, noConn);
+        return _connManager.canSendBufOnChannel(channelID, noConn);
     }
 
     // Send message on a channel
-    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
+    bool sendBufferOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
     {
-        return _connManager.sendMsg(pBuf, bufLen, channelID);
+        return _connManager.sendBufOnChannel(pBuf, bufLen, channelID);
     }
 
     // Send to all server-side events

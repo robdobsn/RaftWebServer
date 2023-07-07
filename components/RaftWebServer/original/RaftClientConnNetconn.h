@@ -44,8 +44,9 @@ public:
         return RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
     }
 
-    // Write
-    virtual RaftWebConnSendRetVal write(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs) override final;
+    // Send data
+    virtual RaftWebConnSendRetVal sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
+                        uint32_t maxRetryMs, uint32_t& bytesWritten) override final;
 
     // Setup
     virtual void setup(bool blocking) override final;

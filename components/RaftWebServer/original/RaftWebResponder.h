@@ -35,7 +35,7 @@ public:
     }
     
     // Handle inbound data
-    virtual bool handleData(const uint8_t* pBuf, uint32_t dataLen)
+    virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
     {
         return false;
     }
@@ -88,8 +88,14 @@ public:
         return true;
     }
 
-    // Send a frame of data
-    virtual bool sendFrame(const uint8_t* pBuf, uint32_t bufLen)
+    // Ready to send data
+    virtual bool isReadyToSend()
+    {
+        return true;
+    }
+
+    // Encode and send data
+    virtual bool encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     {
         return false;
     }
@@ -109,12 +115,6 @@ public:
     virtual bool getChannelID(uint32_t& channelID)
     {
         return false;
-    }
-
-    // Ready to send data
-    virtual bool readyToSendData()
-    {
-        return true;
     }
 
     // Ready to receive data

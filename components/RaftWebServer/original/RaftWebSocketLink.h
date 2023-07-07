@@ -48,6 +48,12 @@ public:
         return _isActive;
     }
 
+    // Check active and upgraded
+    bool isActiveAndUpgraded()
+    {
+        return _isActive && _upgradeReqReceived && _upgradeRespSent;
+    }
+
     // Helper
     static const char* getEventStr(RaftWebSocketEventCode eventCode)
     {

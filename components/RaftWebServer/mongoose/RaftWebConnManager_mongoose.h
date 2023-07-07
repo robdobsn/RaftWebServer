@@ -41,10 +41,10 @@ public:
     }
 
     // Check if channel can send a message
-    bool canSend(uint32_t channelID, bool& noConn);
+    bool canSendBufOnChannel(uint32_t channelID, bool& noConn);
 
-    // Send a message on a channel
-    bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID);
+    // Send a buffer on a channel
+    bool sendMsgBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID);
 
     // Send to all server-side events
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);

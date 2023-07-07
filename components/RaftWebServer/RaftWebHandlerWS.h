@@ -73,13 +73,6 @@ public:
 
     void responderDelete(RaftWebResponderWS* pResponder);
 
-    // Check if channel can send
-    virtual bool canSend(uint32_t channelID, bool& noConn) override final;
-
-    // Send message on a channel
-    virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, 
-                uint32_t channelID) override final;
-
 #endif
 
 private:
