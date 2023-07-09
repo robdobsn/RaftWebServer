@@ -153,7 +153,7 @@ private:
     void* _pCtx = nullptr;
 
     // Error result on last data callback
-    RaftRetCode _lastDataCallbackResult = RAFT_RET_OK;
+    RaftRetCode _lastDataCallbackResult = RAFT_OK;
 
     // Debug
     uint32_t _debugBytesHandled;

@@ -170,7 +170,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
     MongooseMultipartState* pMultipartState = multipartStateGetPtr(pConn);
 
     // Check if handling a chunk - this is not just for "TransferEncoding: chunked" but any body data it seems
-    RaftRetCode retCode = RAFT_RET_OK;
+    RaftRetCode retCode = RAFT_OK;
     if (ev == MG_EV_HTTP_CHUNK)
     {
         // Check if content is multipart-form-data
@@ -272,7 +272,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
     }
 
     // Handle regular messages and end of multipart
-    if ((ev == MG_EV_HTTP_MSG) || pMultipartState->lastBlock || (retCode != RAFT_RET_OK))
+    if ((ev == MG_EV_HTTP_MSG) || pMultipartState->lastBlock || (retCode != RAFT_OK))
     {
         // Clear multipart offset (in case multiple files are uploaded)
         Raft::setBEUint32((uint8_t*)pConn->data, RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS, 0);
@@ -285,7 +285,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
             debugMultipartChunk("===MSG_BODY", pHttpMsg->body.ptr, pHttpMsg->body.len);
             debugMultipartChunk("===MSG_CHUNK", pHttpMsg->chunk.ptr, pHttpMsg->chunk.len);
         }
-        else if (retCode != RAFT_RET_OK)
+        else if (retCode != RAFT_OK)
         {
             LOG_I(MODULE_PREFIX, "handleRequest API call failed channelID %d retCode %s", 
                             _webServerSettings._restAPIChannelID, Raft::getRetCodeStr(retCode));
@@ -311,7 +311,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
                             Raft::getRetCodeStr(retCodeEnd));
 #endif
 
-            if ((retCodeEnd == RAFT_RET_OK) && (retCode != RAFT_RET_OK))
+            if ((retCodeEnd == RAFT_OK) && (retCode != RAFT_OK))
             {
                 String respError = R"("error":")" + String(Raft::getRetCodeStr(retCode)) + R"(")";
                 Raft::setJsonBoolResult(endpointName.c_str(), respStr, false, respError.c_str());
@@ -391,7 +391,7 @@ RaftRetCode RaftWebHandlerRestAPI::handleFileUploadChunk(const String& endpointN
                 MongooseMultipartState* pMultipartState)
 {
     // Use multipart parser
-    RaftRetCode retCode = RAFT_RET_OK;
+    RaftRetCode retCode = RAFT_OK;
     if (pHttpMsg->chunk.ptr && (pHttpMsg->chunk.len > 0))
         retCode = pMultipartState->multipartParser.handleData((const uint8_t*)pHttpMsg->chunk.ptr, pHttpMsg->chunk.len);
 
@@ -426,7 +426,7 @@ RaftRetCode RaftWebHandlerRestAPI::sendFileChunkToRestAPI(const String& endpoint
         pMultipartState->contentPos==0);
     // Check for callback
     APISourceInfo apiSourceInfo(channelID);
-    RaftRetCode retCode = RAFT_RET_INVALID_OBJECT;
+    RaftRetCode retCode = RAFT_INVALID_OBJECT;
     if (endpoint.restApiFnChunk)
     {
         retCode = endpoint.restApiFnChunk(endpointName, fileStreamBlock, apiSourceInfo);
@@ -435,7 +435,7 @@ RaftRetCode RaftWebHandlerRestAPI::sendFileChunkToRestAPI(const String& endpoint
         pMultipartState->contentPos += chunkLen;
 
         // Check ok
-        if (retCode != RAFT_RET_OK)
+        if (retCode != RAFT_OK)
         {
 #ifdef WARN_ON_MULIPART_API_ERROR
             // Warn
@@ -465,7 +465,7 @@ RaftRetCode RaftWebHandlerRestAPI::multipartOnData(void* pCtx,
     // Get context
     MongooseMultipartState* pMultipartState = (MongooseMultipartState*)pCtx;
     if (!pMultipartState)
-        return RAFT_RET_INVALID_OBJECT;
+        return RAFT_INVALID_OBJECT;
 
 #ifdef DEBUG_MULTIPART_DATA
     LOG_W(MODULE_PREFIX, "multipartData len %d filename %s contentPos %d isFinal %d", 
@@ -486,7 +486,7 @@ RaftRetCode RaftWebHandlerRestAPI::multipartOnData(void* pCtx,
         return pMultipartState->endpoint.restApiFnChunk(pMultipartState->reqStr, fileStreamBlock, apiSourceInfo);
 
     // Not implemented
-    return RAFT_RET_NOT_IMPLEMENTED;
+    return RAFT_NOT_IMPLEMENTED;
 }
 
 void RaftWebHandlerRestAPI::multipartOnHeaderNameValue(void* pCtx,

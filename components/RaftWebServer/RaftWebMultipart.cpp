@@ -110,7 +110,7 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 #ifdef WARN_ON_MULTIPART_ERRORS
         LOG_W(MODULE_PREFIX, "hit an error previously - can't handle");
 #endif
-        return RAFT_RET_INVALID_OPERATION;
+        return RAFT_INVALID_OPERATION;
     }
 
 #ifdef DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
@@ -146,9 +146,9 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
         processPayload(buffer, bufPos, bufLen);
 
     if (_parseState == RDMULTIPART_ERROR) 
-        return RAFT_RET_OTHER_FAILURE;
+        return RAFT_OTHER_FAILURE;
     RaftRetCode result = _lastDataCallbackResult;
-    _lastDataCallbackResult = RAFT_RET_OK;
+    _lastDataCallbackResult = RAFT_OK;
     return result;
 }
 

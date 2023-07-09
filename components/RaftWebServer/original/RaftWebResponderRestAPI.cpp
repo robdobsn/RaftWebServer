@@ -245,7 +245,7 @@ RaftRetCode RaftWebResponderRestAPI::multipartOnData(void* pCtx, const uint8_t *
     // Check for callback
     if (_endpoint.restApiFnChunk)
         return _endpoint.restApiFnChunk(_requestStr, fileStreamBlock, _apiSourceInfo);
-    return RAFT_RET_NOT_IMPLEMENTED;
+    return RAFT_NOT_IMPLEMENTED;
 }
 
 void RaftWebResponderRestAPI::multipartOnHeaderNameValue(void* pCtx, const String& name, const String& val)
