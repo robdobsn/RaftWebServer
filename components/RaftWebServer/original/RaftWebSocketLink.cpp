@@ -302,7 +302,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     if (frameLen >= MAX_WS_MESSAGE_SIZE)
     {
 #ifdef WARN_ON_WS_LINK_SEND_TOO_LONG
-        LOG_W(MODULE_PREFIX, "sendMsg too long %d > %d", frameLen, MAX_WS_MESSAGE_SIZE);
+        LOG_W(MODULE_PREFIX, "sendMsg too long %d > %d (bufLen %d)", frameLen, MAX_WS_MESSAGE_SIZE, bufLen);
 #endif
         return WEB_CONN_SEND_TOO_LONG;
     }
@@ -323,8 +323,9 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     }
     else if (hdrLenCode == 127)
     {
-        for (int i = 0; i < 8; i++)
-            frameBuffer[pos++] = (bufLen >> ((7 - i) * 8)) & 0xff;
+        pos += 4;
+        for (int i = 3; i >= 0; i--)
+            frameBuffer[pos++] = (bufLen >> (i * 8)) & 0xff;
     }
 
     // Generate a random mask if required

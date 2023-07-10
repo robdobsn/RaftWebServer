@@ -104,7 +104,7 @@ private:
     bool _maskSentData = false;
 
     // Max message size
-    static const uint32_t MAX_WS_MESSAGE_SIZE = 100000;
+    static const uint32_t MAX_WS_MESSAGE_SIZE = 500000;
 
     // Retry
     static const uint32_t MAX_WS_SEND_RETRY_MS = 0;
