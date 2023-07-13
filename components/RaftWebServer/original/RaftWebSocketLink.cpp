@@ -99,8 +99,8 @@ void RaftWebSocketLink::service()
         {
             if (!_warnNoPongShown)
             {
-                LOG_W(MODULE_PREFIX, "service - no PONG received for %ldms (>%dms), link inactive",
-                        Raft::timeElapsed(millis(), _pongRxLastMs),
+                LOG_W(MODULE_PREFIX, "service - no PONG received for %dms (>%dms), link inactive",
+                        (int)Raft::timeElapsed(millis(), (int)_pongRxLastMs),
                         _disconnIfNoPongMs);
                 _warnNoPongShown = true;
             }

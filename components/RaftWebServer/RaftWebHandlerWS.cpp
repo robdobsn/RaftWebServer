@@ -45,7 +45,8 @@ RaftWebHandlerWS::RaftWebHandlerWS(const ConfigBase& config,
     _pktMaxBytes = config.getLong("pktMaxBytes", DEFAULT_WS_PKT_MAX_BYTES);
     _txQueueMax = config.getLong("txQueueMax", DEFAULT_WS_TX_QUEUE_MAX);
     _pingIntervalMs = config.getLong("pingMs", DEFAULT_WS_PING_MS);
-    _noPongMs = config.getLong("noPongMs", DEFAULT_WS_NO_PONG_MS);
+    bool closeIfNoPong = config.getBool("closeIfNoPong", false);
+    _noPongMs = (closeIfNoPong && (_pingIntervalMs != 0)) ? _pingIntervalMs * 2 + 2000 : 0;
     _isBinaryWS = config.getString("content", "binary").equalsIgnoreCase("binary");
 
     // Setup channelIDs mapping

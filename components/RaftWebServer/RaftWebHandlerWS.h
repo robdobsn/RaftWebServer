@@ -90,7 +90,7 @@ private:
 
     // Ping/pong interval and timeout
     uint32_t _pingIntervalMs = DEFAULT_WS_PING_MS;
-    uint32_t _noPongMs = DEFAULT_WS_NO_PONG_MS;
+    uint32_t _noPongMs = 0;
 
     // Content type
     bool _isBinaryWS = true;
@@ -126,8 +126,7 @@ private:
     // Defaults
     static const uint32_t DEFAULT_WS_PKT_MAX_BYTES = 100000;
     static const uint32_t DEFAULT_WS_TX_QUEUE_MAX = 20;
-    static const uint32_t DEFAULT_WS_PING_MS = 2000;
-    static const uint32_t DEFAULT_WS_NO_PONG_MS = 6000;
+    static const uint32_t DEFAULT_WS_PING_MS = 30000;
     static const uint32_t DEFAULT_WS_IDLE_CLOSE_MS = 0;
 
     // Handle connection slots
