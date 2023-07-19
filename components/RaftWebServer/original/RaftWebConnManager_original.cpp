@@ -313,7 +313,7 @@ RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequ
 // Check if channel is ready to send
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::canSendBufOnChannel(uint32_t channelID, bool& noConn)
+bool RaftWebConnManager_original::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
 {
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)

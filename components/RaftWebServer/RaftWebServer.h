@@ -35,9 +35,9 @@ public:
     bool addHandler(RaftWebHandler* pHandler);
 
     // Check if channel can send
-    bool canSendBufferOnChannel(uint32_t channelID, bool& noConn)
+    bool canSendBufferOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
     {
-        return _connManager.canSendBufOnChannel(channelID, noConn);
+        return _connManager.canSendBufOnChannel(channelID, msgType, noConn);
     }
 
     // Send message on a channel

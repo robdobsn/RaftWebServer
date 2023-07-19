@@ -26,8 +26,8 @@ class RaftWebHandlerWS : public RaftWebHandler
 {
 public:
     RaftWebHandlerWS(const ConfigBase& config,
-            RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
-            RaftWebSocketInboundMsgCB rxMsgCB);
+            RaftWebSocketInboundCanAcceptFnType inboundCanAcceptCB, 
+            RaftWebSocketInboundHandleMsgFnType rxMsgCB);
     virtual ~RaftWebHandlerWS()
     {
     }
@@ -96,8 +96,8 @@ private:
     bool _isBinaryWS = true;
 
     // WS interface functions
-    RaftWebSocketCanAcceptInboundCB _canAcceptInboundMsgCB;
-    RaftWebSocketInboundMsgCB _rxMsgCB;
+    RaftWebSocketInboundCanAcceptFnType _inboundCanAcceptCB;
+    RaftWebSocketInboundHandleMsgFnType _rxMsgCB;
 
     // Web socket protocol connection slot info
     class ConnSlotRec

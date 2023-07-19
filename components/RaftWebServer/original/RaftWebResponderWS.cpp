@@ -40,11 +40,11 @@ static const char *MODULE_PREFIX = "RaftWebRespWS";
 
 RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const RaftWebRequestParams& params, 
             const String& reqStr,
-            RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
-            RaftWebSocketInboundMsgCB inboundMsgCB,
+            RaftWebSocketInboundCanAcceptFnType inboundCanAcceptCB, 
+            RaftWebSocketInboundHandleMsgFnType inboundMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
             uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, bool isBinary)
-    :   _reqParams(params), _canAcceptInboundMsgCB(canAcceptInboundMsgCB), 
+    :   _reqParams(params), _inboundCanAcceptCB(inboundCanAcceptCB), 
         _inboundMsgCB(inboundMsgCB)
 #ifdef WEBSOCKET_SEND_USE_TX_QUEUE
         , _txQueue(txQueueSize)

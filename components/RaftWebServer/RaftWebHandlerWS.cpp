@@ -30,9 +30,9 @@ static const char* MODULE_PREFIX = "RaftWebHandlerWS";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RaftWebHandlerWS::RaftWebHandlerWS(const ConfigBase& config,
-        RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
-        RaftWebSocketInboundMsgCB rxMsgCB)
-        :   _canAcceptInboundMsgCB(canAcceptInboundMsgCB), 
+        RaftWebSocketInboundCanAcceptFnType inboundCanAcceptCB, 
+        RaftWebSocketInboundHandleMsgFnType rxMsgCB)
+        :   _inboundCanAcceptCB(inboundCanAcceptCB), 
             _rxMsgCB(rxMsgCB)
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
@@ -103,7 +103,7 @@ RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& 
     // Looks like we can handle this so create a new responder object
     uint32_t channelID = _connectionSlots[connSlotIdx].channelID;
     RaftWebResponder* pResponder = new RaftWebResponderWS(this, params, requestHeader.URL, 
-                _canAcceptInboundMsgCB, 
+                _inboundCanAcceptCB, 
                 _rxMsgCB, 
                 channelID,
                 _pktMaxBytes,

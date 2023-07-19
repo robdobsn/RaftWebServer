@@ -29,8 +29,8 @@ class RaftWebResponderWS : public RaftWebResponder
 public:
     RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const RaftWebRequestParams& params,
             const String& reqStr,
-            RaftWebSocketCanAcceptInboundCB canAcceptInboundMsgCB, 
-            RaftWebSocketInboundMsgCB inboundMsgCB,
+            RaftWebSocketInboundCanAcceptFnType inboundCanAcceptCB, 
+            RaftWebSocketInboundHandleMsgFnType inboundMsgCB,
             uint32_t channelID, uint32_t packetMaxBytes, uint32_t txQueueSize,
             uint32_t pingIntervalMs, uint32_t disconnIfNoPongMs, bool isBinary);
     virtual ~RaftWebResponderWS();
@@ -95,10 +95,10 @@ private:
     bool _isBinary = false;
 
     // Can accept inbound message
-    RaftWebSocketCanAcceptInboundCB _canAcceptInboundMsgCB;
+    RaftWebSocketInboundCanAcceptFnType _inboundCanAcceptCB;
 
     // Inbound message callback
-    RaftWebSocketInboundMsgCB _inboundMsgCB;
+    RaftWebSocketInboundHandleMsgFnType _inboundMsgCB;
 
     // ChannelID
     uint32_t _channelID = UINT32_MAX;

@@ -9,6 +9,7 @@
 #pragma once
 
 #include "RaftWebServerSettings.h"
+#include <CommsChannelMsg.h>
 #include <RaftWebConnection.h>
 #include <RaftWebSocketDefs.h>
 #include <RaftClientListener.h>
@@ -57,7 +58,7 @@ public:
     }
 
     // Check if channel can send a message
-    bool canSendBufOnChannel(uint32_t channelID, bool& noConn);
+    bool canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn);
 
     // Send a buffer on a channel
     bool sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID);
