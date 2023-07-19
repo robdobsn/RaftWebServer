@@ -87,9 +87,9 @@ bool wsCanAcceptInbound(uint32_t channelID)
     return true;
 }
 
-void wsHandleInboundMessage(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
+void wsInboundHandleMsg(uint32_t channelID, const uint8_t* pMsg, uint32_t msgLen)
 {
-    // LOG_I(MODULE_PREFIX, "handleInboundMessage, channel Id %d msglen %d", channelID, msgLen);
+    // LOG_I(MODULE_PREFIX, "wsInboundHandleMsg, channel Id %d msglen %d", channelID, msgLen);
 }
 
 RaftRetCode uploadFileComplete(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
