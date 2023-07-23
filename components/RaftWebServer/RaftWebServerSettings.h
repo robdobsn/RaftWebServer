@@ -25,7 +25,7 @@ public:
     // Task settings
     static const int DEFAULT_TASK_CORE = 0;
     static const int DEFAULT_TASK_PRIORITY = 9;
-    static const int DEFAULT_TASK_STACK_BYTES = 4000;   
+    static const int DEFAULT_TASK_STACK_BYTES = 5000;   
 
     // Send buffer max length
     static const int DEFAULT_SEND_BUFFER_MAX_LEN = 100000;
