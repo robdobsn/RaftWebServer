@@ -9,7 +9,7 @@
 #pragma once
 
 #include "RaftWebHandler.h"
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <Logger.h>
 #include <ConfigBase.h>
 #include <vector>

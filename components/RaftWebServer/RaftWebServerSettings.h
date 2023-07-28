@@ -9,7 +9,7 @@
 #pragma once
 
 #include "lwip/api.h"
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <vector>
 
 class RaftWebServerSettings

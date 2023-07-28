@@ -9,7 +9,7 @@
 #include "RaftWebSocketLink.h"
 #include <stdint.h>
 #include <vector>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RaftUtils.h>
 #include <ArduinoTime.h>
 #include <mbedtls/sha1.h>

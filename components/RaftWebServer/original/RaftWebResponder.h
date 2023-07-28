@@ -9,7 +9,7 @@
 #pragma once
 
 #include <list>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <RdJson.h>
 #include <RaftWebConnDefs.h>
 

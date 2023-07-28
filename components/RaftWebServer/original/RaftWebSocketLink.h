@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 #include <vector>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include "RaftWebSocketDefs.h"
 #include "RaftWebConnDefs.h"
 

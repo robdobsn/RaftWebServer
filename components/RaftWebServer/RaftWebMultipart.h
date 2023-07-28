@@ -9,7 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <functional>
 #include <vector>
 #include <RaftRetCode.h>
