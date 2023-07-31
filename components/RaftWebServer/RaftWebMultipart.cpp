@@ -9,7 +9,7 @@
 #include <RaftWebMultipart.h>
 #include <Logger.h>
 #include <RaftUtils.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 
 // #define WARN_ON_MULTIPART_ERRORS
 // #define DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
@@ -494,11 +494,11 @@ void RaftWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint3
             _formInfo._contentDisp = headerValue.substring(0, semiPos);
 
         // Extract name - values from form data
-        std::vector<RdJson::NameValuePair> contentDispNameVals;
-        RdJson::extractNameValues(headerValue, "=", ";", NULL, contentDispNameVals);
+        std::vector<RaftJson::NameValuePair> contentDispNameVals;
+        RaftJson::extractNameValues(headerValue, "=", ";", NULL, contentDispNameVals);
 
         // Check for filename
-        for (RdJson::NameValuePair &nvp : contentDispNameVals)
+        for (RaftJson::NameValuePair &nvp : contentDispNameVals)
         {
             if (nvp.name.equalsIgnoreCase("filename"))
             {

@@ -10,7 +10,7 @@
 
 #include <list>
 #include <RaftArduino.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <RaftWebConnDefs.h>
 
 class RaftWebConnection;
@@ -59,7 +59,7 @@ public:
     }
 
     // Get headers
-    std::list<RdJson::NameValuePair>* getHeaders()
+    std::list<RaftJson::NameValuePair>* getHeaders()
     {
         return &_headers;
     }
@@ -129,6 +129,6 @@ protected:
 
 private:
     // Additional headers to send
-    std::list<RdJson::NameValuePair> _headers;
+    std::list<RaftJson::NameValuePair> _headers;
 
 };

@@ -37,7 +37,7 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
  
     // Check if gzip is valid
     bool gzipValid = false;
-    for (const RdJson::NameValuePair& hdr : requestHeader.nameValues)
+    for (const RaftJson::NameValuePair& hdr : requestHeader.nameValues)
     {
         // LOG_I(MODULE_PREFIX, "constr hdr %s : %s", hdr.name.c_str(), hdr.value.c_str());
         if (hdr.name.equalsIgnoreCase("Accept-Encoding") && (hdr.value.indexOf("gzip") >= 0))

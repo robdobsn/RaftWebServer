@@ -9,7 +9,7 @@
 #pragma once
 
 #include <RaftWebServerSettings.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <list>
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)

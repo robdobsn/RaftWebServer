@@ -9,7 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <list>
 #include "RaftWebConnDefs.h"
 

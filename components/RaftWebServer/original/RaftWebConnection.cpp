@@ -14,7 +14,7 @@
 #include <Logger.h>
 #include <RaftUtils.h>
 #include <ArduinoTime.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include <functional>
 
 static const char *MODULE_PREFIX = "RaftWebConn";
@@ -1144,8 +1144,8 @@ bool RaftWebConnection::sendStandardHeaders()
     // Send additional headers
     if (_pResponder)
     {
-        std::list<RdJson::NameValuePair>* pRespHeaders = _pResponder->getHeaders();
-        for (RdJson::NameValuePair& nvPair : *pRespHeaders)
+        std::list<RaftJson::NameValuePair>* pRespHeaders = _pResponder->getHeaders();
+        for (RaftJson::NameValuePair& nvPair : *pRespHeaders)
         {
             snprintf(respLine, sizeof(respLine), "%s: %s\r\n", nvPair.name.c_str(), nvPair.value.c_str());
             if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != 

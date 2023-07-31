@@ -66,7 +66,7 @@ private:
     bool _gzipStats;
 
     // Served path pairs
-    std::vector<RdJson::NameValuePair> _servedPathPairs;
+    std::vector<RaftJson::NameValuePair> _servedPathPairs;
 
     // Helpers
     String getContentType(const String& filePath) const;

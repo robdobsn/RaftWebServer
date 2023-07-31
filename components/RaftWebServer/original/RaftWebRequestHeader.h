@@ -10,7 +10,7 @@
 
 #include <vector>
 #include <RaftArduino.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #include "RaftWebInterface.h"
 
 class RaftWebRequestHeaderExtract
@@ -100,7 +100,7 @@ public:
 
     // Header name/value pairs
     static const uint32_t MAX_WEB_HEADERS = 20;
-    std::vector<RdJson::NameValuePair> nameValues;
+    std::vector<RaftJson::NameValuePair> nameValues;
 
     // Header extract
     RaftWebRequestHeaderExtract extract;

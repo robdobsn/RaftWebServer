@@ -9,7 +9,7 @@
 #include "RaftWebHandlerStaticFiles.h"
 #include <Logger.h>
 #include <FileSystem.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <mongoose.h>
 #else
@@ -72,7 +72,7 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
                 path = "/" + path;
 
             // Add to vector
-            RdJson::NameValuePair nvPair(uri, path);
+            RaftJson::NameValuePair nvPair(uri, path);
             _servedPathPairs.push_back(nvPair);
         }
         else
@@ -86,7 +86,7 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
                 folder = "/" + folder;
 
             // Add to vector
-            RdJson::NameValuePair nvPair("/", folder);
+            RaftJson::NameValuePair nvPair("/", folder);
             _servedPathPairs.push_back(nvPair);
         }
 
@@ -154,7 +154,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
         return NULL;
 
     // Check the URL is valid
-    RdJson::NameValuePair longestMatchedPath;
+    RaftJson::NameValuePair longestMatchedPath;
     for (auto& servePath : _servedPathPairs)
     {
         // Check if the path matches

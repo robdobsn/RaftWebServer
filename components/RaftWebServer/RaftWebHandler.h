@@ -12,7 +12,7 @@
 #include <list>
 #include <RaftWebInterface.h>
 #include <RaftWebServerSettings.h>
-#include <RdJson.h>
+#include <RaftJson.h>
 
 #ifdef FEATURE_WEB_SERVER_USE_MONGOOSE
 class RaftWebConnManager_mongoose;
