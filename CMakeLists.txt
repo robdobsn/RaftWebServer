@@ -45,7 +45,7 @@ else()
             ${RAFT_COMPONENT_EXTRA_PATH}RaftWebResponderWS.cpp
             ${RAFT_COMPONENT_EXTRA_PATH}RaftWebSocketLink.cpp
     )
-    set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} ${RAFT_COMPONENT_EXTRA_PATH}original)
+    set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} ${RAFT_COMPONENT_EXTRA_PATH})
 endif()
 
 idf_component_register(
