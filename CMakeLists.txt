@@ -35,15 +35,15 @@ if (EXISTS "${TEST_MONGOOSE_SRC}")
 else()
     message(STATUS "Mongoose component NOT found")
     set(RAFT_WEBSERVER_SOURCES ${RAFT_WEBSERVER_SOURCES} 
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientConnNetconn.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientConnSockets.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftClientListener.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebConnection.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebConnManager_original.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderFile.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderRestAPI.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebResponderWS.cpp
-            ${RAFT_COMPONENT_EXTRA_PATH}original/RaftWebSocketLink.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftClientConnNetconn.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftClientConnSockets.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftClientListener.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftWebConnection.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftWebConnManager.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftWebResponderFile.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftWebResponderRestAPI.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftWebResponderWS.cpp
+            ${RAFT_COMPONENT_EXTRA_PATH}RaftWebSocketLink.cpp
     )
     set(RAFT_WEBSERVER_INCLUDES ${RAFT_WEBSERVER_INCLUDES} ${RAFT_COMPONENT_EXTRA_PATH}original)
 endif()

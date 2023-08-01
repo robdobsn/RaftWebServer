@@ -12,7 +12,7 @@
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <RaftWebConnManager_mongoose.h>
 #else
-#include <RaftWebConnManager_original.h>
+#include <RaftWebConnManager.h>
 #endif
 
 // #define WARN_WS_CLOSE_UNKNOWN_CONNECTION

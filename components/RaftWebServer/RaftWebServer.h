@@ -15,7 +15,7 @@
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include <RaftWebConnManager_mongoose.h>
 #else
-#include <RaftWebConnManager_original.h>
+#include <RaftWebConnManager.h>
 #endif
 
 class RaftWebServer
@@ -56,7 +56,7 @@ private:
     RaftWebConnManager_mongoose _connManager;
 #else
     // Connection manager
-    RaftWebConnManager_original _connManager;
+    RaftWebConnManager _connManager;
 #endif
 
 };

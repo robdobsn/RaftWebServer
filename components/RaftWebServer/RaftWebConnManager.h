@@ -23,12 +23,12 @@ class RaftWebRequestHeader;
 class RaftWebResponder;
 class RaftWebRequestParams;
 
-class RaftWebConnManager_original
+class RaftWebConnManager
 {
 public:
     // Constructor / Destructor
-    RaftWebConnManager_original();
-    virtual ~RaftWebConnManager_original();
+    RaftWebConnManager();
+    virtual ~RaftWebConnManager();
 
     // Setup
     void setup(const RaftWebServerSettings& settings);

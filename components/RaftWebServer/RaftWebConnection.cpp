@@ -9,7 +9,7 @@
 #include "RaftWebConnection.h"
 #include "RaftWebInterface.h"
 #include "RaftWebHandler.h"
-#include "RaftWebConnManager_original.h"
+#include "RaftWebConnManager.h"
 #include "RaftWebResponder.h"
 #include <Logger.h>
 #include <RaftUtils.h>
@@ -92,7 +92,7 @@ RaftWebConnection::~RaftWebConnection()
 // Set new connection
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnection::setNewConn(RaftClientConnBase* pClientConn, RaftWebConnManager_original* pConnManager,
+bool RaftWebConnection::setNewConn(RaftClientConnBase* pClientConn, RaftWebConnManager* pConnManager,
                 uint32_t maxSendBufferBytes)
 {
     // Error check - there should not be a current client otherwise there's been a mistake!

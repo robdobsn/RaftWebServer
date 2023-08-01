@@ -17,7 +17,7 @@
 #ifdef FEATURE_WEB_SERVER_USE_MONGOOSE
 class RaftWebConnManager_mongoose;
 #else
-class RaftWebConnManager_original;
+class RaftWebConnManager;
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
 class RaftWebResponder;
@@ -84,8 +84,8 @@ public:
     }
 #else
     // Connection manager
-    RaftWebConnManager_original* _pConnManager = nullptr;
-    void setConnManager(RaftWebConnManager_original* pConnManager)
+    RaftWebConnManager* _pConnManager = nullptr;
+    void setConnManager(RaftWebConnManager* pConnManager)
     {
         _pConnManager = pConnManager;
     }

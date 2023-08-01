@@ -57,7 +57,7 @@ RaftWebMultipart::~RaftWebMultipart()
 
 void RaftWebMultipart::clear()
 {
-    _parseState = RDMULTIPART_ERROR;
+    _parseState = RAFTMULTIPART_ERROR;
     _boundaryStr.clear();
     _boundaryBuf.clear();
     _contentPos = 0;
@@ -89,7 +89,7 @@ void RaftWebMultipart::setBoundary(const String &boundaryStr)
     _boundaryBuf.resize(_boundaryStr.length() + 8);
 
     // Start of parsing
-    _parseState = RDMULTIPART_START;
+    _parseState = RAFTMULTIPART_START;
 
     // Debug
     _debugBytesHandled = 0;
@@ -105,7 +105,7 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
     _debugBytesHandled += bufLen;
 
     // Check valid
-    if (_parseState == RDMULTIPART_ERROR)
+    if (_parseState == RAFTMULTIPART_ERROR)
     {
 #ifdef WARN_ON_MULTIPART_ERRORS
         LOG_W(MODULE_PREFIX, "hit an error previously - can't handle");
@@ -123,14 +123,14 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 
     // Iterate bytes
     uint32_t bufPos = 0;
-    if (_parseState != RDMULTIPART_PART_DATA)
+    if (_parseState != RAFTMULTIPART_PART_DATA)
     {
         while (bufPos < bufLen)
         {
             if (!processHeaderByte(buffer, bufPos, bufLen))
             {
-                if (_parseState != RDMULTIPART_PART_DATA)
-                    _parseState = RDMULTIPART_ERROR;
+                if (_parseState != RAFTMULTIPART_PART_DATA)
+                    _parseState = RAFTMULTIPART_ERROR;
                 bufPos++;
                 break;
             }
@@ -142,10 +142,10 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
     }
 
     // Process any payload
-    if (_parseState == RDMULTIPART_PART_DATA)
+    if (_parseState == RAFTMULTIPART_PART_DATA)
         processPayload(buffer, bufPos, bufLen);
 
-    if (_parseState == RDMULTIPART_ERROR) 
+    if (_parseState == RAFTMULTIPART_ERROR) 
         return RAFT_OTHER_FAILURE;
     RaftRetCode result = _lastDataCallbackResult;
     _lastDataCallbackResult = RAFT_OK;
@@ -160,20 +160,20 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
     // Parser switch
     switch (_parseState)
     {
-    case RDMULTIPART_ERROR:
+    case RAFTMULTIPART_ERROR:
     {
 #ifdef WARN_ON_MULTIPART_ERRORS
         LOG_W(MODULE_PREFIX, "error detected at bufPos %d", bufPos);
 #endif
         return false;
     }
-    case RDMULTIPART_START:
+    case RAFTMULTIPART_START:
     {
         _boundaryIdx = 0;
-        _parseState = RDMULTIPART_START_BOUNDARY;
+        _parseState = RAFTMULTIPART_START_BOUNDARY;
         [[fallthrough]];
     }
-    case RDMULTIPART_START_BOUNDARY:
+    case RAFTMULTIPART_START_BOUNDARY:
     {
         if (_boundaryIdx == _boundaryStr.length() - 2)
         {
@@ -198,8 +198,8 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
                 return false;
             }
             _boundaryIdx = 0;
-            stateCallback(RDMULTIPART_EVENT_PART_BEGIN, buffer, bufPos);
-            _parseState = RDMULTIPART_HEADER_FIELD_START;
+            stateCallback(RAFTMULTIPART_EVENT_PART_BEGIN, buffer, bufPos);
+            _parseState = RAFTMULTIPART_HEADER_FIELD_START;
             break;
         }
         if (curByte != _boundaryStr[_boundaryIdx + 2])
@@ -212,19 +212,19 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
         _boundaryIdx++;
         break;
     }
-    case RDMULTIPART_HEADER_FIELD_START:
+    case RAFTMULTIPART_HEADER_FIELD_START:
     {
-        _parseState = RDMULTIPART_HEADER_FIELD;
+        _parseState = RAFTMULTIPART_HEADER_FIELD;
         _headerFieldStartPos = bufPos;
         _boundaryIdx = 0;
         [[fallthrough]];
     }
-    case RDMULTIPART_HEADER_FIELD:
+    case RAFTMULTIPART_HEADER_FIELD:
     {
         if (curByte == ASCII_CODE_CR)
         {
             _headerFieldStartPos = INVALID_POS;
-            _parseState = RDMULTIPART_HEADERS_AWAIT_FINAL_LF;
+            _parseState = RAFTMULTIPART_HEADERS_AWAIT_FINAL_LF;
             break;
         }
 
@@ -246,7 +246,7 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
 #endif
                 return false;
             }
-            _parseState = RDMULTIPART_HEADER_VALUE_START;
+            _parseState = RAFTMULTIPART_HEADER_VALUE_START;
             break;
         }
 
@@ -259,7 +259,7 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
         }
         break;
     }
-    case RDMULTIPART_HEADER_VALUE_START:
+    case RAFTMULTIPART_HEADER_VALUE_START:
     {
         // Skip whitespace
         if (curByte == ASCII_CODE_SPACE)
@@ -268,20 +268,20 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
         }
         // Start of header value
         _headerValueStartPos = bufPos;
-        _parseState = RDMULTIPART_HEADER_VALUE;
+        _parseState = RAFTMULTIPART_HEADER_VALUE;
         [[fallthrough]];
     }
-    case RDMULTIPART_HEADER_VALUE:
+    case RAFTMULTIPART_HEADER_VALUE:
     {
         if (curByte == ASCII_CODE_CR)
         {
             if ((_headerValueStartPos != INVALID_POS) && (_headerValueStartPos < bufPos))
                 headerValueFound(buffer, _headerValueStartPos, bufPos - _headerValueStartPos);
-            _parseState = RDMULTIPART_HEADER_VALUE_GOT;
+            _parseState = RAFTMULTIPART_HEADER_VALUE_GOT;
         }
         break;
     }
-    case RDMULTIPART_HEADER_VALUE_GOT:
+    case RAFTMULTIPART_HEADER_VALUE_GOT:
     {
         if (curByte != ASCII_CODE_LF)
         {
@@ -291,10 +291,10 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
             return false;
         }
 
-        _parseState = RDMULTIPART_HEADER_FIELD_START;
+        _parseState = RAFTMULTIPART_HEADER_FIELD_START;
         break;
     }
-    case RDMULTIPART_HEADERS_AWAIT_FINAL_LF:
+    case RAFTMULTIPART_HEADERS_AWAIT_FINAL_LF:
     {
         if (curByte != ASCII_CODE_LF)
         {
@@ -304,8 +304,8 @@ bool RaftWebMultipart::processHeaderByte(const uint8_t *buffer, uint32_t bufPos,
             return false;
         }
 
-        stateCallback(RDMULTIPART_EVENT_ALL_HEADERS_END, buffer, bufPos);
-        _parseState = RDMULTIPART_PART_DATA;
+        stateCallback(RAFTMULTIPART_EVENT_ALL_HEADERS_END, buffer, bufPos);
+        _parseState = RAFTMULTIPART_PART_DATA;
         _contentPos = 0;
         _boundaryIdx = 0;
         _isFinalPart = false;
@@ -600,15 +600,15 @@ void RaftWebMultipart::indexBoundary()
 
 bool RaftWebMultipart::succeeded() const
 {
-    return _parseState == RDMULTIPART_END;
+    return _parseState == RAFTMULTIPART_END;
 }
 
 bool RaftWebMultipart::hasError() const
 {
-    return _parseState == RDMULTIPART_ERROR;
+    return _parseState == RAFTMULTIPART_ERROR;
 }
 
 bool RaftWebMultipart::stopped() const
 {
-    return _parseState == RDMULTIPART_ERROR || _parseState == RDMULTIPART_END;
+    return _parseState == RAFTMULTIPART_ERROR || _parseState == RAFTMULTIPART_END;
 }

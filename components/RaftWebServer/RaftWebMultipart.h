@@ -45,14 +45,14 @@ public:
 
 enum RaftMultipartEvent
 {
-    RDMULTIPART_EVENT_PART_BEGIN,
-    RDMULTIPART_EVENT_PART_END,
-    RDMULTIPART_EVENT_HEADER_BEGIN,
-    RDMULTIPART_EVENT_HEADER_END,
-    RDMULTIPART_EVENT_HEADER_FIELD,
-    RDMULTIPART_EVENT_HEADER_VALUE,
-    RDMULTIPART_EVENT_ALL_HEADERS_END,
-    RDMULTIPART_EVENT_END,
+    RAFTMULTIPART_EVENT_PART_BEGIN,
+    RAFTMULTIPART_EVENT_PART_END,
+    RAFTMULTIPART_EVENT_HEADER_BEGIN,
+    RAFTMULTIPART_EVENT_HEADER_END,
+    RAFTMULTIPART_EVENT_HEADER_FIELD,
+    RAFTMULTIPART_EVENT_HEADER_VALUE,
+    RAFTMULTIPART_EVENT_ALL_HEADERS_END,
+    RAFTMULTIPART_EVENT_END,
 };
 
 typedef std::function<void(void* pCtx, RaftMultipartEvent event, const uint8_t *pBuf, uint32_t pos)> RaftMultipartEventCB;
@@ -85,14 +85,14 @@ public:
     {
         switch(event)
         {
-            case RDMULTIPART_EVENT_PART_BEGIN: return("MultipartEventBegin");
-            case RDMULTIPART_EVENT_PART_END: return("MultipartEventPartEnd");
-            case RDMULTIPART_EVENT_HEADER_BEGIN: return("MultipartEventHeaderBegin");
-            case RDMULTIPART_EVENT_HEADER_END: return("MultipartEventHeaderEnd");
-            case RDMULTIPART_EVENT_HEADER_FIELD: return("MultipartEventHeaderField");
-            case RDMULTIPART_EVENT_HEADER_VALUE: return("MultipartEventHeaderValue");
-            case RDMULTIPART_EVENT_ALL_HEADERS_END: return("MultipartEventHeadersEnd");
-            case RDMULTIPART_EVENT_END: return("MultipartEventEnd");
+            case RAFTMULTIPART_EVENT_PART_BEGIN: return("MultipartEventBegin");
+            case RAFTMULTIPART_EVENT_PART_END: return("MultipartEventPartEnd");
+            case RAFTMULTIPART_EVENT_HEADER_BEGIN: return("MultipartEventHeaderBegin");
+            case RAFTMULTIPART_EVENT_HEADER_END: return("MultipartEventHeaderEnd");
+            case RAFTMULTIPART_EVENT_HEADER_FIELD: return("MultipartEventHeaderField");
+            case RAFTMULTIPART_EVENT_HEADER_VALUE: return("MultipartEventHeaderValue");
+            case RAFTMULTIPART_EVENT_ALL_HEADERS_END: return("MultipartEventHeadersEnd");
+            case RAFTMULTIPART_EVENT_END: return("MultipartEventEnd");
         }
         return "UNKNOWN";
     }
@@ -107,17 +107,17 @@ private:
 
     enum State
     {
-        RDMULTIPART_ERROR,
-        RDMULTIPART_START,
-        RDMULTIPART_START_BOUNDARY,
-        RDMULTIPART_HEADER_FIELD_START,
-        RDMULTIPART_HEADER_FIELD,
-        RDMULTIPART_HEADER_VALUE_START,
-        RDMULTIPART_HEADER_VALUE,
-        RDMULTIPART_HEADER_VALUE_GOT,
-        RDMULTIPART_HEADERS_AWAIT_FINAL_LF,
-        RDMULTIPART_PART_DATA,
-        RDMULTIPART_END
+        RAFTMULTIPART_ERROR,
+        RAFTMULTIPART_START,
+        RAFTMULTIPART_START_BOUNDARY,
+        RAFTMULTIPART_HEADER_FIELD_START,
+        RAFTMULTIPART_HEADER_FIELD,
+        RAFTMULTIPART_HEADER_VALUE_START,
+        RAFTMULTIPART_HEADER_VALUE,
+        RAFTMULTIPART_HEADER_VALUE_GOT,
+        RAFTMULTIPART_HEADERS_AWAIT_FINAL_LF,
+        RAFTMULTIPART_PART_DATA,
+        RAFTMULTIPART_END
     };
 
     // Boundary string

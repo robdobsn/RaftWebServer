@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <Logger.h>
-#include "RaftWebConnManager_original.h"
+#include "RaftWebConnManager.h"
 #include "RaftWebConnection.h"
 #include "RaftWebHandler.h"
 #include "RaftWebHandlerWS.h"
@@ -43,16 +43,16 @@ const static char* MODULE_PREFIX = "WebConnMgr";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebConnManager_original::RaftWebConnManager_original()
+RaftWebConnManager::RaftWebConnManager()
 {
     // Connection queue
     _newConnQueue = nullptr;
 
     // Setup callback for new connections
-    _connClientListener.setHandOffNewConnCB(std::bind(&RaftWebConnManager_original::handleNewConnection, this, std::placeholders::_1));
+    _connClientListener.setHandOffNewConnCB(std::bind(&RaftWebConnManager::handleNewConnection, this, std::placeholders::_1));
 }
 
-RaftWebConnManager_original::~RaftWebConnManager_original()
+RaftWebConnManager::~RaftWebConnManager()
 {
     // Delete handlers
     for (RaftWebHandler *pHandler : _webHandlers)
@@ -65,7 +65,7 @@ RaftWebConnManager_original::~RaftWebConnManager_original()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::setup(const RaftWebServerSettings &settings)
+void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
 {
     // Store settings
     _webServerSettings = settings;
@@ -94,7 +94,7 @@ void RaftWebConnManager_original::setup(const RaftWebServerSettings &settings)
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::service()
+void RaftWebConnManager::service()
 {
 #ifndef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     serviceConnections();
@@ -106,10 +106,10 @@ void RaftWebConnManager_original::service()
 // Listen for connections and add to queue for handling
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::socketListenerTask(void* pvParameters) 
+void RaftWebConnManager::socketListenerTask(void* pvParameters) 
 {
 	// Get pointer to specific RaftWebServer object
-	RaftWebConnManager_original* pWS = (RaftWebConnManager_original*)pvParameters;
+	RaftWebConnManager* pWS = (RaftWebConnManager*)pvParameters;
 
     // Listen for client connections
     pWS->listenForClients(pWS->_webServerSettings._serverTCPPort, 
@@ -121,11 +121,11 @@ void RaftWebConnManager_original::socketListenerTask(void* pvParameters)
 // Handles client connections received on a queue and processes their HTTP requests
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::clientConnHandlerTask(void *pvParameters)
+void RaftWebConnManager::clientConnHandlerTask(void *pvParameters)
 {
 #ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     // Get pointer to specific RaftWebServer object
-    RaftWebConnManager_original *pConnMgr = (RaftWebConnManager_original *)pvParameters;
+    RaftWebConnManager *pConnMgr = (RaftWebConnManager *)pvParameters;
 
     // Handle connection
     const static char *MODULE_PREFIX = "clientConnTask";
@@ -145,7 +145,7 @@ void RaftWebConnManager_original::clientConnHandlerTask(void *pvParameters)
 // Service Connections
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::serviceConnections()
+void RaftWebConnManager::serviceConnections()
 {
     // Service existing connections or close them if inactive
     for (RaftWebConnection &webConn : _webConnections)
@@ -180,7 +180,7 @@ void RaftWebConnManager_original::serviceConnections()
 // Accommodate new connections if possible
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::accommodateConnection(RaftClientConnBase* pClientConn)
+bool RaftWebConnManager::accommodateConnection(RaftClientConnBase* pClientConn)
 {
     // Handle the new connection if we can
     uint32_t slotIdx = 0;
@@ -207,7 +207,7 @@ bool RaftWebConnManager_original::accommodateConnection(RaftClientConnBase* pCli
 // Find an empty slot
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::findEmptySlot(uint32_t &slotIdx)
+bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
 {
     // Check for inactive slots
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -227,7 +227,7 @@ bool RaftWebConnManager_original::findEmptySlot(uint32_t &slotIdx)
 // Add handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::addHandler(RaftWebHandler *pHandler)
+bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler)
 {
     // Check handler valid
     if (!pHandler)
@@ -268,7 +268,7 @@ bool RaftWebConnManager_original::addHandler(RaftWebHandler *pHandler)
 // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequestHeader &header,
+RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader &header,
                                                   const RaftWebRequestParams &params, 
                                                   RaftHttpStatusCode &statusCode)
 {
@@ -313,7 +313,7 @@ RaftWebResponder *RaftWebConnManager_original::getNewResponder(const RaftWebRequ
 // Check if channel is ready to send
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
+bool RaftWebConnManager::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
 {
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -349,7 +349,7 @@ bool RaftWebConnManager_original::canSendBufOnChannel(uint32_t channelID, CommsM
 // Send buffer on channel
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
+bool RaftWebConnManager::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
     bool sendOk = false;
     for (uint32_t i = 0; i < _webConnections.size(); i++)
@@ -407,7 +407,7 @@ bool RaftWebConnManager_original::sendBufOnChannel(const uint8_t* pBuf, uint32_t
 // Send to all server-side events
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_original::serverSideEventsSendMsg(const char *eventContent, const char *eventGroup)
+void RaftWebConnManager::serverSideEventsSendMsg(const char *eventContent, const char *eventGroup)
 {
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
@@ -424,7 +424,7 @@ void RaftWebConnManager_original::serverSideEventsSendMsg(const char *eventConte
 // Incoming connection
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager_original::handleNewConnection(RaftClientConnBase* pClientConn)
+bool RaftWebConnManager::handleNewConnection(RaftClientConnBase* pClientConn)
 {
 #ifdef DEBUG_WEB_CONN_MANAGER
     LOG_I(MODULE_PREFIX, "handleNewConnection %d", pClientConn->getClientId());
