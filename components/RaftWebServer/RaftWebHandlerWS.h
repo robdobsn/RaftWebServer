@@ -9,23 +9,22 @@
 #pragma once
 
 #include "RaftWebHandler.h"
-#include <RaftArduino.h>
-#include <Logger.h>
-#include <ConfigBase.h>
+#include "RaftArduino.h"
+#include "Logger.h"
 #include <vector>
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include <mongoose.h>
-#include <ThreadSafeQueue.h>
-#include <RaftWebDataFrame.h>
+#include "mongoose.h"
+#include "ThreadSafeQueue.h"
+#include "RaftWebDataFrame.h"
 #else
-#include <RaftWebRequestHeader.h>
-#include <RaftWebResponderWS.h>
+#include "RaftWebRequestHeader.h"
+#include "RaftWebResponderWS.h"
 #endif
 
 class RaftWebHandlerWS : public RaftWebHandler
 {
 public:
-    RaftWebHandlerWS(const ConfigBase& config,
+    RaftWebHandlerWS(const RaftJsonIF& config,
             RaftWebSocketInboundCanAcceptFnType inboundCanAcceptCB, 
             RaftWebSocketInboundHandleMsgFnType rxMsgCB);
     virtual ~RaftWebHandlerWS()

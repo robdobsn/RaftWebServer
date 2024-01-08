@@ -9,9 +9,9 @@
 #pragma once
 
 #include <string.h>
-#include <stdint.h>
+#include <stdinth>
 #include <vector>
-#include <SpiramAwareAllocator.h>
+#include "SpiramAwareAllocator.h"
 
 // Buffer for tx queue
 class RaftWebDataFrame

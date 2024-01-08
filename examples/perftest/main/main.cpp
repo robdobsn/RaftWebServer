@@ -26,19 +26,18 @@ static const char* MODULE_PREFIX = "MainTask";
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <stdio.h>
-#include <esp_log.h>
-#include <nvs_flash.h>
-#include <esp_event.h>
-#include <esp_heap_caps.h>
-
-#include <CommsCoreIF.h>
-#include <NetworkSystem.h>
-#include <FileSystem.h>
-#include <RestAPIEndpointManager.h>
-#include <RaftWebServer.h>
-#include <RaftWebHandlerStaticFiles.h>
-#include <RaftWebHandlerRestAPI.h>
-#include <RaftWebHandlerWS.h>
+#include "esp_log.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "esp_heap_caps.h"
+#include "CommsCoreIF.h"
+#include "NetworkSystem.h"
+#include "FileSystem.h"
+#include "RestAPIEndpointManager.h"
+#include "RaftWebServer.h"
+#include "RaftWebHandlerStaticFiles.h"
+#include "RaftWebHandlerRestAPI.h"
+#include "RaftWebHandlerWS.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Entry Point
@@ -277,7 +276,7 @@ extern "C" void app_main(void)
         delete pHandlerAPI;
 
     // Add websocket handler
-    ConfigBase wsJsonConfig = R"(
+    RaftJson wsJsonConfig = R"(
         {
             "pfix": "ws",
             "pcol": "RICSerial",
