@@ -9,7 +9,7 @@
 #pragma once
 
 #include <string.h>
-#include <stdinth>
+#include <stdint.h>
 #include <vector>
 #include "SpiramAwareAllocator.h"
 
