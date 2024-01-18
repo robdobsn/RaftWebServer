@@ -19,7 +19,7 @@
 
 namespace RegisterSysMods
 {
-    void registerSysMods(SysManager& sysManager)
+    void registerWebServer(SysManager& sysManager)
     {
         // WebServer
 #ifdef NETWORKING_IS_ENABLED
