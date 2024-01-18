@@ -51,8 +51,10 @@ endif()
 idf_component_register(
   SRCS
     ${RAFT_WEBSERVER_SOURCES}
+    "components/WebServer/WebServer.cpp"
   INCLUDE_DIRS
     ${RAFT_WEBSERVER_INCLUDES}
+    "components/WebServer"
   REQUIRES
     ${RAFT_WEBSERVER_REQUIRES}
 )
