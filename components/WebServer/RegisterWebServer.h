@@ -19,11 +19,11 @@
 
 namespace RegisterSysMods
 {
-    void registerWebServer(SysManager& sysManager)
+    void registerWebServer(SysManager& sysManager, bool forceCreation=false)
     {
         // WebServer
 #ifdef NETWORKING_IS_ENABLED
-        sysManager.registerSysMod("WebServer", WebServer::create, false, "NetMan");
+        sysManager.registerSysMod("WebServer", WebServer::create, forceCreation, "NetMan");
 #endif
     }
 }
