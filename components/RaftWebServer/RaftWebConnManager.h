@@ -43,7 +43,7 @@ public:
     }
 
     // Handler
-    bool addHandler(RaftWebHandler* pHandler);
+    bool addHandler(RaftWebHandler* pHandler, bool highPriority = false);
 
     // Get new responder
     // NOTE: this returns a new object or NULL

@@ -149,7 +149,9 @@ void WebServer::setupEndpoints()
     RaftWebHandlerRestAPI* pHandler = new RaftWebHandlerRestAPI(_restAPIPrefix,
                 std::bind(&WebServer::restAPIMatchEndpoint, this, std::placeholders::_1, 
                         std::placeholders::_2, std::placeholders::_3));
-    if (!_raftWebServer.addHandler(pHandler))
+
+    // Add REST API handlers before other handlers
+    if (!_raftWebServer.addHandler(pHandler, true))
         delete pHandler;
 }
 

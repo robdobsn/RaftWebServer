@@ -32,7 +32,7 @@ public:
     void service();
     
     // Handler
-    bool addHandler(RaftWebHandler* pHandler);
+    bool addHandler(RaftWebHandler* pHandler, bool highPriority = false);
 
     // Check if channel can send
     bool canSendBufferOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)

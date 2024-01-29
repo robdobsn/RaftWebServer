@@ -227,7 +227,7 @@ bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
 // Add handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler)
+bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler, bool highPriority)
 {
     // Check handler valid
     if (!pHandler)
@@ -258,7 +258,10 @@ bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler)
 #ifdef DEBUG_WEB_SERVER_HANDLERS
     LOG_I(MODULE_PREFIX, "addHandler %s", pHandler->getName());
 #endif
-    _webHandlers.push_back(pHandler);
+    if (highPriority)
+        _webHandlers.push_front(pHandler);
+    else
+        _webHandlers.push_back(pHandler);
     return true;
 }
 
