@@ -261,6 +261,11 @@ void RaftWebResponderRestAPI::multipartOnHeaderNameValue(void* pCtx, const Strin
 
 int RaftWebResponderRestAPI::getContentLength()
 {
+    // Check we are getting data
+    if (_headerExtract.method != WEB_METHOD_GET)
+        return -1;
+
+    // Get length by calling API
     if (!_endpointCalled)
     {
         // Call endpoint
