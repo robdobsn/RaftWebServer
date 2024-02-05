@@ -9,7 +9,7 @@
 #pragma once
 
 #include "RestAPIEndpointManager.h"
-#include "SysModBase.h"
+#include "RaftSysMod.h"
 #include "RaftWebInterface.h"
 #include "CommsChannelSettings.h"
 
@@ -18,7 +18,7 @@ class CommsChannelMsg;
 
 #include "RaftWebServer.h"
 
-class WebServer : public SysModBase
+class WebServer : public RaftSysMod
 {
 public:
     // Constructor/destructor
@@ -26,7 +26,7 @@ public:
     virtual ~WebServer();
 
     // Create function (for use by SysManager factory)
-    static SysModBase* create(const char* pModuleName, RaftJsonIF& sysConfig)
+    static RaftSysMod* create(const char* pModuleName, RaftJsonIF& sysConfig)
     {
         return new WebServer(pModuleName, sysConfig);
     }

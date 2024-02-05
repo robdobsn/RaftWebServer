@@ -32,7 +32,7 @@ WebServer* WebServer::_pThisWebServer = nullptr;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 WebServer::WebServer(const char *pModuleName, RaftJsonIF& sysConfig) 
-        : SysModBase(pModuleName, sysConfig)
+        : RaftSysMod(pModuleName, sysConfig)
 {
     // Singleton
     _pThisWebServer = this;
