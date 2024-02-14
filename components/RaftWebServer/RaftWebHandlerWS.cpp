@@ -7,12 +7,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RaftWebHandlerWS.h"
-#include <RaftUtils.h>
+#include "RaftUtils.h"
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include <RaftWebConnManager_mongoose.h>
+#include "RaftWebConnManager_mongoose.h"
 #else
-#include <RaftWebConnManager.h>
+#include "RaftWebConnManager.h"
 #endif
 
 // #define WARN_WS_CLOSE_UNKNOWN_CONNECTION
@@ -29,7 +29,7 @@ static const char* MODULE_PREFIX = "RaftWebHandlerWS";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebHandlerWS::RaftWebHandlerWS(const ConfigBase& config,
+RaftWebHandlerWS::RaftWebHandlerWS(const RaftJsonIF& config,
         RaftWebSocketInboundCanAcceptFnType inboundCanAcceptCB, 
         RaftWebSocketInboundHandleMsgFnType rxMsgCB)
         :   _inboundCanAcceptCB(inboundCanAcceptCB), 

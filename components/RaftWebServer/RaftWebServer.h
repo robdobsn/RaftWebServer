@@ -10,12 +10,12 @@
 
 #include "RaftWebServerSettings.h"
 #include "RaftWebHandler.h"
-#include <RaftJson.h>
+#include "RaftJson.h"
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include <RaftWebConnManager_mongoose.h>
+#include "RaftWebConnManager_mongoose.h"
 #else
-#include <RaftWebConnManager.h>
+#include "RaftWebConnManager.h"
 #endif
 
 class RaftWebServer
@@ -32,7 +32,7 @@ public:
     void service();
     
     // Handler
-    bool addHandler(RaftWebHandler* pHandler);
+    bool addHandler(RaftWebHandler* pHandler, bool highPriority = false);
 
     // Check if channel can send
     bool canSendBufferOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)

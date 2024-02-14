@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <RaftWebServerSettings.h>
-#include <RaftJson.h>
 #include <list>
+#include "RaftWebServerSettings.h"
+#include "RaftJson.h"
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include <mongoose.h>
+#include "mongoose.h"
 #endif
 
 class RaftWebHandler;

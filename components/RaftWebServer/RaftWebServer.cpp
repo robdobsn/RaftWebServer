@@ -6,10 +6,10 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
-#include "RaftWebServer.h"
 #include <stdint.h>
 #include <string.h>
+#include "Logger.h"
+#include "RaftWebServer.h"
 
 // #define INFO_WEB_SERVER_SETUP
 
@@ -56,9 +56,9 @@ void RaftWebServer::service()
 // Add handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebServer::addHandler(RaftWebHandler* pHandler)
+bool RaftWebServer::addHandler(RaftWebHandler* pHandler, bool highPriority)
 {
-    return _connManager.addHandler(pHandler);
+    return _connManager.addHandler(pHandler, highPriority);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

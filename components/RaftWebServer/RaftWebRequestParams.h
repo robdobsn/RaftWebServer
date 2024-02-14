@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <RaftJson.h>
 #include <list>
+#include <cstdint>
+#include "RaftJson.h"
 #include "RaftWebConnDefs.h"
 
 class RaftWebRequestParams

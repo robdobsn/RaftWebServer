@@ -7,9 +7,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RaftWebResponderRestAPI.h"
-#include <Logger.h>
-#include <FileStreamBlock.h>
-#include <APISourceInfo.h>
+#include "Logger.h"
+#include "FileStreamBlock.h"
+#include "APISourceInfo.h"
 
 // #define DEBUG_RESPONDER_REST_API
 // #define DEBUG_RESPONDER_REST_API_NON_MULTIPART_DATA
@@ -261,6 +261,11 @@ void RaftWebResponderRestAPI::multipartOnHeaderNameValue(void* pCtx, const Strin
 
 int RaftWebResponderRestAPI::getContentLength()
 {
+    // Check we are getting data
+    if (_headerExtract.method != WEB_METHOD_GET)
+        return -1;
+
+    // Get length by calling API
     if (!_endpointCalled)
     {
         // Call endpoint

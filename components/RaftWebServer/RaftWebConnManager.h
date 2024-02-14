@@ -8,15 +8,15 @@
 
 #pragma once
 
+#include <list>
 #include "RaftWebServerSettings.h"
-#include <CommsChannelMsg.h>
-#include <RaftWebConnection.h>
-#include <RaftWebSocketDefs.h>
-#include <RaftClientListener.h>
+#include "CommsChannelMsg.h"
+#include "RaftWebConnection.h"
+#include "RaftWebSocketDefs.h"
+#include "RaftClientListener.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include <list>
 
 class RaftWebHandler;
 class RaftWebRequestHeader;
@@ -43,7 +43,7 @@ public:
     }
 
     // Handler
-    bool addHandler(RaftWebHandler* pHandler);
+    bool addHandler(RaftWebHandler* pHandler, bool highPriority = false);
 
     // Get new responder
     // NOTE: this returns a new object or NULL
