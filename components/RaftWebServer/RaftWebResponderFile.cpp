@@ -124,31 +124,29 @@ bool RaftWebResponderFile::startResponding(RaftWebConnection& request)
 uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
 {
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
-    uint32_t debugGetRespNextStartMs = millis();
-    uint32_t debugStartMs = millis();
-    uint32_t debugChunkDataMs = 0;
-    uint32_t debugNextReadMs = 0;
-    uint32_t debugChunkHandleMs = 0;
+    uint64_t debugTotalStartUs = micros();
+    uint64_t debugStartUs = micros();
 #endif
 
     uint32_t readLen = 0;
     _lastChunkData.resize(bufMaxLen);
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
-    debugChunkDataMs = millis() - debugGetRespNextStartMs;
-    debugStartMs = millis();
+    uint32_t debugChunkDataUs = micros() - debugStartUs;
+    debugStartUs = micros();
 #endif
     if (!_fileChunker.nextRead(_lastChunkData.data(), bufMaxLen, readLen, _isFinalChunk))
     {
-#ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
-        debugNextReadMs = millis() - debugStartMs;
-        debugStartMs = millis();
-#endif
         _isActive = false;
         _lastChunkData.clear();
         LOG_W(MODULE_PREFIX, "getResponseNext connId %d failed filePath %s", _reqParams.connId, _filePath.c_str());
         return 0;
     }
-    
+
+#ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
+    uint32_t debugNextReadUs = micros() - debugStartUs;
+    debugStartUs = micros();
+#endif
+
 #ifdef DEBUG_RESPONDER_FILE_CONTENTS
     LOG_I(MODULE_PREFIX, "getResponseNext connId %d newChunk len %d isActive %d isFinalChunk %d filePos %d filePath %s", 
                 _reqParams.connId, readLen, _isActive, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
@@ -167,11 +165,12 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
     }
 
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
-    debugChunkHandleMs = millis() - debugStartMs;
-    if (millis() - debugGetRespNextStartMs > DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS)
+    uint32_t debugChunkHandleUs = micros() - debugStartUs;
+    uint32_t debugTotalUs = micros() - debugTotalStartUs;
+    if (debugTotalUs > DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS * 1000)
     {
-        LOG_I(MODULE_PREFIX, "getResponseNext connId %d timing initClr %dms getNext %dms handleChunk %dms",
-                _reqParams.connId, debugChunkDataMs, debugNextReadMs, debugChunkHandleMs);
+        LOG_I(MODULE_PREFIX, "getResponseNext connId %d timing total %duS initClr %duS getNext %duS handleChunk %duS",
+                _reqParams.connId, (int)debugTotalUs, (int)debugChunkDataUs, (int)debugNextReadUs, (int)debugChunkHandleUs);
     }
 #endif
 

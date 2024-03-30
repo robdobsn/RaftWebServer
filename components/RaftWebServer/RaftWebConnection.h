@@ -138,7 +138,8 @@ private:
     // Raw send on connection - used by websockets, etc
     RaftWebConnSendRetVal rawSendOnConn(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs);    
 
-    // Send standard headers
+    // Header handling
+    bool getStandardHeaders(String& headerStr);
     bool sendStandardHeaders();
 
     // Handle next chunk of response

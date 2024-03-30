@@ -32,6 +32,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // #define DEBUG_WEB_REQUEST_READ_START_END
 // #define DEBUG_RESPONDER_PROGRESS
 // #define DEBUG_RESPONDER_PROGRESS_DETAIL
+// #define DEBUG_RESPONDER_HEADER
 // #define DEBUG_RESPONDER_HEADER_DETAIL
 // #define DEBUG_RESPONDER_CONTENT_DETAIL
 // #define DEBUG_RESPONDER_CREATE_DELETE
@@ -344,6 +345,7 @@ void RaftWebConnection::service()
 
     // See if we are forming the header
     uint32_t bufPos = 0;
+    bool headerWasComplete = _header.isComplete;
     if (dataAvailable && !_header.isComplete)
     {
         if (!serviceConnHeader(rxData.data(), rxData.size(), bufPos))
@@ -360,7 +362,7 @@ void RaftWebConnection::service()
     
     // Service response - may remain in this state for multiple service loops
     // (e.g. for file-transfer / web-sockets)
-    if (_header.isComplete)
+    if (headerWasComplete)
     {
         if (!responderHandleData(rxData.data(), rxData.size(), bufPos))
         {
@@ -1119,119 +1121,89 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 // Send standard headers
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnection::sendStandardHeaders()
+bool RaftWebConnection::getStandardHeaders(String& headerStr)
 {
-    // Send the first line
-    char respLine[200];
-    snprintf(respLine, sizeof(respLine), "HTTP/1.1 %d %s\r\n", _httpResponseStatus, 
-                RaftWebInterface::getHTTPStatusStr(_httpResponseStatus));
-    if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
-        return false;
+    // Form the header
+    headerStr = "HTTP/1.1 " + String(_httpResponseStatus) + " " + RaftWebInterface::getHTTPStatusStr(_httpResponseStatus) + "\r\n";
 
-#ifdef DEBUG_RESPONDER_HEADER_DETAIL
-    // Debug
-    LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
-
-    // Send headers related to pre-flight checks
+    // Add headers related to pre-flight checks
     if (_header.extract.method == WEB_METHOD_OPTIONS)
     {
         // Header strings
         static const char* preFlightRespHeaders = "Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE\r\nAccess-Control-Allow-Headers: *\r\nVary: Access-Control-Request-Headers\r\nContent-Length: 0\r\n";
-        if (rawSendOnConn((const uint8_t*)preFlightRespHeaders, strlen(preFlightRespHeaders), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
-            return false;
+        headerStr += preFlightRespHeaders;
     }
 
-    // Send content type
+    // Add content type
     if (_pResponder && _pResponder->getContentType())
     {
-        snprintf(respLine, sizeof(respLine), "Content-Type: %s\r\n", _pResponder->getContentType());
-        if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
-            return false;
-
-#ifdef DEBUG_RESPONDER_HEADER_DETAIL
-        // Debug
-        LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
+        headerStr += "Content-Type: " + String(_pResponder->getContentType()) + "\r\n";
     }
 
-    // Send standard headers
+    // Add standard reponse headers
     if (_pConnManager)
     {
-        const String& respHeaders = _pConnManager->getServerSettings().stdRespHeaders;
-        int sepPos = -1;
-        while(true)
-        {
-            // Find next separator
-            int nextSepPos = respHeaders.indexOf('\n', sepPos + 1);
-            int segEndPos = nextSepPos == -1 ? respHeaders.length() : nextSepPos + 1;
-            String headerStr = respHeaders.substring(sepPos + 1, segEndPos);
-            sepPos = nextSepPos;
-            if (rawSendOnConn((const uint8_t*)headerStr.c_str(), headerStr.length(), MAX_HEADER_SEND_RETRY_MS) != 
-                                WEB_CONN_SEND_OK)
-                return false;
-
-#ifdef DEBUG_RESPONDER_HEADER_DETAIL
-            // Debug
-            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", headerStr.c_str(), _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
-            
-            // Check if done
-            if (sepPos == -1)
-                break;
-        }
+        headerStr += _pConnManager->getServerSettings().stdRespHeaders;
     }
 
-    // Send additional headers
+    // Add additional headers
     if (_pResponder)
     {
         std::list<RaftJson::NameValuePair>* pRespHeaders = _pResponder->getHeaders();
         for (RaftJson::NameValuePair& nvPair : *pRespHeaders)
         {
-            snprintf(respLine, sizeof(respLine), "%s: %s\r\n", nvPair.name.c_str(), nvPair.value.c_str());
-            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != 
-                                WEB_CONN_SEND_OK)
-                return false;
-
-#ifdef DEBUG_RESPONDER_HEADER_DETAIL
-            // Debug
-            LOG_I(MODULE_PREFIX, "sendAdditionalHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
+            headerStr += nvPair.name + ": " + nvPair.value + "\r\n";
         }
     }
 
-    // Content length if required
+    // Add content length if required
     if (_pResponder)
     {
         int contentLength = _pResponder->getContentLength();
         if (contentLength >= 0)
         {
-            snprintf(respLine, sizeof(respLine), "Content-Length: %d\r\n", contentLength);
-            if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
-                return false;
-
-#ifdef DEBUG_RESPONDER_HEADER_DETAIL
-            // Debug
-            LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
+            headerStr += "Content-Length: " + String(contentLength) + "\r\n";
         }
     }
 
     // Check if connection needs closing
     if (!_pResponder || !_pResponder->leaveConnOpen())
     {
-        snprintf(respLine, sizeof(respLine), "Connection: close\r\n");
-        if (rawSendOnConn((const uint8_t*)respLine, strnlen(respLine, sizeof(respLine)), MAX_HEADER_SEND_RETRY_MS) != WEB_CONN_SEND_OK)
-            return false;
-
-#ifdef DEBUG_RESPONDER_HEADER_DETAIL
-        // Debug
-        LOG_I(MODULE_PREFIX, "sendStandardHeaders sent %s connId %d", respLine, _pClientConn ? _pClientConn->getClientId() : 0);
-#endif
+        headerStr += "Connection: close\r\n";
     }
 
-    // Send end of header line
-    return rawSendOnConn((const uint8_t*)"\r\n", 2, MAX_HEADER_SEND_RETRY_MS) == WEB_CONN_SEND_OK;
+    // End of headers
+    headerStr += "\r\n";
+
+    // Ok
+    return true;
+}
+
+bool RaftWebConnection::sendStandardHeaders()
+{
+    String headerStr;
+    if (!getStandardHeaders(headerStr))
+        return false;
+    
+    // Send the headers
+    RaftWebConnSendRetVal rslt = rawSendOnConn((const uint8_t*)headerStr.c_str(), headerStr.length(), MAX_HEADER_SEND_RETRY_MS);
+
+    // Debug
+#ifdef DEBUG_RESPONDER_HEADER
+    LOG_I(MODULE_PREFIX, "sendStandardHeaders connId %d rslt %s len %d", 
+                    _pClientConn ? _pClientConn->getClientId() : 0, 
+                    RaftWebConnDefs::getSendRetValStr(rslt),
+                    headerStr.length());
+#endif
+#ifdef DEBUG_RESPONDER_HEADER_DETAIL
+    LOG_I(MODULE_PREFIX, "sendStandardHeaders connId %d rslt %s headers %s", 
+                    _pClientConn ? _pClientConn->getClientId() : 0, 
+                    RaftWebConnDefs::getSendRetValStr(rslt), 
+                    headerStr.c_str());
+#endif
+
+    // Ok
+    return rslt == WEB_CONN_SEND_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1241,7 +1213,7 @@ bool RaftWebConnection::sendStandardHeaders()
 bool RaftWebConnection::handleResponseChunk()
 {
     // Check if there is anything to do
-    if (!_pResponder || !(_isStdHeaderRequired || _pResponder->responseAvailable()))
+    if (!_pResponder || !((_isStdHeaderRequired && _pResponder->isStdHeaderRequired()) || _pResponder->responseAvailable()))
         return true;
 
 #ifdef DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS
@@ -1276,7 +1248,7 @@ bool RaftWebConnection::handleResponseChunk()
         if (!sendStandardHeaders())
         {
         // Debug
-#ifdef DEBUG_RESPONDER_CONTENT_DETAIL
+#ifdef DEBUG_RESPONDER_HEADER
             LOG_I(MODULE_PREFIX, "handleResponseChunk sendStandardHeaders failed connId %d", _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
             return false;
@@ -1339,9 +1311,11 @@ bool RaftWebConnection::handleResponseChunk()
     uint32_t debugHdlRespChunkUs = timeNowUs - debugHdlRespChunkStartUs;
     if (debugHdlRespChunkUs > DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS)
     {
-        LOG_I(MODULE_PREFIX, "handleResponseChunk timing %d %s total %dus canSendOnConn %dus sendStdHdrs %dus getRespNext %dus rawSendOnConn %dus",
+        LOG_I(MODULE_PREFIX, "handleResponseChunk conn %d resp %s dataAvail %s hdrReqd %s total %dus canSendOnConn %dus sendStdHdrs %dus getRespNext %dus rawSendOnConn %dus",
                 _pClientConn ? _pClientConn->getClientId() : 0,
                 _pResponder ? _pResponder->getResponderType() : "",
+                _pResponder ? (_pResponder->responseAvailable() ? "Y" : "N") : "N/A",
+                _isStdHeaderRequired ? "Y" : "N",
                 debugHdlRespChunkUs,
                 debugCanSendOnConnUs,
                 debugSendStdHdrsUs,
