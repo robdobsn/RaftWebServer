@@ -26,6 +26,7 @@ static const char *MODULE_PREFIX = "RaftWSLink";
 #define WARN_ON_WS_LINK_SEND_TOO_LONG
 
 // Debug
+// #define DEBUG_WEBSOCKET_CLOSE_COMMAND
 // #define DEBUG_WEBSOCKET_LINK
 // #define DEBUG_WEBSOCKET_LINK_SEND
 // #define DEBUG_WEBSOCKET_LINK_EVENTS
@@ -247,6 +248,15 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
                 bufLen < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
 #endif
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check if tx data is available
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebSocketLink::isTxDataAvailable()
+{
+    return _upgradeReqReceived && !_upgradeRespSent;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -523,6 +533,9 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
             sendMsg(WEBSOCKET_OPCODE_CLOSE, respCode, sizeof(respCode));
             callbackEventCode = WEBSOCKET_EVENT_DISCONNECT_EXTERNAL;
             _isActive = false;
+#ifdef DEBUG_WEBSOCKET_CLOSE_COMMAND
+            LOG_W(MODULE_PREFIX, "handleRxPacketData rx CLOSE - now INACTIVE");
+#endif
             break;
         }
     }

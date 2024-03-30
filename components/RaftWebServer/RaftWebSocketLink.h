@@ -36,6 +36,8 @@ public:
     // Handle incoming data
     void handleRxData(const uint8_t* pBuf, uint32_t bufLen);
     
+    bool isTxDataAvailable();
+    
     // Get data to tx
     uint32_t getTxData(uint8_t*& pBuf, uint32_t bufMaxLen);
 

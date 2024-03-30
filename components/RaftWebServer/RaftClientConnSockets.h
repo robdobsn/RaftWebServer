@@ -11,6 +11,7 @@
 #include "RaftClientConnBase.h"
 
 #define RD_CLIENT_CONN_SOCKETS_CONN_STATS
+// #define RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
 
 class RaftClientConnSockets : public RaftClientConnBase
 {
@@ -41,6 +42,11 @@ public:
 private:
     int _client = -1;
     bool _traceConn = false;
+
+#ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
+    // Pre-allocated Rx data buffer
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _rxDataBuf;
+#endif
 
 #ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
     uint64_t _connOpenTimeMs = 0;

@@ -46,6 +46,12 @@ public:
         return false;
     }
 
+    // Check if any reponse data is available
+    virtual bool responseAvailable()
+    {
+        return _isActive;
+    }
+
     // Get response next
     virtual uint32_t getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
     {

@@ -72,7 +72,7 @@ public:
     }
     uint32_t getMaxResponseSize() const
     {
-        return _webServerSettings._sendBufferMaxLen;
+        return _webServerSettings.sendBufferMaxLen;
     }
 
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)

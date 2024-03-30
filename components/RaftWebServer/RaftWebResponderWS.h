@@ -44,6 +44,9 @@ public:
     // Start responding
     virtual bool startResponding(RaftWebConnection& request) override final;
 
+    // Check if any reponse data is available
+    virtual bool responseAvailable() override final;
+    
     // Get response next
     virtual uint32_t getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen) override final;
 

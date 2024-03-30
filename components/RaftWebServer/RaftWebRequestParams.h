@@ -16,10 +16,11 @@
 class RaftWebRequestParams
 {
 public:
-    RaftWebRequestParams(RaftWebConnReadyToSendFn webConnReadyToSend, RaftWebConnSendFn webConnRawSend)
+    RaftWebRequestParams(RaftWebConnReadyToSendFn webConnReadyToSend, RaftWebConnSendFn webConnRawSend, uint32_t connId) 
     {
         _webConnReadyToSend = webConnReadyToSend;
         _webConnRawSend = webConnRawSend;
+        this->connId = connId;
     }
     RaftWebConnSendFn getWebConnRawSend() const
     {
@@ -29,6 +30,9 @@ public:
     {
         return _webConnReadyToSend;
     }
+
+    // Connection ID (for debugging)
+    uint32_t connId = 0;
     
 private:
     RaftWebConnSendFn _webConnRawSend;

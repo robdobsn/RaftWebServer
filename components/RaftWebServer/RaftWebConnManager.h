@@ -14,9 +14,12 @@
 #include "RaftWebConnection.h"
 #include "RaftWebSocketDefs.h"
 #include "RaftClientListener.h"
+#include "ExecTimer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+
+// #define DEBUG_WEBCONN_SERVICE_TIMING
 
 class RaftWebHandler;
 class RaftWebRequestHeader;
@@ -66,6 +69,12 @@ public:
     // Send to all server-side events
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 
+    // Get web server settings
+    const RaftWebServerSettings& getWebServerSettings() const
+    {
+        return _webServerSettings;
+    }
+
 private:
     // New connection queue
     QueueHandle_t _newConnQueue;
@@ -95,4 +104,10 @@ private:
     // Handle an incoming connection
     bool handleNewConnection(RaftClientConnBase* pClientConn);
 
+#ifdef DEBUG_WEBCONN_SERVICE_TIMING
+    // Debug
+    ExecTimer _debugTimerExistingConns;
+    ExecTimer _debugTimerNewConns;
+    uint32_t _debugLastReportMs = 0;
+#endif
 };

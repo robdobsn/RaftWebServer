@@ -30,7 +30,7 @@
 // #define DEBUG_WS_IS_ACTIVE
 // #define DEBUG_WS_SERVICE
 
-#if defined(DEBUG_RESPONDER_WS) || defined(DEBUG_RESPONDER_IS_READY_TO_SEND) || (defined(WEBSOCKET_SEND_USE_TX_QUEUE) && defined(WARN_WS_SEND_APP_DATA_FAIL))
+#if defined(DEBUG_RESPONDER_WS) || defined(DEBUG_RESPONDER_IS_READY_TO_SEND) || (defined(WEBSOCKET_SEND_USE_TX_QUEUE) && defined(WARN_WS_SEND_APP_DATA_FAIL)) || defined(WARN_WS_PACKET_TOO_BIG) || defined(DEBUG_WS_SEND_APP_DATA) || defined(DEBUG_WS_SEND_APP_DATA_DETAIL) || defined(DEBUG_WEBSOCKETS_OPEN_CLOSE) || defined(DEBUG_WEBSOCKETS_TRAFFIC) || defined(DEBUG_WEBSOCKETS_TRAFFIC_BINARY_DETAIL) || defined(DEBUG_WEBSOCKETS_PING_PONG) || defined(DEBUG_WS_IS_ACTIVE) || defined(DEBUG_WS_SERVICE)
 static const char *MODULE_PREFIX = "RaftWebRespWS";
 #endif
 
@@ -84,8 +84,12 @@ void RaftWebResponderWS::service()
     if (Raft::isTimeout(millis(), _debugLastServiceMs, 1000))
     {
         _debugLastServiceMs = millis();
+#ifdef WEBSOCKET_SEND_USE_TX_QUEUE
         LOG_I(MODULE_PREFIX, "service isActive %d _txQueueCount %d", 
                 _isActive, _txQueue.count());
+#else
+        LOG_I(MODULE_PREFIX, "service isActive %d", _isActive);
+#endif
     }
 #endif
 
@@ -108,7 +112,8 @@ void RaftWebResponderWS::service()
         RaftWebConnSendRetVal retVal = _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), frame.getData(), frame.getLen());
 
 #ifdef DEBUG_WS_SEND_APP_DATA
-        LOG_W(MODULE_PREFIX, "service sendMsg sent len %d retc %d", frame.getLen(), retVal);
+        LOG_W(MODULE_PREFIX, "service connId %d sendMsg sent len %d retc %d",
+                    _reqParams.connId, frame.getLen(), retVal);
 #endif
 
         // Check result
@@ -116,13 +121,14 @@ void RaftWebResponderWS::service()
         {
             _isActive = false;
 #ifdef DEBUG_WS_IS_ACTIVE
-            LOG_I(MODULE_PREFIX, "service INACTIVE sendMsg failed");
+            LOG_I(MODULE_PREFIX, "service connId %d INACTIVE sendMsg failed", _reqParams.connId);
 #endif
         }
         else if (retVal != WEB_CONN_SEND_OK)
         {
 #ifdef DEBUG_WS_SEND_APP_DATA
-            LOG_W(MODULE_PREFIX, "service send msg failed retVal %s", RaftWebConnDefs::getSendRetValStr(retVal));      
+            LOG_W(MODULE_PREFIX, "service connId %d send msg failed retVal %s",
+                    _reqParams.connId, RaftWebConnDefs::getSendRetValStr(retVal));      
 #endif
         }
     }
@@ -141,18 +147,20 @@ bool RaftWebResponderWS::handleInboundData(const uint8_t* pBuf, uint32_t dataLen
     {
         String outStr;
         Raft::getHexStrFromBytes(pBuf, dataLen < MAX_DEBUG_BIN_HEX_LEN ? dataLen : MAX_DEBUG_BIN_HEX_LEN, outStr);
-        LOG_I(MODULE_PREFIX, "handleInboundData len %d %s%s", dataLen, outStr.c_str(),
+        LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d %s%s",
+                    _reqParams.connId, dataLen, outStr.c_str(),
                     dataLen < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
     }
     else
     {
         String outStr;
         Raft::strFromBuffer(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
-        LOG_I(MODULE_PREFIX, "handleInboundData len %d %s%s", dataLen, outStr.c_str(),
+        LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d %s%s",
+                    _reqParams.connId, dataLen, outStr.c_str(),
                     dataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
     }
 #else
-    LOG_I(MODULE_PREFIX, "handleInboundData len %d", dataLen);
+    LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d", _reqParams.connId, dataLen);
 #endif
 #endif
 
@@ -163,7 +171,7 @@ bool RaftWebResponderWS::handleInboundData(const uint8_t* pBuf, uint32_t dataLen
     if (!_webSocketLink.isActive())
     {
 #ifdef DEBUG_WS_IS_ACTIVE
-        LOG_I(MODULE_PREFIX, "handleInboundData INACTIVE link");
+        LOG_I(MODULE_PREFIX, "handleInboundData connId %d INACTIVE link", _reqParams.connId);
 #endif
         _isActive = false;
     }
@@ -184,9 +192,18 @@ bool RaftWebResponderWS::startResponding(RaftWebConnection& request)
     // Now active
     _isActive = true;
 #if defined(DEBUG_RESPONDER_WS) || defined(DEBUG_WS_IS_ACTIVE)
-    LOG_I(MODULE_PREFIX, "startResponding ISACTIVE");
+    LOG_I(MODULE_PREFIX, "startResponding connId %d ISACTIVE", _reqParams.connId);
 #endif
     return _isActive;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check if any reponse data is available
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebResponderWS::responseAvailable()
+{
+    return _isActive && _webSocketLink.isTxDataAvailable();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,14 +223,16 @@ uint32_t RaftWebResponderWS::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
     {
         String outStr;
         Raft::getHexStrFromBytes(pBuf, respLen < MAX_DEBUG_BIN_HEX_LEN ? respLen : MAX_DEBUG_BIN_HEX_LEN, outStr);
-        LOG_I(MODULE_PREFIX, "getResponseNext isActive %d len %d %s%s", _isActive, respLen, outStr.c_str(),
+        LOG_I(MODULE_PREFIX, "getResponseNext connId %d isActive %d len %d %s%s",
+                    _reqParams.connId, _isActive, respLen, outStr.c_str(),
                     respLen < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
     }
     else
     {
         String outStr;
         Raft::strFromBuffer(pBuf, respLen < MAX_DEBUG_TEXT_STR_LEN ? respLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
-        LOG_I(MODULE_PREFIX, "getResponseNext isActive %d len %d %s%s", _isActive, respLen, outStr.c_str(),
+        LOG_I(MODULE_PREFIX, "getResponseNext connId %d isActive %d len %d %s%s",
+                    _reqParams.connId, _isActive, respLen, outStr.c_str(),
                     respLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
     }
 #else
@@ -252,7 +271,8 @@ bool RaftWebResponderWS::isReadyToSend()
     if (isReady)
         isReady = _reqParams.getWebConnReadyToSend() ? _reqParams.getWebConnReadyToSend()() == WEB_CONN_SEND_OK : true;
 #ifdef DEBUG_RESPONDER_IS_READY_TO_SEND
-    LOG_I(MODULE_PREFIX, "isReadyToSend %d", isReady);
+    LOG_I(MODULE_PREFIX, "isReadyToSend connId %d %s",
+                _reqParams.connId, isReady ? "READY" : "NOT READY");
 #endif
     return isReady;
 }
@@ -268,7 +288,8 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     if (bufLen > _packetMaxBytes)
     {
 #ifdef WARN_WS_PACKET_TOO_BIG
-        LOG_W(MODULE_PREFIX, "encodeAndSendData TOO BIG len %d maxLen %d", bufLen, _packetMaxBytes);
+        LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d TOO BIG len %d maxLen %d", 
+                    _reqParams.connId, bufLen, _packetMaxBytes);
 #endif
         return false;
     }
@@ -278,13 +299,15 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     if (!putRslt)
     {
 #ifdef WARN_WS_SEND_APP_DATA_FAIL
-        LOG_W(MODULE_PREFIX, "encodeAndSendData add to txQueue failed len %d count %d maxLen %d", bufLen, _txQueue.count(), _txQueue.maxLen());
+        LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d add to txQueue failed len %d count %d maxLen %d",
+                    _reqParams.connId, bufLen, _txQueue.count(), _txQueue.maxLen());
 #endif
     }
     else
     {
 #ifdef DEBUG_WS_SEND_APP_DATA
-        LOG_W(MODULE_PREFIX, "encodeAndSendData len %d", bufLen);
+        LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d len %d",
+                    _reqParams.connId, bufLen);
 #endif
     }
     return putRslt;
@@ -293,7 +316,8 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     RaftWebConnSendRetVal retVal = _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), pBuf, bufLen);
 
 #ifdef DEBUG_WS_SEND_APP_DATA
-    LOG_W(MODULE_PREFIX, "encodeAndSendData sent len %d retc %d", frame.getLen(), retVal);
+    LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d sent len %d retc %d",
+                _reqParams.connId, bufLen, retVal);
 #endif
 
     // Check result
@@ -301,13 +325,14 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     {
         _isActive = false;
 #ifdef DEBUG_WS_IS_ACTIVE
-        LOG_I(MODULE_PREFIX, "encodeAndSendData failed INACTIVE");
+        LOG_I(MODULE_PREFIX, "encodeAndSendData connId %d failed INACTIVE", _reqParams.connId);
 #endif
     }
     else if (retVal != WEB_CONN_SEND_OK)
     {
 #ifdef DEBUG_WS_SEND_APP_DATA
-        LOG_W(MODULE_PREFIX, "encodeAndSendData failed retVal %s", RaftWebConnDefs::getSendRetValStr(retVal));      
+        LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d failed retVal %s",
+                _reqParams.connId, RaftWebConnDefs::getSendRetValStr(retVal));      
 #endif
     }
     return retVal == WEB_CONN_SEND_OK;
@@ -329,28 +354,28 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
 		case WEBSOCKET_EVENT_CONNECT:
         {
 #ifdef DEBUG_WEBSOCKETS_OPEN_CLOSE
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent connected!");
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d connected!", _reqParams.connId);
 #endif
 			break;
         }
 		case WEBSOCKET_EVENT_DISCONNECT_EXTERNAL:
         {
 #ifdef DEBUG_WEBSOCKETS_OPEN_CLOSE
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent sent disconnect");
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d sent disconnect", _reqParams.connId);
 #endif
 			break;
         }
 		case WEBSOCKET_EVENT_DISCONNECT_INTERNAL:
         {
 #ifdef DEBUG_WEBSOCKETS_OPEN_CLOSE
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent was disconnected");
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d disconnect", _reqParams.connId);
 #endif
 			break;
         }
 		case WEBSOCKET_EVENT_DISCONNECT_ERROR:
         {
 #ifdef DEBUG_WEBSOCKETS_OPEN_CLOSE
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent was disconnected due to an error");
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d disconnect due to error", _reqParams.connId);
 #endif
 			break;
         }
@@ -363,7 +388,8 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
             String msgText;
             if (pBuf)
                 Raft::strFromBuffer(pBuf, bufLen, msgText);
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent rx text len %i content %s", bufLen, msgText.c_str());
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d rx text len %i content %s",
+                    _reqParams.connId, bufLen, msgText.c_str());
 #endif
 			break;
         }
@@ -378,7 +404,9 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC_BINARY_DETAIL
             String rxDataStr;
             Raft::getHexStrFromBytes(pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, rxDataStr);
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent rx binary len %s%s", rxDataStr.c_str(),
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d rx binary len %s%s",
+                    _reqParams.connId,
+                    rxDataStr.c_str(),
                     bufLen < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
 #endif
 			break;
@@ -386,14 +414,15 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
 		case WEBSOCKET_EVENT_PING:
         {
 #ifdef DEBUG_WEBSOCKETS_PING_PONG
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent rx ping len %i", bufLen);
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d rx ping len %i", 
+                    _reqParams.connId, bufLen);
 #endif
 			break;
         }
 		case WEBSOCKET_EVENT_PONG:
         {
 #ifdef DEBUG_WEBSOCKETS_PING_PONG
-			LOG_I(MODULE_PREFIX, "onWebSocketEvent sent pong");
+			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d rx pong", _reqParams.connId);
 #endif
 		    break;
         }

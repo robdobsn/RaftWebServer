@@ -1,1 +1,2 @@
 [] websocket pfix is set in systypes - would be good to default this to system name if not already done
+[] websocket connections seem to last 1 minute and then close - maybe need ping/pong? - sems to get closed at esp32 end - no longer sending so close message

@@ -71,7 +71,7 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
     _webServerSettings = settings;
 
     // Create slots
-    _webConnections.resize(_webServerSettings._numConnSlots);
+    _webConnections.resize(_webServerSettings.numConnSlots);
 
     // Create queue for new connections
     _newConnQueue = xQueueCreate(_newConnQueueMaxLen, sizeof(RaftClientConnBase*));
@@ -83,11 +83,11 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
 
 	// Start task to handle listen for connections
 	xTaskCreatePinnedToCore(&socketListenerTask,"socketLstnTask", 
-            settings._taskStackSize,
+            settings.taskStackSize,
             this, 
-            settings._taskPriority, 
+            settings.taskPriority, 
             NULL, 
-            settings._taskCore);
+            settings.taskCore);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,12 +108,12 @@ void RaftWebConnManager::service()
 
 void RaftWebConnManager::socketListenerTask(void* pvParameters) 
 {
-	// Get pointer to specific RaftWebServer object
-	RaftWebConnManager* pWS = (RaftWebConnManager*)pvParameters;
+	// Get pointer to specific object
+	RaftWebConnManager* pWebConnMgr = (RaftWebConnManager*)pvParameters;
 
     // Listen for client connections
-    pWS->listenForClients(pWS->_webServerSettings._serverTCPPort, 
-                    pWS->_webServerSettings._numConnSlots);
+    pWebConnMgr->listenForClients(pWebConnMgr->getWebServerSettings().serverTCPPort, 
+                    pWebConnMgr->getWebServerSettings().numConnSlots);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +147,20 @@ void RaftWebConnManager::clientConnHandlerTask(void *pvParameters)
 
 void RaftWebConnManager::serviceConnections()
 {
+#ifdef DEBUG_WEBCONN_SERVICE_TIMING
+    // Check if time to report
+    if (Raft::isTimeout(millis(), _debugLastReportMs, 5000))
+    {
+        LOG_I(MODULE_PREFIX, "serviceConnections existing %d new %d", 
+              (int)_debugTimerExistingConns.getMaxUs(), 
+              (int)_debugTimerNewConns.getMaxUs());
+        _debugLastReportMs = millis();
+        _debugTimerExistingConns.clear();
+        _debugTimerNewConns.clear();
+    }
+    _debugTimerExistingConns.started();
+#endif
+
     // Service existing connections or close them if inactive
     for (RaftWebConnection &webConn : _webConnections)
     {
@@ -154,12 +168,20 @@ void RaftWebConnManager::serviceConnections()
         webConn.service();
     }
 
+#ifdef DEBUG_WEBCONN_SERVICE_TIMING
+    _debugTimerExistingConns.ended();
+#endif
+
     // Get any new connection from queue
     if (_newConnQueue == nullptr)
         return;
         
+#ifdef DEBUG_WEBCONN_SERVICE_TIMING
+    _debugTimerNewConns.started();
+#endif
+
     RaftClientConnBase* pClientConn = nullptr;
-    if (xQueueReceive(_newConnQueue, &pClientConn, 1) == pdTRUE)
+    if (xQueueReceive(_newConnQueue, &pClientConn, 0) == pdTRUE)
     {
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
         heap_trace_start(HEAP_TRACE_LEAKS);
@@ -174,6 +196,10 @@ void RaftWebConnManager::serviceConnections()
             delete pClientConn;
         }
     }
+
+#ifdef DEBUG_WEBCONN_SERVICE_TIMING
+    _debugTimerNewConns.ended();
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +224,8 @@ bool RaftWebConnManager::accommodateConnection(RaftClientConnBase* pClientConn)
 #endif
 
     // Place new connection in slot - after this point the WebConnection is responsible for deleting
-    if (!_webConnections[slotIdx].setNewConn(pClientConn, this, _webServerSettings._sendBufferMaxLen))
+    if (!_webConnections[slotIdx].setNewConn(pClientConn, this, _webServerSettings.sendBufferMaxLen,
+                    _webServerSettings.clearPendingDurationMs))
         return false;
     return true;
 }
@@ -240,14 +267,14 @@ bool RaftWebConnManager::addHandler(RaftWebHandler *pHandler, bool highPriority)
     pHandler->setWebServerSettings(_webServerSettings);
 
     // Check if we can add this handler
-    if (pHandler->isFileHandler() && !_webServerSettings._enableFileServer)
+    if (pHandler->isFileHandler() && !_webServerSettings.enableFileServer)
     {
 #ifdef DEBUG_WEB_SERVER_HANDLERS
         LOG_I(MODULE_PREFIX, "addHandler NOT ADDING %s as file server disabled", pHandler->getName());
 #endif
         return false;
     }
-    else if (pHandler->isWebSocketHandler() && (!_webServerSettings._enableWebSockets))
+    else if (pHandler->isWebSocketHandler() && (!_webServerSettings.enableWebSockets))
     {
 #ifdef DEBUG_WEB_SERVER_HANDLERS
         LOG_I(MODULE_PREFIX, "addHandler NOT ADDING %s as no websocket configs", pHandler->getName());

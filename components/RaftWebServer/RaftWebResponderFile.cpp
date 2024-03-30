@@ -20,7 +20,7 @@ static const char *MODULE_PREFIX = "RaftWebRespFile";
 // #define DEBUG_RESPONDER_FILE
 // #define DEBUG_RESPONDER_FILE_CONTENTS
 // #define DEBUG_RESPONDER_FILE_START_END
-// #define DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS 50
+// #define DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS 0
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -57,7 +57,8 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
         {
             addHeader("Content-Encoding", "gzip");
 #ifdef DEBUG_RESPONDER_FILE
-            LOG_I(MODULE_PREFIX, "constructor filePath %s", gzipFilePath.c_str());
+            LOG_I(MODULE_PREFIX, "constructor connId %d filePath %s",
+                    _reqParams.connId, gzipFilePath.c_str());
 #endif
         }
     }
@@ -69,7 +70,8 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
 #ifdef DEBUG_RESPONDER_FILE
         if (_isActive)
         {
-            LOG_I(MODULE_PREFIX, "constructor filePath %s", filePath.c_str());
+            LOG_I(MODULE_PREFIX, "constructor connId %d filePath %s",
+                    _reqParams.connId, filePath.c_str());
         }
 #endif
     }
@@ -77,7 +79,8 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
 #ifdef WARN_RESPONDER_FILE
     if (!_isActive)
     {
-        LOG_E(MODULE_PREFIX, "constructor failed to start filepath %s", filePath.c_str());
+        LOG_E(MODULE_PREFIX, "constructor connId %d failed to start filepath %s",
+                    _reqParams.connId, filePath.c_str());
     }
 #endif
 
@@ -94,7 +97,8 @@ RaftWebResponderFile::~RaftWebResponderFile()
 bool RaftWebResponderFile::handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
 {
 #ifdef DEBUG_RESPONDER_FILE
-    LOG_I(MODULE_PREFIX, "handleInboundData len %d filePath %s", dataLen, _filePath.c_str());
+    LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d filePath %s", 
+                _reqParams.connId, dataLen, _filePath.c_str());
 #endif
     return true;
 }
@@ -106,7 +110,8 @@ bool RaftWebResponderFile::handleInboundData(const uint8_t* pBuf, uint32_t dataL
 bool RaftWebResponderFile::startResponding(RaftWebConnection& request)
 {
 #ifdef DEBUG_RESPONDER_FILE_START_END
-    LOG_I(MODULE_PREFIX, "startResponding isActive %d filePath %s", _isActive, _filePath.c_str());
+    LOG_I(MODULE_PREFIX, "startResponding connId %d isActive %d filePath %s",
+                _reqParams.connId, _isActive, _filePath.c_str());
 #endif
     _fileSendStartMs = millis();
     return _isActive;
@@ -140,13 +145,13 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
 #endif
         _isActive = false;
         _lastChunkData.clear();
-        LOG_W(MODULE_PREFIX, "getResponseNext failed filePath %s", _filePath.c_str());
+        LOG_W(MODULE_PREFIX, "getResponseNext connId %d failed filePath %s", _reqParams.connId, _filePath.c_str());
         return 0;
     }
     
 #ifdef DEBUG_RESPONDER_FILE_CONTENTS
-    LOG_I(MODULE_PREFIX, "getResponseNext newChunk len %d isActive %d isFinalChunk %d filePos %d filePath %s", 
-                readLen, _isActive, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
+    LOG_I(MODULE_PREFIX, "getResponseNext connId %d newChunk len %d isActive %d isFinalChunk %d filePos %d filePath %s", 
+                _reqParams.connId, readLen, _isActive, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
 #endif
     _lastChunkData.resize(readLen);
     pBuf = _lastChunkData.data();
@@ -156,7 +161,8 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
     {
         _isActive = false;
 #ifdef DEBUG_RESPONDER_FILE_START_END
-        LOG_I(MODULE_PREFIX, "getResponseNext endOfFile sent final chunk ok filePath %s", _filePath.c_str());
+        LOG_I(MODULE_PREFIX, "getResponseNext connId %d endOfFile sent final chunk ok filePath %s",
+                _reqParams.connId, _filePath.c_str());
 #endif
     }
 
@@ -164,8 +170,8 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
     debugChunkHandleMs = millis() - debugStartMs;
     if (millis() - debugGetRespNextStartMs > DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS)
     {
-        LOG_I(MODULE_PREFIX, "getResponseNext timing initClr %dms getNext %dms handleChunk %dms",
-                        debugChunkDataMs, debugNextReadMs, debugChunkHandleMs);
+        LOG_I(MODULE_PREFIX, "getResponseNext connId %d timing initClr %dms getNext %dms handleChunk %dms",
+                _reqParams.connId, debugChunkDataMs, debugNextReadMs, debugChunkHandleMs);
     }
 #endif
 

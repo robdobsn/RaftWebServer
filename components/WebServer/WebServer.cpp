@@ -97,6 +97,9 @@ void WebServer::applySetup()
     // Get static file paths
     String staticFilePaths = configGetString("staticFilePaths", "");
 
+    // Clear pending duration ms
+    uint32_t clearPendingDurationMs = configGetLong("clearPendingMs", 0);
+
     // Setup server if required
     if (_webServerEnabled)
     {
@@ -105,7 +108,8 @@ void WebServer::applySetup()
         {
             RaftWebServerSettings settings(_port, numConnSlots, _webSocketConfigs.size() > 0, 
                     enableFileServer, taskCore, taskPriority, taskStackSize, sendBufferMaxLen,
-                    CommsCoreIF::CHANNEL_ID_REST_API, stdRespHeaders, nullptr, nullptr);
+                    CommsCoreIF::CHANNEL_ID_REST_API, stdRespHeaders, nullptr, nullptr,
+                    clearPendingDurationMs);
             _raftWebServer.setup(settings);
         }
 

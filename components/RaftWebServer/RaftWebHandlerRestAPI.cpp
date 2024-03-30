@@ -80,7 +80,7 @@ RaftWebResponder* RaftWebHandlerRestAPI::getNewResponder(const RaftWebRequestHea
     // Looks like we can handle this so create a new responder object
     RaftWebResponder* pResponder = new RaftWebResponderRestAPI(endpoint, this, params, 
                     reqStr, requestHeader.extract, 
-                    _webServerSettings._restAPIChannelID);
+                    _webServerSettings.restAPIChannelID);
 
     // Debug
 #ifdef DEBUG_WEB_HANDLER_REST_API
@@ -204,7 +204,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
             pMultipartState->endpoint = endpoint;
 
             // ChannelID
-            pMultipartState->channelID = _webServerSettings._restAPIChannelID;
+            pMultipartState->channelID = _webServerSettings.restAPIChannelID;
 
             // Request string
             pMultipartState->reqStr = reqStr;
@@ -255,7 +255,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         else
         {
             // Call body method with contents
-            APISourceInfo apiSourceInfo(_webServerSettings._restAPIChannelID);
+            APISourceInfo apiSourceInfo(_webServerSettings.restAPIChannelID);
             if (endpoint.restApiFnBody)
                 retCode = endpoint.restApiFnBody(endpointName, (uint8_t*)pHttpMsg->body.ptr, pHttpMsg->body.len, 
                             0, pMultipartState->contentLength, apiSourceInfo);
@@ -264,7 +264,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
 #ifdef DEBUG_WEB_HANDLER_REST_API_BODY_VERBOSE
             {
                 LOG_I(MODULE_PREFIX, "handleRequest body API call contentLen %d channelID %d result %s", 
-                                pMultipartState->contentLength, _webServerSettings._restAPIChannelID, Raft::getRetCodeStr(retCode));
+                                pMultipartState->contentLength, _webServerSettings.restAPIChannelID, Raft::getRetCodeStr(retCode));
                 debugMultipartChunk("===API_BODY", pHttpMsg->body.ptr, pHttpMsg->body.len);
             }
 #endif
@@ -281,18 +281,18 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
 #ifdef DEBUG_WEB_HANDLER_REST_API_RAW_BODY_VERBOSE
         if (ev == MG_EV_HTTP_MSG)
         {
-            LOG_I(MODULE_PREFIX, "handleRequest raw body API call channelID %d", _webServerSettings._restAPIChannelID);
+            LOG_I(MODULE_PREFIX, "handleRequest raw body API call channelID %d", _webServerSettings.restAPIChannelID);
             debugMultipartChunk("===MSG_BODY", pHttpMsg->body.ptr, pHttpMsg->body.len);
             debugMultipartChunk("===MSG_CHUNK", pHttpMsg->chunk.ptr, pHttpMsg->chunk.len);
         }
         else if (retCode != RAFT_OK)
         {
             LOG_I(MODULE_PREFIX, "handleRequest API call failed channelID %d retCode %s", 
-                            _webServerSettings._restAPIChannelID, Raft::getRetCodeStr(retCode));
+                            _webServerSettings.restAPIChannelID, Raft::getRetCodeStr(retCode));
         }
         else
         {
-            LOG_I(MODULE_PREFIX, "handleRequest multipart end OK channelID %d", _webServerSettings._restAPIChannelID);
+            LOG_I(MODULE_PREFIX, "handleRequest multipart end OK channelID %d", _webServerSettings.restAPIChannelID);
         }
 #endif
 
@@ -301,7 +301,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         if (endpoint.restApiFn)
         {
             // Call endpoint
-            RaftRetCode retCodeEnd = endpoint.restApiFn(endpointName, respStr, _webServerSettings._restAPIChannelID);
+            RaftRetCode retCodeEnd = endpoint.restApiFn(endpointName, respStr, _webServerSettings.restAPIChannelID);
 
             // Debug
 #ifdef DEBUG_WEB_HANDLER_REST_API
@@ -319,7 +319,7 @@ bool RaftWebHandlerRestAPI::handleRequest(struct mg_connection *pConn, int ev, v
         }
 
         // Response
-        mg_http_reply(pConn, 200, _webServerSettings._stdRespHeaders.c_str(), "%s", respStr.c_str());
+        mg_http_reply(pConn, 200, _webServerSettings.stdRespHeaders.c_str(), "%s", respStr.c_str());
 
         // Cleanup multipart state
         multipartStateCleanup(pConn);

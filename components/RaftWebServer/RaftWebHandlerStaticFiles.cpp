@@ -198,7 +198,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
 
     // Create responder
     RaftWebResponder* pResponder = new RaftWebResponderFile(filePath, this, params, 
-            requestHeader, _webServerSettings._sendBufferMaxLen);
+            requestHeader, _webServerSettings.sendBufferMaxLen);
 
     // Check valid
     if (!pResponder)
@@ -235,7 +235,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
 String RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
 {
     // Iterate MIME types str
-    const char* pCurMime = _webServerSettings._mimeTypes.length() > 0 ? _webServerSettings._mimeTypes.c_str() : _mimeTypesStr;
+    const char* pCurMime = _webServerSettings.mimeTypes.length() > 0 ? _webServerSettings.mimeTypes.c_str() : _mimeTypesStr;
     while (pCurMime != NULL)
     {
         // Get extension
@@ -270,7 +270,7 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *pConn, int e
     {
         // Debug
 #ifdef DEBUG_STATIC_FILE_HANDLER
-        LOG_I(MODULE_PREFIX, "handleRequest stdRespHeaders %s", _webServerSettings._stdRespHeaders.c_str());
+        LOG_I(MODULE_PREFIX, "handleRequest stdRespHeaders %s", _webServerSettings.stdRespHeaders.c_str());
 #endif
         // Extract message
         struct mg_http_message *hm = (struct mg_http_message *)ev_data;
@@ -278,9 +278,9 @@ bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *pConn, int e
         {
             .root_dir = _servePaths.c_str(),
             .ssi_pattern = NULL,
-            .extra_headers = _webServerSettings._stdRespHeaders.length() > 0 ? _webServerSettings._stdRespHeaders.c_str() : NULL,
-            .mime_types = _webServerSettings._mimeTypes.length() > 0 ? _webServerSettings._mimeTypes.c_str() : _mimeTypesStr,
-            .page404 = _webServerSettings._404PageSource.length() > 0 ? _webServerSettings._404PageSource.c_str() : NULL,
+            .extra_headers = _webServerSettings.stdRespHeaders.length() > 0 ? _webServerSettings.stdRespHeaders.c_str() : NULL,
+            .mime_types = _webServerSettings.mimeTypes.length() > 0 ? _webServerSettings.mimeTypes.c_str() : _mimeTypesStr,
+            .page404 = _webServerSettings.pageSource404.length() > 0 ? _webServerSettings.404PageSource.c_str() : NULL,
             .fs = NULL,
         };
         mg_http_serve_dir(pConn, hm, &opts);

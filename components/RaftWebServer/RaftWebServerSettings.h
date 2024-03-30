@@ -35,65 +35,71 @@ public:
     {
     }
     RaftWebServerSettings(int port, uint32_t connSlots, bool wsEnable, 
-            bool enableFileServer, uint32_t taskCore,
-            uint32_t taskPriority, uint32_t taskStackSize,
-            uint32_t sendBufferMaxLen,
-            uint32_t restAPIChannelID, 
-            std::vector<String>& stdRespHeaders,
+            bool enFileServer, uint32_t tskCore,
+            uint32_t tskPriority, uint32_t tskStackSize,
+            uint32_t sendBufMaxLen,
+            uint32_t restAPIChanID, 
+            std::vector<String>& stdRespHdrs,
             const char* p404PageSource,
-            const char* pMimeTypes)
+            const char* pMimeTypes,
+            uint32_t clearPendDurationMs)
     {
-        _serverTCPPort = port;
-        _numConnSlots = connSlots;
-        _enableWebSockets = wsEnable;
-        _enableFileServer = enableFileServer;
-        _taskCore = taskCore;
-        _taskPriority = taskPriority;
-        _taskStackSize = taskStackSize;
-        _sendBufferMaxLen = sendBufferMaxLen;
-        _restAPIChannelID = restAPIChannelID;
-        _404PageSource = p404PageSource ? p404PageSource : "";
-        _mimeTypes = pMimeTypes ? pMimeTypes : "";
+        serverTCPPort = port;
+        numConnSlots = connSlots;
+        enableWebSockets = wsEnable;
+        enableFileServer = enFileServer;
+        taskCore = tskCore;
+        taskPriority = tskPriority;
+        taskStackSize = tskStackSize;
+        sendBufferMaxLen = sendBufMaxLen;
+        restAPIChannelID = restAPIChanID;
+        pageSource404 = p404PageSource ? p404PageSource : "";
+        mimeTypes = pMimeTypes ? pMimeTypes : "";
         String headersStr;
-        for (auto& header : stdRespHeaders)
+        for (auto& header : stdRespHdrs)
         {
             headersStr += header;
             headersStr += "\r\n";
         }
-        _stdRespHeaders = headersStr;
+        stdRespHeaders = headersStr;
+        clearPendingDurationMs = clearPendDurationMs;
     }
 
     // TCP port of server
-    int _serverTCPPort = DEFAULT_HTTP_PORT;
+    int serverTCPPort = DEFAULT_HTTP_PORT;
 
     // Number of connection slots
-    uint32_t _numConnSlots = DEFAULT_CONN_SLOTS;
+    uint32_t numConnSlots = DEFAULT_CONN_SLOTS;
 
     // Enable websockets
-    bool _enableWebSockets = DEFAULT_ENABLE_WEBSOCKETS;
+    bool enableWebSockets = DEFAULT_ENABLE_WEBSOCKETS;
 
     // Enable file server
-    bool _enableFileServer = DEFAULT_ENABLE_FILE_SERVER;
+    bool enableFileServer = DEFAULT_ENABLE_FILE_SERVER;
 
     // Task settings
-    uint32_t _taskCore = DEFAULT_TASK_CORE;
-    uint32_t _taskPriority = DEFAULT_TASK_PRIORITY;
-    uint32_t _taskStackSize = DEFAULT_TASK_STACK_BYTES;
+    uint32_t taskCore = DEFAULT_TASK_CORE;
+    uint32_t taskPriority = DEFAULT_TASK_PRIORITY;
+    uint32_t taskStackSize = DEFAULT_TASK_STACK_BYTES;
 
     // Max length of send buffer
-    uint32_t _sendBufferMaxLen = DEFAULT_SEND_BUFFER_MAX_LEN;
+    uint32_t sendBufferMaxLen = DEFAULT_SEND_BUFFER_MAX_LEN;
 
     // Channel ID for REST API
-    uint32_t _restAPIChannelID = UINT32_MAX;
+    uint32_t restAPIChannelID = UINT32_MAX;
 
     // Standard response headers - added to every response
-    String _stdRespHeaders;
+    String stdRespHeaders;
 
     // 404 page source - note that this MUST be either NULL or a pointer to a string that is
     // valid for the lifetime of the program
-    String _404PageSource;
+    String pageSource404;
 
     // MIME types for file serving - this must be a string in the form ext1=type1,ext2=type2,..
     // or NULL for the default
-    String _mimeTypes;
+    String mimeTypes;
+
+    // Connection clear pending duration ms
+    static const uint32_t CONNECTION_CLEAR_PENDING_MS_DEFAULT = 0;
+    uint32_t clearPendingDurationMs = CONNECTION_CLEAR_PENDING_MS_DEFAULT;
 };

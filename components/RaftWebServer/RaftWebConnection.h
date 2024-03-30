@@ -40,7 +40,7 @@ public:
 
     // Set a new connection
     bool setNewConn(RaftClientConnBase* pClientConn, RaftWebConnManager* pConnManager,
-                uint32_t maxSendBufferBytes);
+                uint32_t maxSendBufferBytes, uint32_t clearPendingDurationMs);
 
     // True if active
     bool isActive();
@@ -95,7 +95,7 @@ private:
     // Responder/connection clear pending
     bool _isClearPending;
     uint32_t _clearPendingStartMs;
-    static const uint32_t CONNECTION_CLEAR_PENDING_TIME_MS = 0;
+    uint32_t _clearPendingDurationMs = 0;
 
     // Max send buffer size
     uint32_t _maxSendBufferBytes;

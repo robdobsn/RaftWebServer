@@ -23,6 +23,7 @@ static const char *MODULE_PREFIX = "RaftClientConnSockets";
 // #define DEBUG_SOCKET_EAGAIN
 // #define DEBUG_SOCKET_SEND
 // #define DEBUG_SOCKET_SEND_VERBOSE
+// #define DEBUG_TIME_RECV_FN_SLOW_US 1000
 
 RaftClientConnSockets::RaftClientConnSockets(int client, bool traceConn)
 {
@@ -65,6 +66,11 @@ void RaftClientConnSockets::setup(bool blocking)
     // Set socket options
     int on = 1;
     setsockopt(_client, IPPROTO_TCP, TCP_NODELAY, (char *) &on, sizeof(on));
+
+#ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
+    // Allocate databuf
+    _rxDataBuf.resize(WEB_CONN_MAX_RX_BUFFER);
+#endif
 }
 
 RaftWebConnSendRetVal RaftClientConnSockets::canSend()
@@ -182,11 +188,25 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
     // End any current data operation
     getDataEnd();
 
+#ifndef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
     // Resize data buffer to max size
     dataBuf.resize(WEB_CONN_MAX_RX_BUFFER);
+#endif
 
     // Check for data
+#ifdef DEBUG_TIME_RECV_FN_SLOW_US
+    uint64_t startUs = micros();
+#endif
+#ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
+    int32_t bufLen = recv(_client, _rxDataBuf.data(), _rxDataBuf.size(), MSG_DONTWAIT);
+#else
     int32_t bufLen = recv(_client, dataBuf.data(), dataBuf.size(), MSG_DONTWAIT);
+#endif
+#ifdef DEBUG_TIME_RECV_FN_SLOW_US
+    uint32_t elapsedUs = micros() - startUs;
+    if (elapsedUs > DEBUG_TIME_RECV_FN_SLOW_US)
+        LOG_I(MODULE_PREFIX, "getDataStart recv took %dus", (int)elapsedUs);
+#endif
 
     // Error handling
     if (bufLen < 0)
@@ -223,7 +243,12 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
 #endif
 
     // Return received data
+#ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
+    dataBuf.assign(_rxDataBuf.data(), _rxDataBuf.data() + bufLen);
+#else
     dataBuf.resize(bufLen);
+#endif
+
     return RaftClientConnRslt::CLIENT_CONN_RSLT_OK;
 }
 
