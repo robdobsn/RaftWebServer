@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.16)
 # message(STATUS "==========================================================")
 
 set(RAFT_COMPONENT_EXTRA_PATH "components/RaftWebServer/")
-set(RAFT_WEBSERVER_REQUIRES raftcore-src mbedtls esp_http_server)
+set(RAFT_WEBSERVER_REQUIRES RaftCore mbedtls esp_http_server)
 set(RAFT_WEBSERVER_SOURCES 
     ${RAFT_COMPONENT_EXTRA_PATH}RaftWebServer.cpp
     ${RAFT_COMPONENT_EXTRA_PATH}RaftWebHandlerRestAPI.cpp
