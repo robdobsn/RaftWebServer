@@ -738,8 +738,7 @@ bool RaftWebConnection::handleHeaderData(const uint8_t* pRxData, uint32_t dataLe
                 break;
 
         // Extract string
-        String newStr;
-        Raft::strFromBuffer(pRxData + pos, lfFoundPos - pos, newStr);
+        String newStr(pRxData + pos, lfFoundPos - pos);
         newStr.trim();
 
         // Add to parse header string

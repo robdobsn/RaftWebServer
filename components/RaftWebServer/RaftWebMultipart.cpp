@@ -475,15 +475,14 @@ void RaftWebMultipart::headerNameFound(const uint8_t *pBuf, uint32_t pos, uint32
     if (len == 0)
         _headerName.clear();
     else
-        Raft::strFromBuffer(pBuf + pos, len, _headerName);
+        _headerName = String(pBuf + pos, len);
 }
 
 void RaftWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint32_t len)
 {
     if ((len == 0) || (_headerName.length() == 0))
         return;
-    String headerValue;
-    Raft::strFromBuffer(pBuf + pos, len, headerValue);
+    String headerValue(pBuf + pos, len);
 
     // Parse header value to get content
     if (_headerName.equalsIgnoreCase("Content-Disposition"))

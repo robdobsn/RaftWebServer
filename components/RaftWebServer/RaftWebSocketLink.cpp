@@ -148,7 +148,7 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
             return;
 
         // Extract key
-        Raft::strFromBuffer(pBuf + keyPos, keyLen, _wsKey);
+        _wsKey = String(pBuf + keyPos, keyLen);
         _upgradeReqReceived = true;
 
         // Continue with any excess data
