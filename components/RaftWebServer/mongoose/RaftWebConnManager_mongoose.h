@@ -29,7 +29,7 @@ public:
     void setup(const RaftWebServerSettings& settings);
 
     // Service
-    void service();
+    void loop();
     
     // Handler
     bool addHandler(RaftWebHandler* pHandler);

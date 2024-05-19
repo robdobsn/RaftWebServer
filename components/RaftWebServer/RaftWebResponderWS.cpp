@@ -76,20 +76,20 @@ RaftWebResponderWS::~RaftWebResponderWS()
 // Service - called frequently
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebResponderWS::service()
+void RaftWebResponderWS::loop()
 {
     // Service the link
-    _webSocketLink.service();
+    _webSocketLink.loop();
 
 #ifdef DEBUG_WS_SERVICE
     if (Raft::isTimeout(millis(), _debugLastServiceMs, 1000))
     {
         _debugLastServiceMs = millis();
 #ifdef WEBSOCKET_SEND_USE_TX_QUEUE
-        LOG_I(MODULE_PREFIX, "service isActive %d _txQueueCount %d", 
+        LOG_I(MODULE_PREFIX, "loop isActive %d _txQueueCount %d", 
                 _isActive, _txQueue.count());
 #else
-        LOG_I(MODULE_PREFIX, "service isActive %d", _isActive);
+        LOG_I(MODULE_PREFIX, "loop isActive %d", _isActive);
 #endif
     }
 #endif
@@ -98,7 +98,7 @@ void RaftWebResponderWS::service()
     if (!_webSocketLink.isActive())
     {
 #ifdef DEBUG_WS_IS_ACTIVE
-        LOG_I(MODULE_PREFIX, "service INACTIVE link");
+        LOG_I(MODULE_PREFIX, "loop INACTIVE link");
 #endif
         _isActive = false;
         return;
@@ -113,7 +113,7 @@ void RaftWebResponderWS::service()
         RaftWebConnSendRetVal retVal = _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), frame.getData(), frame.getLen());
 
 #ifdef DEBUG_WS_SEND_APP_DATA
-        LOG_W(MODULE_PREFIX, "service connId %d sendMsg sent len %d retc %d",
+        LOG_W(MODULE_PREFIX, "loop connId %d sendMsg sent len %d retc %d",
                     _reqParams.connId, frame.getLen(), retVal);
 #endif
 
@@ -122,13 +122,13 @@ void RaftWebResponderWS::service()
         {
             _isActive = false;
 #ifdef DEBUG_WS_IS_ACTIVE
-            LOG_I(MODULE_PREFIX, "service connId %d INACTIVE sendMsg failed", _reqParams.connId);
+            LOG_I(MODULE_PREFIX, "loop connId %d INACTIVE sendMsg failed", _reqParams.connId);
 #endif
         }
         else if (retVal != WEB_CONN_SEND_OK)
         {
 #ifdef DEBUG_WS_SEND_APP_DATA
-            LOG_W(MODULE_PREFIX, "service connId %d send msg failed retVal %s",
+            LOG_W(MODULE_PREFIX, "loop connId %d send msg failed retVal %s",
                     _reqParams.connId, RaftWebConnDefs::getSendRetValStr(retVal));      
 #endif
         }

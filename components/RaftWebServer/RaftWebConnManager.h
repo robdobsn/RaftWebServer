@@ -37,7 +37,7 @@ public:
     void setup(const RaftWebServerSettings& settings);
 
     // Service
-    void service();
+    void loop();
     
     // Listen for client connections
     void listenForClients(int port, uint32_t numConnSlots)

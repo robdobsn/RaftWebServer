@@ -30,7 +30,7 @@ public:
         return _isActive;
     }
 
-    virtual void service()
+    virtual void loop()
     {
     }
     

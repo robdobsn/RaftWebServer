@@ -72,7 +72,7 @@ RaftClientConnRslt RaftClientConnNetconn::getDataStart(std::vector<uint8_t, Spir
         err_t err = netbuf_data(_pInbuf, (void **)&pBuf, &bufLen);
         if ((err != ERR_OK) || !pBuf)
         {
-            LOG_W(MODULE_PREFIX, "service netconn_data error %s buf %d connClient %d", 
+            LOG_W(MODULE_PREFIX, "getDataStart netconn_data error %s buf %d connClient %d", 
                         RaftWebInterface::espIdfErrToStr(err), (uint32_t)pBuf, getClientId());
             return RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;
         }

@@ -33,7 +33,7 @@ public:
     virtual ~RaftWebResponderSSEvents();
 
     // Service - called frequently
-    virtual void service() override final;
+    virtual void loop() override final;
 
     // Handle inbound data
     virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen) override final;

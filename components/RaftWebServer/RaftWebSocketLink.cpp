@@ -75,7 +75,7 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
 // Service the web socket
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebSocketLink::service()
+void RaftWebSocketLink::loop()
 {
     static const uint8_t PING_MSG[] = "RIC";
     // Handle ping / pong
@@ -99,7 +99,7 @@ void RaftWebSocketLink::service()
         {
             if (!_warnNoPongShown)
             {
-                LOG_W(MODULE_PREFIX, "service - no PONG received for %dms (>%dms), link inactive",
+                LOG_W(MODULE_PREFIX, "loop - no PONG received for %dms (>%dms), link inactive",
                         (int)Raft::timeElapsed(millis(), (int)_pongRxLastMs),
                         _disconnIfNoPongMs);
                 _warnNoPongShown = true;

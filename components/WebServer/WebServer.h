@@ -69,6 +69,9 @@ private:
     bool restAPIMatchEndpoint(const char* url, RaftWebServerMethod method,
                     RaftWebServerRestEndpoint& endpoint);
     void webSocketSetup();
+    RaftRetCode apiWebCertificates(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+    RaftRetCode apiWebCertsBody(const String& reqStr, const uint8_t *pData, size_t len, 
+                size_t index, size_t total, const APISourceInfo& sourceInfo);
 
     // Server config
     bool _webServerEnabled = false;
@@ -86,6 +89,9 @@ private:
 
     // Websockets
     std::vector<String> _webSocketConfigs;
+
+    // Certificates temporary storage
+    std::vector<char, SpiramAwareAllocator<char>> _certsTempStorage;
 
     // Mapping from web-server method to RESTAPI method enums
     RestAPIEndpoint::EndpointMethod convWebToRESTAPIMethod(RaftWebServerMethod method)

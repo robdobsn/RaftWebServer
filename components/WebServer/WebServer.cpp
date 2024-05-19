@@ -21,6 +21,7 @@
 #include "RaftWebHandlerWS.h"
 
 // #define DEBUG_WEBSERVER_WEBSOCKETS
+#define DEBUG_API_WEB_CERTS
 
 static const char* MODULE_PREFIX = "WebServer";
 
@@ -132,7 +133,7 @@ void WebServer::applySetup()
 void WebServer::loop()
 {
     // Service
-    _raftWebServer.service();
+    _raftWebServer.loop();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -141,6 +142,25 @@ void WebServer::loop()
 
 void WebServer::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
 {
+    // Add endpoint to configure web server itself
+    // REST API endpoints
+    endpointManager.addEndpoint("webcerts", 
+            RestAPIEndpoint::ENDPOINT_CALLBACK, 
+            RestAPIEndpoint::ENDPOINT_POST,
+            std::bind(&WebServer::apiWebCertificates, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
+            "webcerts/set - POST JSON web certificates for web server", 
+            "application/json", 
+            nullptr,
+            RestAPIEndpoint::ENDPOINT_CACHE_NEVER,
+            nullptr, 
+            std::bind(&WebServer::apiWebCertsBody, this, 
+                    std::placeholders::_1, std::placeholders::_2, 
+                    std::placeholders::_3, std::placeholders::_4,
+                    std::placeholders::_5, std::placeholders::_6),
+            nullptr);
+    LOG_I(MODULE_PREFIX, "addRestAPIEndpoints added webcerts API");
+
+    // Setup endpoints
     setupEndpoints();
 }
 
@@ -157,6 +177,68 @@ void WebServer::setupEndpoints()
     // Add REST API handlers before other handlers
     if (!_raftWebServer.addHandler(pHandler, true))
         delete pHandler;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// API Endpoints for configuring web server
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set system settings (completion)
+/// @param reqStr request string
+/// @param respStr response string
+/// @param sourceInfo source information
+RaftRetCode WebServer::apiWebCertificates(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
+{
+    // Note that this is called after the body of the POST is complete
+#ifdef DEBUG_API_WEB_CERTS
+    LOG_I(MODULE_PREFIX, "apiWebCertificates request %s", reqStr.c_str());
+#endif
+    String rebootRequired = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
+    if (rebootRequired.equalsIgnoreCase("set"))
+    {
+        LOG_I(MODULE_PREFIX, "apiWebCertificates set %s certslen %d", reqStr.c_str(), _certsTempStorage.size());
+        _certsTempStorage.clear();
+    }
+
+    // Result
+    Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
+    return RaftRetCode::RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set system settings body
+/// @param reqStr request string
+/// @param pData pointer to data
+/// @param len length of data
+RaftRetCode WebServer::apiWebCertsBody(const String& reqStr, const uint8_t *pData, size_t len, 
+                size_t index, size_t total, const APISourceInfo& sourceInfo)
+{
+    if (len == total)
+    {
+        // Form the JSON document
+        _certsTempStorage.assign(pData, pData + len);
+        // Make sure it is null-terminated
+        if (_certsTempStorage[_certsTempStorage.size() - 1] != 0)
+            _certsTempStorage.push_back(0);
+        return RAFT_OK;
+    }
+
+    // Check if first block
+    if (index == 0)
+        _certsTempStorage.clear();
+
+    // Append to the existing buffer
+    _certsTempStorage.insert(_certsTempStorage.end(), pData, pData+len);
+
+    // Check for complete
+    if (_certsTempStorage.size() == total)
+    {
+        // Check the buffer is null-terminated
+        if (_certsTempStorage[_certsTempStorage.size() - 1] != 0)
+            _certsTempStorage.push_back(0);
+    }
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

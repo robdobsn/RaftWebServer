@@ -36,7 +36,7 @@ public:
     virtual ~RaftWebResponderWS();
 
     // Service - called frequently
-    virtual void service() override final;
+    virtual void loop() override final;
 
     // Handle inbound data
     virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen) override final;
@@ -118,7 +118,7 @@ private:
     // Max packet size
     uint32_t _packetMaxBytes = 5000;
 
-    // Debug last service
+    // Debug last loop
     uint32_t _debugLastServiceMs = 0;
 
     // Callback on websocket activity

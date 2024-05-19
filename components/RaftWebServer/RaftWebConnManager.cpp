@@ -94,7 +94,7 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager::service()
+void RaftWebConnManager::loop()
 {
 #ifndef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     serviceConnections();
@@ -165,7 +165,7 @@ void RaftWebConnManager::serviceConnections()
     for (RaftWebConnection &webConn : _webConnections)
     {
         // Service connection
-        webConn.service();
+        webConn.loop();
     }
 
 #ifdef DEBUG_WEBCONN_SERVICE_TIMING

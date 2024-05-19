@@ -28,7 +28,7 @@ public:
             bool isBinary);
 
     // Service - called frequently
-    void service();
+    void loop();
 
     // Upgrade the link
     void upgradeReceived(const String& wsKey, const String& wsVersion);

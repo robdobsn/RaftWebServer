@@ -27,7 +27,7 @@ public:
     virtual ~RaftWebConnection();
 
     // Called frequently
-    void service();
+    void loop();
 
     // Check if we can send
     RaftWebConnSendRetVal canSendOnConn();
@@ -130,7 +130,7 @@ private:
     bool serviceConnHeader(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos);
 
     // Send data to responder
-    bool responderHandleData(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos);
+    bool responderHandleData(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos, bool doRespond);
 
     // Set HTTP response status
     void setHTTPResponseStatus(RaftHttpStatusCode reponseCode);

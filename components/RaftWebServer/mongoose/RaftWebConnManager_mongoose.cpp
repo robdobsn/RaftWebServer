@@ -88,7 +88,7 @@ void RaftWebConnManager_mongoose::setup(const RaftWebServerSettings &settings)
 // Service
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnManager_mongoose::service()
+void RaftWebConnManager_mongoose::loop()
 {
 #if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     // Service mongoose

@@ -230,7 +230,7 @@ void RaftWebConnection::sendOnSSEvents(const char* eventContent, const char* eve
 // Service - called frequently
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebConnection::service()
+void RaftWebConnection::loop()
 {
     // Check active
     if (!_pClientConn)
@@ -256,7 +256,7 @@ void RaftWebConnection::service()
         if (Raft::isTimeout(millis(), _clearPendingStartMs, _clearPendingDurationMs))
         {
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
-            LOG_I(MODULE_PREFIX, "service conn %d clearing - clear was pending", _pClientConn->getClientId());
+            LOG_I(MODULE_PREFIX, "loop conn %d clearing - clear was pending", _pClientConn->getClientId());
 #endif
             clear();
         }
@@ -267,7 +267,7 @@ void RaftWebConnection::service()
     if (_timeoutActive && (Raft::isTimeout(millis(), _timeoutStartMs, _timeoutDurationMs) ||
                     Raft::isTimeout(millis(), _timeoutLastActivityMs, _timeoutOnIdleDurationMs)))
     {
-        LOG_W(MODULE_PREFIX, "service timeout on connection connId %d sinceStartMs %d sinceLastActivityMs %d", 
+        LOG_W(MODULE_PREFIX, "loop timeout on connection connId %d sinceStartMs %d sinceLastActivityMs %d", 
                 _pClientConn->getClientId(), 
                 Raft::timeElapsed(millis(), _timeoutStartMs),
                 Raft::timeElapsed(millis(), _timeoutLastActivityMs));
@@ -287,7 +287,7 @@ void RaftWebConnection::service()
     bool checkForNewData = true;
     if (_pResponder)
     {
-        _pResponder->service();
+        _pResponder->loop();
         checkForNewData = _pResponder->readyToReceiveData();
     }
 
@@ -328,12 +328,12 @@ void RaftWebConnection::service()
         // Update stats
         _debugDataRxCount += rxData.size();
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "service connId %d got new data len %d rxTotal %d", 
+        LOG_I(MODULE_PREFIX, "loop connId %d got new data len %d rxTotal %d", 
                 _pClientConn->getClientId(), rxData.size(), _debugDataRxCount);
 #endif
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
         String debugStr;
-        Raft::getHexStrFromBytes(pData, rxData.size(), debugStr);
+        Raft::getHexStrFromBytes(rxData.data(), rxData.size(), debugStr);
         LOG_I(MODULE_PREFIX, "connId %d RX: %s", _pClientConn->getClientId(), debugStr.c_str());
 #endif
     }
@@ -350,7 +350,7 @@ void RaftWebConnection::service()
     {
         if (!serviceConnHeader(rxData.data(), rxData.size(), bufPos))
         {
-            LOG_W(MODULE_PREFIX, "service connId %d connHeader error closing", _pClientConn->getClientId());
+            LOG_W(MODULE_PREFIX, "loop connId %d connHeader error closing", _pClientConn->getClientId());
             errorOccurred = true;
         }
     }
@@ -362,15 +362,12 @@ void RaftWebConnection::service()
     
     // Service response - may remain in this state for multiple service loops
     // (e.g. for file-transfer / web-sockets)
-    if (headerWasComplete)
+    if (!responderHandleData(rxData.data(), rxData.size(), bufPos, headerWasComplete))
     {
-        if (!responderHandleData(rxData.data(), rxData.size(), bufPos))
-        {
 #ifdef DEBUG_RESPONDER_PROGRESS
-            LOG_I(MODULE_PREFIX, "service connId %d no longer sending so close", _pClientConn->getClientId());
+        LOG_I(MODULE_PREFIX, "loop connId %d no longer sending so close", _pClientConn->getClientId());
 #endif
-            closeRequired = true;
-        }
+        closeRequired = true;
     }
 
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
@@ -391,7 +388,7 @@ void RaftWebConnection::service()
     if (errorOccurred)
     {
 #ifdef DEBUG_WEB_CONN_OPEN_CLOSE
-        LOG_I(MODULE_PREFIX, "service connId %d conn closing ErrorOccurred", 
+        LOG_I(MODULE_PREFIX, "loop connId %d conn closing ErrorOccurred", 
                 _pClientConn->getClientId());
 #endif
 
@@ -413,7 +410,7 @@ void RaftWebConnection::service()
     if (!errorOccurred && closeRequired)
     {
 #ifdef DEBUG_WEB_CONN_OPEN_CLOSE
-        LOG_I(MODULE_PREFIX, "service connId %d conn closeRequired", 
+        LOG_I(MODULE_PREFIX, "loop connId %d conn closeRequired", 
                 _pClientConn->getClientId());
 #endif
 
@@ -432,7 +429,7 @@ void RaftWebConnection::service()
     uint32_t debugServiceElapsedUs = timeNowUs - debugServiceStartUs;
     if (debugServiceElapsedUs > DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS*1000)
     {
-        LOG_I(MODULE_PREFIX, "service connId %d %s SLOW total %dus dataLen %d tx %dus clear %dus responder %dus getData %dus updateRx %dus serviceHdr %dus dataResp %dus dataEnd %dus errorHdlr %dus closeHdlr %dus", 
+        LOG_I(MODULE_PREFIX, "loop connId %d %s SLOW total %dus dataLen %d tx %dus clear %dus responder %dus getData %dus updateRx %dus serviceHdr %dus dataResp %dus dataEnd %dus errorHdlr %dus closeHdlr %dus", 
                 _pClientConn->getClientId(),
                 responderStr.c_str(),
                 debugServiceElapsedUs,
@@ -459,17 +456,15 @@ void RaftWebConnection::service()
                     break;
                 }
             }
-            String str;
-            Raft::strFromBuffer(rxData.data(), idx, str);
-            LOG_I(MODULE_PREFIX, "service connId %d %s", _pClientConn->getClientId(), str.c_str());
+            String str(rxData.data(), idx);
+            LOG_I(MODULE_PREFIX, "loop connId %d %s", _pClientConn->getClientId(), str.c_str());
         }
 #endif
 #ifdef DEBUG_WEB_CONN_SERVICE_SLOW_STR_DATA_ALL_DETAIL
         if (dataAvailable)
         {
-            String str;
-            Raft::strFromBuffer(rxData.data(), rxData.size(), str);
-            LOG_I(MODULE_PREFIX, "service connId %d %s", _pClientConn->getClientId(), str.c_str());
+            String str(rxData.data(), rxData.size());
+            LOG_I(MODULE_PREFIX, "loop connId %d %s", _pClientConn->getClientId(), str.c_str());
         }
 #endif
     }
@@ -493,8 +488,7 @@ bool RaftWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataL
     // Debug
 #ifdef DEBUG_WEB_REQUEST_HEADER_DETAIL
     {
-        String rxStr;
-        Raft::strFromBuffer(pRxData, dataLen, rxStr);
+        String rxStr(pRxData, dataLen);
         LOG_I(MODULE_PREFIX, "serviceConnHeader connId %d req data:\n%s",
                 _pClientConn->getClientId(), rxStr.c_str());
     }
@@ -626,7 +620,7 @@ bool RaftWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataL
 // Send data to responder
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos)
+bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos, bool doRespond)
 {
 #ifdef DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS
     uint64_t debugRespHdlDataStartUs = micros();
@@ -647,7 +641,11 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
 
     // Service the responder (if there is one)
     if (_pResponder)
-        _pResponder->service();
+        _pResponder->loop();
+
+    // If we've only just processed the header then we're not ready to send
+    if (!doRespond)
+        return true;
 
 #ifdef DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS
     uint32_t debugResponderServiceElapUs = micros() - debugResponderServiceStartUs;

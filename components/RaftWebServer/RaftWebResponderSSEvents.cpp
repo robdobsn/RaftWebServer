@@ -44,14 +44,14 @@ RaftWebResponderSSEvents::~RaftWebResponderSSEvents()
 // Service - called frequently
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebResponderSSEvents::service()
+void RaftWebResponderSSEvents::loop()
 {
     // Check for data waiting to be sent
     RaftWebSSEvent event;
     if (_txQueue.get(event))
     {
 #ifdef DEBUG_RESPONDER_EVENTS
-        LOG_W(MODULE_PREFIX, "service sendMsg group %s content %s", event.getGroup().c_str(), event.getContent().c_str());
+        LOG_W(MODULE_PREFIX, "loop sendMsg group %s content %s", event.getGroup().c_str(), event.getContent().c_str());
 #endif
         // Format message
         String outMsg = generateEventMessage(event.getContent(), event.getGroup(), time(NULL));

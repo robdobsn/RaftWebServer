@@ -118,9 +118,9 @@ extern "C" void app_main(void)
         vTaskDelay(1);
 
         // Service network
-        networkSystem.service();
+        networkSystem.loop();
 
         // Service webserver
-        webServer.service();
+        webServer.loop();
     }
 }
