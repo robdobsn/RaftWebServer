@@ -115,8 +115,7 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 
 #ifdef DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
     // Debug
-    String inStr;
-    Raft::strFromBuffer(buffer, bufLen, inStr);
+    String inStr(buffer, bufLen);
     LOG_I(MODULE_PREFIX, "DATA START ---------------------------------------\n%s", inStr.c_str());
     LOG_I(MODULE_PREFIX, "DATA END ---------------------------------------");
 #endif

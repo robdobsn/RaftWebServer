@@ -72,8 +72,7 @@ void RaftWebResponderSSEvents::loop()
 bool RaftWebResponderSSEvents::handleInboundData(const uint8_t *pBuf, uint32_t dataLen)
 {
 #ifdef DEBUG_RESPONDER_EVENTS
-    String outStr;
-    Raft::strFromBuffer(pBuf, dataLen, outStr, false);
+    String outStr(pBuf, dataLen);
     LOG_I(MODULE_PREFIX, "handleInboundData len %d %s", dataLen, outStr.c_str());
 #endif
     return true;

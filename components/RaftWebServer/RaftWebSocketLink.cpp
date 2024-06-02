@@ -555,10 +555,8 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
             unmaskData();
 
 #ifdef DEBUG_WEBSOCKET_LINK_DATA_STR
-            String cbStr;
-            Raft::strFromBuffer(_callbackData.data(), 
-                        _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? _callbackData.size() : MAX_DEBUG_TEXT_STR_LEN, 
-                        cbStr, false);
+            String cbStr(_callbackData.data(), 
+                        _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? _callbackData.size() : MAX_DEBUG_TEXT_STR_LEN);
             LOG_I(MODULE_PREFIX, "handleRxPacketData %s%s", cbStr.c_str(),
                         _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
 #endif

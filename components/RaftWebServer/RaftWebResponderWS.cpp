@@ -154,8 +154,7 @@ bool RaftWebResponderWS::handleInboundData(const uint8_t* pBuf, uint32_t dataLen
     }
     else
     {
-        String outStr;
-        Raft::strFromBuffer(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
+        String outStr(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN);
         LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d %s%s",
                     _reqParams.connId, dataLen, outStr.c_str(),
                     dataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
@@ -230,8 +229,7 @@ uint32_t RaftWebResponderWS::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
     }
     else
     {
-        String outStr;
-        Raft::strFromBuffer(pBuf, respLen < MAX_DEBUG_TEXT_STR_LEN ? respLen : MAX_DEBUG_TEXT_STR_LEN, outStr, false);
+        String outStr(pBuf, respLen < MAX_DEBUG_TEXT_STR_LEN ? respLen : MAX_DEBUG_TEXT_STR_LEN);
         LOG_I(MODULE_PREFIX, "getResponseNext connId %d isActive %d len %d %s%s",
                     _reqParams.connId, _isActive, respLen, outStr.c_str(),
                     respLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
@@ -388,7 +386,7 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC
             String msgText;
             if (pBuf)
-                Raft::strFromBuffer(pBuf, bufLen, msgText);
+                msgText = String(pBuf, bufLen);
 			LOG_I(MODULE_PREFIX, "onWebSocketEvent connId %d rx text len %i content %s",
                     _reqParams.connId, bufLen, msgText.c_str());
 #endif
