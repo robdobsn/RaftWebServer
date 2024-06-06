@@ -360,7 +360,7 @@ void WebServer::webSocketSetup()
 
             // Debug
 #ifdef DEBUG_WEBSERVER_WEBSOCKETS
-            LOG_I(MODULE_PREFIX, "webSocketSetup prefix %s wsName %s protocol %s maxConn channelID %d", 
+            LOG_I(MODULE_PREFIX, "webSocketSetup prefix %s wsName %s protocol %s maxConn %d channelID %d", 
                         interfaceName.c_str(), 
                         wsName.c_str(),
                         protocol.c_str(), 

@@ -81,7 +81,7 @@ RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& 
 #endif
 
     // Check for WS prefix
-    if (!requestHeader.URL.startsWith(_wsPath))
+    if (!requestHeader.URL.equals(_wsPath))
     {
 #ifdef DEBUG_WEB_HANDLER_WS        
         LOG_I(MODULE_PREFIX, "getNewResponder unmatched ws req %s != expected %s", 
