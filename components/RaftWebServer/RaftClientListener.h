@@ -12,6 +12,8 @@
 #include <functional>
 #include "RaftClientConnBase.h"
 
+#define RAFT_WEB_CONN_ENABLE_SSL
+
 // Callback for new connection
 typedef std::function<bool(RaftClientConnBase* pClientConn)> RaftWebNewConnCBType;
 

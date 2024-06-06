@@ -25,10 +25,9 @@ static const char *MODULE_PREFIX = "RaftClientConnSockets";
 // #define DEBUG_SOCKET_SEND_VERBOSE
 // #define DEBUG_TIME_RECV_FN_SLOW_US 1000
 
-RaftClientConnSockets::RaftClientConnSockets(int client, bool traceConn)
+RaftClientConnSockets::RaftClientConnSockets(int client, esp_tls* pTLS, bool traceConn) :
+    _client(client), _pTLS(pTLS), _traceConn(traceConn)
 {
-    _client = client;
-    _traceConn = traceConn;
 }
 
 RaftClientConnSockets::~RaftClientConnSockets()
@@ -42,6 +41,10 @@ RaftClientConnSockets::~RaftClientConnSockets()
 #else
         LOG_I(MODULE_PREFIX, "RaftClientConnSockets CLOSED client connId %d", _client);
 #endif
+    }
+    if (_pTLS)
+    {
+        esp_tls_conn_destroy(_pTLS);
     }
     shutdown(_client, SHUT_RDWR);
     delay(20);
@@ -95,14 +98,14 @@ RaftWebConnSendRetVal RaftClientConnSockets::canSend()
     return RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
 }
 
-RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen,   
+RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen,
                         uint32_t maxRetryMs, uint32_t& bytesWritten)
 {
     // Check active
     bytesWritten = 0;
     if (!isActive())
     {
-        LOG_W(MODULE_PREFIX, "write conn %d isActive FALSE", getClientId());
+        LOG_W(MODULE_PREFIX, "sendDataBuffer conn %d isActive FALSE", getClientId());
         return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     }
 
@@ -113,7 +116,16 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
     uint32_t startMs = millis();
     while (true)
     {
-        int rslt = send(_client, pBuf, bufLen, 0);
+        int rslt = 0;
+        if (_pTLS)
+        {
+            rslt = esp_tls_conn_write(_pTLS, pBuf, bufLen);
+        }
+        else
+        {
+            rslt = send(_client, pBuf, bufLen, 0);
+        }
+
         int opErrno = errno;
 
 #ifdef DEBUG_SOCKET_SEND_VERBOSE
@@ -124,7 +136,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
 
         if (rslt < 0)
         {
-            if ((opErrno == EAGAIN) || (opErrno == EINPROGRESS))
+            if ((opErrno == EAGAIN) || (opErrno == EINPROGRESS) || (rslt == ESP_TLS_ERR_SSL_WANT_READ) || (rslt == ESP_TLS_ERR_SSL_WANT_WRITE))
             {
                 if ((maxRetryMs == 0) || Raft::isTimeout(millis(), startMs, maxRetryMs))
                 {
@@ -157,7 +169,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                 continue;
             }
 #ifdef WARN_SOCKET_SEND_FAIL
-            LOG_W(MODULE_PREFIX, "sendDataBuffer failed errno error %d conn %d bufLen %d totalMs %d", 
+            LOG_W(MODULE_PREFIX, "sendDataBuffer failed errno %d conn %d bufLen %d totalMs %d", 
                         opErrno, getClientId(), bufLen, Raft::timeElapsed(millis(), startMs));
 #endif
             return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
@@ -197,10 +209,55 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
 #ifdef DEBUG_TIME_RECV_FN_SLOW_US
     uint64_t startUs = micros();
 #endif
+
+    if (_pTLS)
+    {
+        dataBuf.resize(WEB_CONN_MAX_RX_BUFFER);
+        int32_t bufLen = esp_tls_conn_read(_pTLS, dataBuf.data(), dataBuf.size());
+
+        if (bufLen < 0)
+        {
+            dataBuf.clear();
+            RaftClientConnRslt connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_OK;
+            switch(errno)
+            {
+                case ESP_TLS_ERR_SSL_WANT_READ:
+                case ESP_TLS_ERR_SSL_WANT_WRITE:
+                case EWOULDBLOCK:
+                case EINPROGRESS:
+                    break;
+                default:
+                    LOG_W(MODULE_PREFIX, "getDataStart read error %d", errno);
+                    connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;
+                    break;
+            }
+            getDataEnd();
+            return connRslt;
+        }
+        
+        if (bufLen == 0)
+        {
+            dataBuf.clear();
+            LOG_W(MODULE_PREFIX, "getDataStart read conn closed %d", errno);
+            getDataEnd();
+            return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
+        }
+
+#ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
+        _bytesRead += bufLen;
+        _lastAccessTimeMs = millis();
+#endif
+
+        dataBuf.resize(bufLen);
+        return RaftClientConnRslt::CLIENT_CONN_RSLT_OK;        
+    }
+    else
+    {
+        // Use original recv method for non-TLS connections
 #ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
-    int32_t bufLen = recv(_client, _rxDataBuf.data(), _rxDataBuf.size(), MSG_DONTWAIT);
+        int32_t bufLen = recv(_client, _rxDataBuf.data(), _rxDataBuf.size(), MSG_DONTWAIT);
 #else
-    int32_t bufLen = recv(_client, dataBuf.data(), dataBuf.size(), MSG_DONTWAIT);
+        int32_t bufLen = recv(_client, dataBuf.data(), dataBuf.size(), MSG_DONTWAIT);
 #endif
 #ifdef DEBUG_TIME_RECV_FN_SLOW_US
     uint32_t elapsedUs = micros() - startUs;
@@ -208,48 +265,47 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
         LOG_I(MODULE_PREFIX, "getDataStart recv took %dus", (int)elapsedUs);
 #endif
 
-    // Error handling
-    if (bufLen < 0)
-    {
-        dataBuf.clear();
-        RaftClientConnRslt connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_OK;
-        switch(errno)
+        if (bufLen < 0)
         {
-            case EWOULDBLOCK:
-            case EINPROGRESS:
-                break;
-            default:
-                LOG_W(MODULE_PREFIX, "service read error %d", errno);
-                connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;
-                break;
+            dataBuf.clear();
+            RaftClientConnRslt connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_OK;
+            switch(errno)
+            {
+                case EWOULDBLOCK:
+                case EINPROGRESS:
+                    break;
+                default:
+                    LOG_W(MODULE_PREFIX, "getDataStart read error %d", errno);
+                    connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;
+                    break;
+            }
+            getDataEnd();
+            return connRslt;
         }
-        getDataEnd();
-        return connRslt;
-    }
-    
-    // Check for connection closed
-    if (bufLen == 0)
-    {
-        dataBuf.clear();
-        LOG_W(MODULE_PREFIX, "service read conn closed %d", errno);
-        getDataEnd();
-        return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
-    }
+        
+        if (bufLen == 0)
+        {
+            dataBuf.clear();
+            LOG_W(MODULE_PREFIX, "getDataStart read conn closed %d", errno);
+            getDataEnd();
+            return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
+        }
 
-    // Stats
+        // Stats
 #ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
-    _bytesRead += bufLen;
-    _lastAccessTimeMs = millis();
+        _bytesRead += bufLen;
+        _lastAccessTimeMs = millis();
 #endif
 
-    // Return received data
+        // Return received data
 #ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
-    dataBuf.assign(_rxDataBuf.data(), _rxDataBuf.data() + bufLen);
+        dataBuf.assign(_rxDataBuf.data(), _rxDataBuf.data() + bufLen);
 #else
-    dataBuf.resize(bufLen);
+        dataBuf.resize(bufLen);
 #endif
 
-    return RaftClientConnRslt::CLIENT_CONN_RSLT_OK;
+        return RaftClientConnRslt::CLIENT_CONN_RSLT_OK;
+    }
 }
 
 void RaftClientConnSockets::getDataEnd()

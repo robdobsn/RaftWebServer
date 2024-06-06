@@ -14,6 +14,7 @@
 #include "ArduinoTime.h"
 #include "lwip/api.h"
 #include "lwip/sockets.h"
+#include "esp_tls.h"
 
 static const char *MODULE_PREFIX = "RaftClientListener";
 
@@ -22,9 +23,36 @@ static const char *MODULE_PREFIX = "RaftClientListener";
 #define WARN_ON_LISTENER_ERROR
 // #define DEBUG_NEW_CONNECTION
 
+esp_tls_cfg_server_t configure_tls()
+{
+    // Define your CA certificate here
+    extern const uint8_t server_cert_pem_start[] asm("_binary_server_cert_pem_start");
+    extern const uint8_t server_cert_pem_end[] asm("_binary_server_cert_pem_end");
+    extern const uint8_t server_key_pem_start[] asm("_binary_server_key_pem_start");
+    extern const uint8_t server_key_pem_end[] asm("_binary_server_key_pem_end");
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    esp_tls_cfg_server_t cfg = {
+        .cacert_buf = server_cert_pem_start,
+        .cacert_bytes = (unsigned int) (server_cert_pem_end - server_cert_pem_start),
+        .servercert_buf = server_cert_pem_start,
+        .servercert_bytes = (unsigned int) (server_cert_pem_end - server_cert_pem_start),
+        .serverkey_buf = server_key_pem_start,
+        .serverkey_bytes = (unsigned int) (server_key_pem_end - server_key_pem_start),
+    };
+#pragma GCC diagnostic pop
+    return cfg;
+}
+
 void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
 {
-
+    // Get the TLS configuration
+    esp_tls_cfg_server_t tlsConfig = configure_tls();
+    
+    // TODO fixx this
+    bool enableTLS = false;
+    
     // Loop forever
     while (1)
     {
@@ -126,7 +154,8 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
             {
                 // Clear error count
                 consecErrorCount = 0;
-    #ifdef DEBUG_NEW_CONNECTION
+
+#ifdef DEBUG_NEW_CONNECTION
                 {
                     char ipAddrStr[INET6_ADDRSTRLEN > INET_ADDRSTRLEN ? INET6_ADDRSTRLEN : INET_ADDRSTRLEN] = "";
                     switch(clientInfo.ss_family) {
@@ -147,21 +176,36 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                             listenerSocketId, port, sockClient, ipAddrStr);
                 }
                 static const bool TRACE_CONN = true;
-    #else
+#else
                 static const bool TRACE_CONN = false;
-    #endif
+#endif
 
-                // Construct an RaftClientConnSockets object
-                RaftClientConnBase* pClientConn = new RaftClientConnSockets(sockClient, TRACE_CONN);
+                // Check TLS
+                esp_tls_t *pTLS = nullptr;
+                if (enableTLS)
+                {
+                    // Initialize TLS connection
+                    pTLS = esp_tls_init();
+                    if (esp_tls_server_session_create(&tlsConfig, sockClient, pTLS) != 0)
+                    {
+                        LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d port %d) TLS connection failed", listenerSocketId, port);
+                        esp_tls_conn_destroy(pTLS);
+                        close(sockClient);
+                        continue;
+                    }
+                }
+
+                // Construct an RaftClientConnSockets object with TLS
+                RaftClientConnBase* pClientConn = new RaftClientConnSockets(sockClient, pTLS, TRACE_CONN);
 
                 // Hand off the connection to the connection manager via a callback
                 if (!(_handOffNewConnCB && _handOffNewConnCB(pClientConn)))
                 {
                     // Debug
-    #ifdef DEBUG_NEW_CONNECTION
+#ifdef DEBUG_NEW_CONNECTION
                     LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED connId %d pClient %p", 
                         listenerSocketId, port, sockClient, pClientConn);
-    #endif
+#endif
                     // No room so delete (which closes the connection)
                     delete pClientConn;
                 }
@@ -169,16 +213,15 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                 {
 
                     // Debug
-    #ifdef DEBUG_NEW_CONNECTION
+#ifdef DEBUG_NEW_CONNECTION
                     LOG_I(MODULE_PREFIX, "listen (listenerSocketId %d port %d) NEW CONN ACCEPTED connId %d pClient %p", 
                         listenerSocketId, port, sockClient, pClientConn);
-    #endif
+#endif
                 }
             }
         }
 
         // Listener exited
-        // shutdown(listenerSocketId, 0);
         close(listenerSocketId);
         LOG_E(MODULE_PREFIX,"socketListenerTask (listenerSocketId %d port %d) listener stopped", listenerSocketId, port);
 

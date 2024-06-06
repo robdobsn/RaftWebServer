@@ -9,6 +9,7 @@
 #pragma once
 
 #include "RaftClientConnBase.h"
+#include "esp_tls.h"
 
 #define RD_CLIENT_CONN_SOCKETS_CONN_STATS
 // #define RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
@@ -16,7 +17,7 @@
 class RaftClientConnSockets : public RaftClientConnBase
 {
 public:
-    RaftClientConnSockets(int client, bool traceConn);
+    RaftClientConnSockets(int client, esp_tls_t *pTLS, bool traceConn);
     virtual ~RaftClientConnSockets();
 
     // Client ID
@@ -41,6 +42,7 @@ public:
 
 private:
     int _client = -1;
+    esp_tls_t *_pTLS = nullptr;
     bool _traceConn = false;
 
 #ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
