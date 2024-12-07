@@ -140,32 +140,33 @@ void RaftWebResponderWS::loop()
 // Handle inbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderWS::handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
+bool RaftWebResponderWS::handleInboundData(const SpiramAwareUint8Vector& data)
 {
 #ifdef DEBUG_RESPONDER_WS
 #ifdef DEBUG_WS_SEND_APP_DATA_DETAIL
     if (_isBinary)
     {
         String outStr;
-        Raft::getHexStrFromBytes(pBuf, dataLen < MAX_DEBUG_BIN_HEX_LEN ? dataLen : MAX_DEBUG_BIN_HEX_LEN, outStr);
+        Raft::getHexStr(data, outStr, "", 0, MAX_DEBUG_BIN_HEX_LEN);
         LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d %s%s",
-                    _reqParams.connId, dataLen, outStr.c_str(),
-                    dataLen < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
+                    _reqParams.connId, data.size(), outStr.c_str(),
+                    data.size() < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
     }
     else
     {
-        String outStr(pBuf, dataLen < MAX_DEBUG_TEXT_STR_LEN ? dataLen : MAX_DEBUG_TEXT_STR_LEN);
+        String outStr(data.data(), data.size() < MAX_DEBUG_TEXT_STR_LEN ? data.size() : MAX_DEBUG_TEXT_STR_LEN);
         LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d %s%s",
-                    _reqParams.connId, dataLen, outStr.c_str(),
-                    dataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
+                    _reqParams.connId, data.size(), outStr.c_str(),
+                    data.size() < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
     }
 #else
-    LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d", _reqParams.connId, dataLen);
+    LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d", _reqParams.connId, data.size());
 #endif
 #endif
 
     // Handle it with link
-    _webSocketLink.handleRxData(pBuf, dataLen);
+    // TODO - refactor
+    _webSocketLink.handleRxData(data);
 
     // Check if the link is still active
     if (!_webSocketLink.isActive())
@@ -207,39 +208,41 @@ bool RaftWebResponderWS::responseAvailable()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get response next
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t RaftWebResponderWS::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
+/// @brief Get next response data
+/// @param maxLen Maximum length to return
+/// @return Response data
+SpiramAwareUint8Vector RaftWebResponderWS::getResponseNext(uint32_t maxLen)
 {
-    // Get from the WSLink
-    uint32_t respLen = _webSocketLink.getTxData(pBuf, bufMaxLen);
-
     // Done response
 #ifdef DEBUG_RESPONDER_WS
-    if (respLen > 0) {
+    // Get from the WSLink
+    SpiramAwareUint8Vector respData = _webSocketLink.getTxData(maxLen);
+    if (respData.size() > 0) {
 #ifdef DEBUG_WS_SEND_APP_DATA_DETAIL
     if (_isBinary)
     {
         String outStr;
-        Raft::getHexStrFromBytes(pBuf, respLen < MAX_DEBUG_BIN_HEX_LEN ? respLen : MAX_DEBUG_BIN_HEX_LEN, outStr);
+        Raft::getHexStr(respData, outStr, "", 0, MAX_DEBUG_BIN_HEX_LEN);
         LOG_I(MODULE_PREFIX, "getResponseNext connId %d isActive %d len %d %s%s",
-                    _reqParams.connId, _isActive, respLen, outStr.c_str(),
-                    respLen < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
+                    _reqParams.connId, _isActive, respData.size(), outStr.c_str(),
+                    respData.size() < MAX_DEBUG_BIN_HEX_LEN ? "" : " ...");
     }
     else
     {
-        String outStr(pBuf, respLen < MAX_DEBUG_TEXT_STR_LEN ? respLen : MAX_DEBUG_TEXT_STR_LEN);
+        String outStr(pBuf, respData.size() < MAX_DEBUG_TEXT_STR_LEN ? respData.size() : MAX_DEBUG_TEXT_STR_LEN);
         LOG_I(MODULE_PREFIX, "getResponseNext connId %d isActive %d len %d %s%s",
-                    _reqParams.connId, _isActive, respLen, outStr.c_str(),
-                    respLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
+                    _reqParams.connId, _isActive, respData.size(), outStr.c_str(),
+                    respData.size() < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
     }
 #else
-    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respLen, _isActive);
+    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respData.size(), _isActive);
 #endif
     }
+    return respData;
 #endif
-    return respLen;
+
+    // Get from the WSLink
+    return _webSocketLink.getTxData(maxLen);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -382,7 +385,11 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
         {
             // Handle the inbound message
             if (_inboundMsgCB && (pBuf != NULL))
-                _inboundMsgCB(_channelID, (uint8_t*) pBuf, bufLen);
+            {
+                // TODO - refactor
+                SpiramAwareUint8Vector msg(pBuf, pBuf+bufLen);
+                _inboundMsgCB(_channelID, msg);
+            }
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC
             String msgText;
             if (pBuf)
@@ -396,7 +403,10 @@ void RaftWebResponderWS::onWebSocketEvent(RaftWebSocketEventCode eventCode, cons
         {
             // Handle the inbound message
             if (_inboundMsgCB && (pBuf != NULL))
-                _inboundMsgCB(_channelID, (uint8_t*) pBuf, bufLen);
+            {
+                // TODO - refactor
+                _inboundMsgCB(_channelID, SpiramAwareUint8Vector(pBuf, pBuf+bufLen));
+            }
 #ifdef DEBUG_WEBSOCKETS_TRAFFIC
 			LOG_I(MODULE_PREFIX, "onWebSocketEvent rx binary len %i", bufLen);
 #endif

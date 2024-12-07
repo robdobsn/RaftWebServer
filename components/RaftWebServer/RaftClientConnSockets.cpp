@@ -95,7 +95,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::canSend()
     return RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
 }
 
-RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen,   
+RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const SpiramAwareUint8Vector& buf,   
                         uint32_t maxRetryMs, uint32_t& bytesWritten)
 {
     // Check active
@@ -113,13 +113,13 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
     uint32_t startMs = millis();
     while (true)
     {
-        int rslt = send(_client, pBuf, bufLen, 0);
+        int rslt = send(_client, buf.data(), buf.size(), 0);
         int opErrno = errno;
 
 #ifdef DEBUG_SOCKET_SEND_VERBOSE
         // Debug
         LOG_I(MODULE_PREFIX, "sendDataBuffer bufLen %d rslt %d errno %s elapsed %duS", 
-                    bufLen, rslt, rslt < 0 ? String(opErrno).c_str() : "N/A", (int) Raft::timeElapsed(micros(), startUs));
+                    buf.size(), rslt, rslt < 0 ? String(opErrno).c_str() : "N/A", (int) Raft::timeElapsed(micros(), startUs));
 #endif
 
         if (rslt < 0)
@@ -132,11 +132,11 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                     {
 #ifdef WARN_SOCKET_SEND_FAIL
                         LOG_W(MODULE_PREFIX, "sendDataBuffer EAGAIN timed-out conn %d bufLen %d retry %dms", 
-                                        getClientId(), bufLen, maxRetryMs);
+                                        getClientId(), buf.size(), maxRetryMs);
 #else
 #ifdef DEBUG_SOCKET_EAGAIN
                         LOG_I(MODULE_PREFIX, "sendDataBuffer EAGAIN timed-out conn %d bufLen %d retry %dms", 
-                                        getClientId(), bufLen, maxRetryMs);
+                                        getClientId(), buf.size(), maxRetryMs);
 #endif
 #endif
                     }
@@ -144,21 +144,21 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                     {
 #ifdef DEBUG_SOCKET_EAGAIN
                         LOG_I(MODULE_PREFIX, "sendDataBuffer EAGAIN returning conn %d bufLen %d retry %dms", 
-                                        getClientId(), bufLen, maxRetryMs);
+                                        getClientId(), buf.size(), maxRetryMs);
 #endif
                     }
                     return RaftWebConnSendRetVal::WEB_CONN_SEND_EAGAIN;
                 }
 #ifdef DEBUG_SOCKET_EAGAIN
                 LOG_I(MODULE_PREFIX, "sendDataBuffer failed errno %d conn %d bufLen %d retrying for %dms", 
-                                opErrno, getClientId(), bufLen, maxRetryMs);
+                                opErrno, getClientId(), buf.size(), maxRetryMs);
 #endif
                 vTaskDelay(1);
                 continue;
             }
 #ifdef WARN_SOCKET_SEND_FAIL
             LOG_W(MODULE_PREFIX, "sendDataBuffer failed errno error %d conn %d bufLen %d totalMs %d", 
-                        opErrno, getClientId(), bufLen, Raft::timeElapsed(millis(), startMs));
+                        opErrno, getClientId(), buf.size(), Raft::timeElapsed(millis(), startMs));
 #endif
             return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
         }
@@ -169,7 +169,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
 #ifdef DEBUG_SOCKET_SEND
         uint64_t elapsedUs = Raft::timeElapsed(micros(), startUs);
         LOG_I(MODULE_PREFIX, "sendDataBuffer ok conn %d bufLen %d bytesWritten %d took %duS",
-                    getClientId(), bufLen, bytesWritten, (int)elapsedUs);
+                    getClientId(), buf.size(), bytesWritten, (int)elapsedUs);
 #endif
 
         // Update stats
@@ -183,7 +183,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
     }
 }
 
-RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf)
+RaftClientConnRslt RaftClientConnSockets::getDataStart(SpiramAwareUint8Vector& dataBuf)
 {
     // End any current data operation
     getDataEnd();

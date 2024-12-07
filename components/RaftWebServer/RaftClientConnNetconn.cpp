@@ -32,7 +32,7 @@ void RaftClientConnNetconn::setup(bool blocking)
        netconn_set_recvtimeout(_client, 1);
 }
 
-RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
+RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const SpiramAwareUint8Vector& buf, 
             uint32_t maxRetryMs, uint32_t& bytesWritten)
 {
     // Check active
@@ -42,7 +42,7 @@ RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf,
         return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     }
 
-    esp_err_t err = netconn_write(_client, pBuf, bufLen, NETCONN_COPY);
+    esp_err_t err = netconn_write(_client, buf.data(), buf.size(), NETCONN_COPY);
     if (err != ERR_OK)
     {
         LOG_W(MODULE_PREFIX, "write failed err %s (%d) connClient %d",
@@ -51,7 +51,7 @@ RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf,
     return (err = ERR_OK) ? RaftWebConnSendRetVal::WEB_CONN_SEND_OK : RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
 }
 
-RaftClientConnRslt RaftClientConnNetconn::getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf)
+RaftClientConnRslt RaftClientConnNetconn::getDataStart(SpiramAwareUint8Vector& dataBuf)
 {
     // End any current data operation
     getDataEnd();

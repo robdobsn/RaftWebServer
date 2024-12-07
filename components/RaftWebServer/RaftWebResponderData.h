@@ -36,7 +36,7 @@ public:
     }
 
     // Handle inbound data
-    virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen) override final
+    virtual bool handleInboundData(const SpiramAwareUint8Vector& data) override final
     {
         return true;
     }
@@ -50,8 +50,10 @@ public:
         return _isActive;
     }
 
-    // Get response next
-    virtual uint32_t getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen) override final
+    /// @brief Get next response data
+    /// @param maxLen Maximum length to return
+    /// @return Response data
+    virtual SpiramAwareUint8Vector getResponseNext(uint32_t bufMaxLen) override final
     {
         uint32_t lenToCopy = _dataLength - _curDataPos;
         if (lenToCopy > bufMaxLen)
@@ -62,14 +64,14 @@ public:
             LOG_I("WebRespData", "getResponseNext NOTHING TO RETURN");
 #endif
             _isActive = false;
-            return 0;
+            return SpiramAwareUint8Vector();
         }
 #ifdef DEBUG_STATIC_DATA_RESPONDER
         LOG_I("WebRespData", "getResponseNext pos %d totalLen %d lenToCopy %d isActive %d ptr %x", 
                     _curDataPos, _dataLength, lenToCopy, _isActive, _pData);
 #endif
-        pBuf = _pData + _curDataPos;
-        _curDataPos += dataLenSent;
+        SpiramAwareUint8Vector respData(_pData + _curDataPos, lenToCopy);
+        _curDataPos += lenToCopy;
         if (_curDataPos >= _dataLength)
         {
             _isActive = false;
@@ -79,7 +81,7 @@ public:
         LOG_I("WebRespData", "getResponseNext returning %d curPos %d isActive %d", 
                     lenToCopy, _curDataPos, _isActive);
 #endif
-        return lenToCopy;
+        return respData;
     }
 
     // Get content type

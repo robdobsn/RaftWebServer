@@ -124,52 +124,52 @@ void RaftWebSocketLink::upgradeReceived(const String &wsKey, const String &wsVer
 // Handle incoming data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
+void RaftWebSocketLink::handleRxData(const SpiramAwareUint8Vector& msg)
 {
     static const uint8_t UPGRADE_REQ_TEXT[] = "Upgrade: websocket\r\n";
     static const uint8_t UPGRADE_REQ_KEY[] = "Sec-WebSocket-Key: ";
     static const uint8_t HTTP_EOL_STR[] = "\r\n";
+    uint32_t bufPos = 0;
     // If we don't yet have an upgrade request
     if (!_upgradeReqReceived)
     {
         // Check for header
-        if (Raft::findInBuf(pBuf, bufLen, UPGRADE_REQ_TEXT, sizeof(UPGRADE_REQ_TEXT)) < 0)
+        if (Raft::findInBuf(msg, bufPos, UPGRADE_REQ_TEXT, sizeof(UPGRADE_REQ_TEXT)) < 0)
             return;
 
         // Check for upgrade key
-        int keyPos = Raft::findInBuf(pBuf, bufLen, UPGRADE_REQ_KEY, sizeof(UPGRADE_REQ_KEY));
+        int keyPos = Raft::findInBuf(msg, bufPos, UPGRADE_REQ_KEY, sizeof(UPGRADE_REQ_KEY));
         if (keyPos < 0)
             return;
         keyPos += sizeof(UPGRADE_REQ_TEXT);
 
         // Find key length
-        int keyLen = Raft::findInBuf(pBuf + keyPos, bufLen - keyPos, HTTP_EOL_STR, sizeof(HTTP_EOL_STR));
+        int keyLen = Raft::findInBuf(msg, keyPos, HTTP_EOL_STR, sizeof(HTTP_EOL_STR));
         if (keyLen < 0)
             return;
 
         // Extract key
-        _wsKey = String(pBuf + keyPos, keyLen);
+        _wsKey = String(msg.data() + keyPos, keyLen);
         _upgradeReqReceived = true;
 
         // Continue with any excess data
-        if (keyPos + keyLen >= bufLen)
+        if (keyPos + keyLen >= msg.size())
             return;
-        pBuf += keyPos + keyLen;
-        bufLen -= (keyPos + keyLen);
+        bufPos = keyPos + keyLen;
 
 #ifdef WARN_WEBSOCKET_EXCESS_DATA_AFTER_UPGRADE
-        LOG_W(MODULE_PREFIX, "handleRxData excessDataAfter ws upgrade len %d", bufLen);
+        LOG_W(MODULE_PREFIX, "handleRxData excessDataAfter ws upgrade len %d", msg.size() - bufPos);
 #endif
     }
 
     // Check if any data already received
     if (_rxDataToProcess.size() > 0)
     {
-        if (_rxDataToProcess.size() + bufLen > MAX_WS_MESSAGE_SIZE + 50)
+        if (_rxDataToProcess.size() + (msg.size() - bufPos) > MAX_WS_MESSAGE_SIZE + 50)
         {
 #ifdef WARN_WEBSOCKET_DATA_DISCARD_AS_EXCEEDS_MSG_SIZE
         LOG_W(MODULE_PREFIX, "handleRxData discard as exceeds max stashed %d len %d max %d", 
-                _rxDataToProcess.size(), bufLen, MAX_WS_MESSAGE_SIZE);
+                _rxDataToProcess.size(), msg.size() - bufPos, MAX_WS_MESSAGE_SIZE);
 #endif
             _rxDataToProcess.clear();
         }
@@ -189,14 +189,11 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
                     _rxDataToProcess.size() < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
 #endif
             //_rxDataToProcess.insert(_rxDataToProcess.end(), pBuf, pBuf+bufLen);
-            uint32_t curSize = _rxDataToProcess.size();
-            _rxDataToProcess.resize(curSize + bufLen);
-            memcpy(_rxDataToProcess.data()+curSize, pBuf, bufLen);
-            pBuf = _rxDataToProcess.data();
-            bufLen = _rxDataToProcess.size();
+            _rxDataToProcess.insert(_rxDataToProcess.end(), msg.data() + bufPos, msg.data() + msg.size());
+
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
             String dataToProc;
-            Raft::getHexStrFromBytes(_rxDataToProcess.data(), 
+            Raft::getHexStr(_rxDataToProcess.data(), 
                     _rxDataToProcess.size() < MAX_DEBUG_BIN_HEX_LEN ? _rxDataToProcess.size() : MAX_DEBUG_BIN_HEX_LEN, 
                     dataToProc);
             LOG_I(MODULE_PREFIX, "handleRxData agg dataToProc len %d data %s%s", 
@@ -207,18 +204,16 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
     }
 
     // Handle packets
-    while(bufLen > 0)
+    while(bufPos < msg.size())
     {
-        int32_t dataConsumed = handleRxPacketData(pBuf, bufLen);
+        int32_t dataConsumed = handleRxPacketData(msg, bufPos);
 #ifdef DEBUG_WEBSOCKET_DATA_PROCESSING
-        LOG_I(MODULE_PREFIX, "handleRxData consumed %d bufLen %d", dataConsumed, bufLen);
+        LOG_I(MODULE_PREFIX, "handleRxData consumed %d remainLen %d", dataConsumed, msg.size() - bufPos);
 #endif
         if (dataConsumed == 0)
         {
             // Store residual data (needs to use temp store as it may be copying part of itself)
-            std::vector<uint8_t> tmpData;
-            tmpData.assign(pBuf, pBuf+bufLen);
-            _rxDataToProcess.assign(tmpData.data(), tmpData.data()+tmpData.size());
+            _rxDataToProcess.assign(msg.data() + bufPos, msg.data() + msg.size());
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING
             LOG_I(MODULE_PREFIX, "handleRxData storing residual now stashed %d", _rxDataToProcess.size());
 #endif
@@ -233,18 +228,17 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 #endif
             break;
         }
-        if (dataConsumed >= bufLen)
+        if (dataConsumed >= msg.size() - bufPos)
         {
             // Clear any residual data
             _rxDataToProcess.clear();
             break;
         }
-        pBuf += dataConsumed;
-        bufLen -= dataConsumed;
+        bufPos += dataConsumed;
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
         String nextDataStr;
-        Raft::getHexStrFromBytes(pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, nextDataStr);
-        LOG_I(MODULE_PREFIX, "handleRxData nextData len %d data %s%s", bufLen, nextDataStr.c_str(),
+        Raft::getHexStr(msg, pBuf, bufLen < MAX_DEBUG_BIN_HEX_LEN ? bufLen : MAX_DEBUG_BIN_HEX_LEN, nextDataStr);
+        LOG_I(MODULE_PREFIX, "handleRxData nextData remainLen %d data %s%s", msg.size()-bufPos, nextDataStr.c_str(),
                 bufLen < MAX_DEBUG_BIN_HEX_LEN ? "" : "...");
 #endif
     }
@@ -260,10 +254,9 @@ bool RaftWebSocketLink::isTxDataAvailable()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get data to tx
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
+/// @brief Get data to tx
+/// @param maxLen Maximum length to return
+SpiramAwareUint8Vector RaftWebSocketLink::getTxData(uint32_t maxLen)
 {
     // Check if upgrade received but no response yet sent
     if (!_upgradeRespSent && _upgradeReqReceived)
@@ -275,14 +268,9 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
         _pingTimeLastMs = millis();
 
         // Form the upgrade response
-        _wsUpgradeResponse = formUpgradeResponse(_wsKey, _wsVersion, bufMaxLen);
-        pBuf = (uint8_t*)_wsUpgradeResponse.c_str();
-        return _wsUpgradeResponse.length();
+        return formUpgradeResponse(_wsKey, _wsVersion, maxLen);
     }
-
-    // Other comms on the link is done through _rawConnSendFn
-    _wsUpgradeResponse.clear();
-    return 0;
+    return SpiramAwareUint8Vector();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -317,7 +305,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     }
 
     // Buffer
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frameBuffer(frameLen);
+    SpiramAwareUint8Vector frameBuffer(frameLen);
 
     // Setup header
     frameBuffer[0] = 0x80 | opCode;
@@ -374,7 +362,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
 #endif
     RaftWebConnSendRetVal sendRetc = RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     if (_rawConnSendFn)
-        sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
+        sendRetc = _rawConnSendFn(frameBuffer, MAX_WS_SEND_RETRY_MS);
 
 #ifdef DEBUG_WEBSOCKET_LINK_SEND
     uint64_t timeTakenUs = micros() - timeNowUs;
@@ -387,10 +375,12 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Form response to upgrade connection
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-String RaftWebSocketLink::formUpgradeResponse(const String &wsKey, const String &wsVersion, uint32_t bufMaxLen)
+/// @brief Form response to upgrade connection
+/// @param wsKey Key from request
+/// @param wsVersion Version from request
+/// @param bufMaxLen Maximum length of buffer
+/// @return Response
+SpiramAwareUint8Vector RaftWebSocketLink::formUpgradeResponse(const String &wsKey, const String &wsVersion, uint32_t bufMaxLen)
 {
     // Response with magic code
     String respStr =
@@ -407,7 +397,7 @@ String RaftWebSocketLink::formUpgradeResponse(const String &wsKey, const String 
 #endif
 
     // Return
-    return respStr;
+    return SpiramAwareUint8Vector(respStr.c_str(), respStr.c_str() + respStr.length());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -444,17 +434,19 @@ String RaftWebSocketLink::genMagicResponse(const String &wsKey, const String &ws
 // Returns amount of data consumed (0 if header is not complete yet or not enough data for entire block)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t bufLen)
+uint32_t RaftWebSocketLink::handleRxPacketData(const SpiramAwareUint8Vector& msg, uint32_t bufPos)
 {
     // Extract header
-    extractWSHeaderInfo(pBuf, bufLen);
+    extractWSHeaderInfo(msg, bufPos);
+
 #ifdef DEBUG_WEBSOCKET_RX_DETAIL
     String outStr;
-    Raft::getHexStrFromBytes(pBuf, bufLen, outStr);
-    LOG_I(MODULE_PREFIX, "handleRxPacketData header len %lld dataPos %d bufLen %d data %s", 
-                _wsHeader.len, _wsHeader.dataPos, bufLen, outStr.c_str());
+    Raft::getHexStr(msg, outStr, "", bufPos, 30);
+    LOG_I(MODULE_PREFIX, "handleRxPacketData header len %d dataPos %d bufLen %d data %s", 
+                (int)_wsHeader.len, _wsHeader.dataPos, msg.size()-bufPos, outStr.c_str());
 #endif
-    if (_wsHeader.dataPos + _wsHeader.len > bufLen)
+
+    if (_wsHeader.dataPos + _wsHeader.len > msg.size()-bufPos)
         return 0;
 
     // Check if we are ignoring (because a frame was too big)
@@ -473,7 +465,7 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
         case WEBSOCKET_OPCODE_TEXT:
         {
             // Get length of data to copy
-            uint32_t copyLen = bufLen - _wsHeader.dataPos;
+            uint32_t copyLen = (msg.size()-bufPos) - _wsHeader.dataPos;
             if (copyLen > _wsHeader.len)
                 copyLen = _wsHeader.len;
             else
@@ -493,8 +485,7 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
                 return _wsHeader.dataPos + _wsHeader.len;             
             }
             // Add the data to any existing
-            _callbackData.resize(curBufSize + copyLen);
-            memcpy(_callbackData.data(), pBuf + _wsHeader.dataPos, copyLen);
+            _callbackData.insert(_callbackData.end(), msg.data() + bufPos + _wsHeader.dataPos, msg.data() + bufPos + _wsHeader.dataPos + copyLen);
             if (_wsHeader.fin)
                 callbackEventCode = _wsHeader.firstFrameOpcode == WEBSOCKET_OPCODE_TEXT ? WEBSOCKET_EVENT_TEXT : WEBSOCKET_EVENT_BINARY;
             break;
@@ -502,12 +493,12 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
         case WEBSOCKET_OPCODE_PING:
         {
             callbackEventCode = WEBSOCKET_EVENT_PING;
-            uint32_t copyLen = bufLen - _wsHeader.dataPos;
+            uint32_t copyLen = (msg.size()-bufPos) - _wsHeader.dataPos;
             if (copyLen > MAX_WS_MESSAGE_SIZE)
                 break;
 
             // Send PONG
-            sendMsg(WEBSOCKET_OPCODE_PONG, pBuf + _wsHeader.dataPos, _wsHeader.len);
+            sendMsg(WEBSOCKET_OPCODE_PONG, msg.data() + bufPos + _wsHeader.dataPos, _wsHeader.len);
 
 #ifdef DEBUG_WEBSOCKET_PING_PONG
             LOG_I(MODULE_PREFIX, "handleRxPacketData Rx PING Tx PONG %lld", _wsHeader.len);
@@ -580,10 +571,10 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
 // Returns block len (or 0 if not enough data yet to read header)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t RaftWebSocketLink::extractWSHeaderInfo(const uint8_t *pBuf, uint32_t bufLen)
+uint32_t RaftWebSocketLink::extractWSHeaderInfo(const SpiramAwareUint8Vector& msg, uint32_t bufPos)
 {
     // Extract header
-    uint32_t blockLen = _wsHeader.extract(pBuf, bufLen);
+    uint32_t blockLen = _wsHeader.extract(msg, bufPos);
 
     // Debug
 #ifdef DEBUG_WEBSOCKET_LINK_HEADER_DETAIL

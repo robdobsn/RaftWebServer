@@ -322,7 +322,7 @@ void WebServer::webSocketSetup()
                 std::bind(&CommsCoreIF::inboundCanAccept, pCommsCore, 
                         std::placeholders::_1),
                 std::bind(&CommsCoreIF::inboundHandleMsg, pCommsCore, 
-                        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
+                        std::placeholders::_1, std::placeholders::_2)
                 );
         if (!pHandler)
             continue;

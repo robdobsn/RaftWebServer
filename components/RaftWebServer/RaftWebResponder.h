@@ -35,7 +35,7 @@ public:
     }
     
     // Handle inbound data
-    virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
+    virtual bool handleInboundData(const SpiramAwareUint8Vector& data)
     {
         return false;
     }
@@ -52,10 +52,12 @@ public:
         return _isActive;
     }
 
-    // Get response next
-    virtual uint32_t getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
+    /// @brief Get next response data
+    /// @param maxLen Maximum length to return
+    /// @return Response data
+    virtual SpiramAwareUint8Vector getResponseNext(uint32_t bufMaxLen)
     {
-        return 0;
+        return SpiramAwareUint8Vector();
     }
 
     // Non-virtual methods

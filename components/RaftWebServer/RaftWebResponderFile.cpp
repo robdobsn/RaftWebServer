@@ -91,22 +91,21 @@ RaftWebResponderFile::~RaftWebResponderFile()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle inbound data
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool RaftWebResponderFile::handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
+/// @brief Handle inbound data
+/// @param data Data
+bool RaftWebResponderFile::handleInboundData(const SpiramAwareUint8Vector& data)
 {
 #ifdef DEBUG_RESPONDER_FILE
     LOG_I(MODULE_PREFIX, "handleInboundData connId %d len %d filePath %s", 
-                _reqParams.connId, dataLen, _filePath.c_str());
+                _reqParams.connId, data.size(), _filePath.c_str());
 #endif
     return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Start responding
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Start responding
+/// @param request Request
+/// @return true if responding
 bool RaftWebResponderFile::startResponding(RaftWebConnection& request)
 {
 #ifdef DEBUG_RESPONDER_FILE_START_END
@@ -118,10 +117,10 @@ bool RaftWebResponderFile::startResponding(RaftWebConnection& request)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get response next
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
+/// @brief Get next response data
+/// @param maxLen Maximum length to return
+/// @return Response data
+SpiramAwareUint8Vector RaftWebResponderFile::getResponseNext(uint32_t maxLen)
 {
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
     uint64_t debugTotalStartUs = micros();
@@ -129,17 +128,16 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
 #endif
 
     uint32_t readLen = 0;
-    _lastChunkData.resize(bufMaxLen);
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
     uint32_t debugChunkDataUs = micros() - debugStartUs;
     debugStartUs = micros();
 #endif
-    if (!_fileChunker.nextRead(_lastChunkData.data(), bufMaxLen, readLen, _isFinalChunk))
+    SpiramAwareUint8Vector nextData = _fileChunker.nextRead(maxLen, _isFinalChunk);
+    if (nextData.size() == 0)
     {
         _isActive = false;
-        _lastChunkData.clear();
         LOG_W(MODULE_PREFIX, "getResponseNext connId %d failed filePath %s", _reqParams.connId, _filePath.c_str());
-        return 0;
+        return nextData;
     }
 
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
@@ -149,10 +147,8 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
 
 #ifdef DEBUG_RESPONDER_FILE_CONTENTS
     LOG_I(MODULE_PREFIX, "getResponseNext connId %d newChunk len %d isActive %d isFinalChunk %d filePos %d filePath %s", 
-                _reqParams.connId, readLen, _isActive, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
+                _reqParams.connId, nextData.size(), _isActive, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
 #endif
-    _lastChunkData.resize(readLen);
-    pBuf = _lastChunkData.data();
 
     // Check if done
     if (_isFinalChunk)
@@ -174,13 +170,12 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
     }
 #endif
 
-    return readLen;
+    return nextData;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get content type
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get content type string
+/// @return Content type
 const char* RaftWebResponderFile::getContentType()
 {
     if (_filePath.endsWith(".html"))
@@ -223,18 +218,15 @@ const char* RaftWebResponderFile::getContentType()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get content length (or -1 if not known)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get content length
+/// @return Content length (or -1 if not known)
 int RaftWebResponderFile::getContentLength()
 {
     return _fileChunker.getFileLen();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Leave connection open
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Leave connection open
 bool RaftWebResponderFile::leaveConnOpen()
 {
     return false;

@@ -32,13 +32,15 @@ public:
     virtual ~RaftWebResponderRestAPI();
 
     // Handle inbound data
-    virtual bool handleInboundData(const uint8_t* pBuf, uint32_t dataLen) override final;
+    virtual bool handleInboundData(const SpiramAwareUint8Vector& data) override final;
 
     // Start responding
     virtual bool startResponding(RaftWebConnection& request) override final;
 
-    // Get response next
-    virtual uint32_t getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen) override final;
+    /// @brief Get next response data
+    /// @param maxLen Maximum length to return
+    /// @return Response data
+    virtual SpiramAwareUint8Vector getResponseNext(uint32_t bufMaxLen) override final;
 
     // Get content type
     virtual const char* getContentType() override final;

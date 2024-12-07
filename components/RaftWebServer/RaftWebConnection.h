@@ -101,7 +101,7 @@ private:
     uint32_t _maxSendBufferBytes;
 
     // Queued data to send
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _socketTxQueuedBuffer;
+    SpiramAwareUint8Vector _socketTxQueuedBuffer;
 
     // Debug
     uint32_t _debugDataRxCount;
@@ -130,16 +130,16 @@ private:
     bool serviceConnHeader(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos);
 
     // Send data to responder
-    bool responderHandleData(const uint8_t* pRxData, uint32_t dataLen, uint32_t& curBufPos, bool doRespond);
+    bool responderHandleData(const SpiramAwareUint8Vector& rxData, uint32_t& curBufPos, bool doRespond);
 
     // Set HTTP response status
     void setHTTPResponseStatus(RaftHttpStatusCode reponseCode);
 
     // Raw send on connection - used by websockets, etc
-    RaftWebConnSendRetVal rawSendOnConn(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs);    
+    RaftWebConnSendRetVal rawSendOnConn(const SpiramAwareUint8Vector& buf, uint32_t maxRetryMs);    
 
     // Header handling
-    bool getStandardHeaders(String& headerStr);
+    SpiramAwareUint8Vector getStandardHeaders();
     bool sendStandardHeaders();
 
     // Handle next chunk of response

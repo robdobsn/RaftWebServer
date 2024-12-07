@@ -17,6 +17,7 @@ extern "C"
 }
 #include "http_parser.h"
 #include "RaftRetCode.h"
+#include "SpiramAwareAllocator.h"
 
 class FileStreamBlock;
 class String;
@@ -180,5 +181,5 @@ typedef std::function<bool(const char* url, RaftWebServerMethod method, RaftWebS
 
 // Websocket support
 typedef std::function<bool(uint32_t channelID)> RaftWebSocketInboundCanAcceptFnType;
-typedef std::function<void(uint32_t channelID, const uint8_t* pBuf, uint32_t bufLen)> RaftWebSocketInboundHandleMsgFnType;
+typedef std::function<void(uint32_t channelID, const SpiramAwareUint8Vector& msg)> RaftWebSocketInboundHandleMsgFnType;
 

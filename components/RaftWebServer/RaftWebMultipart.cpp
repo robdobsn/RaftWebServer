@@ -99,10 +99,10 @@ void RaftWebMultipart::setBoundary(const String &boundaryStr)
 // Handle data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
+RaftRetCode RaftWebMultipart::handleData(const SpiramAwareUint8Vector& data)
 {
     // Debug
-    _debugBytesHandled += bufLen;
+    _debugBytesHandled += data.size();
 
     // Check valid
     if (_parseState == RAFTMULTIPART_ERROR)
@@ -115,7 +115,7 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 
 #ifdef DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
     // Debug
-    String inStr(buffer, bufLen);
+    String inStr(data.data(), data.size());
     LOG_I(MODULE_PREFIX, "DATA START ---------------------------------------\n%s", inStr.c_str());
     LOG_I(MODULE_PREFIX, "DATA END ---------------------------------------");
 #endif
@@ -124,9 +124,9 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
     uint32_t bufPos = 0;
     if (_parseState != RAFTMULTIPART_PART_DATA)
     {
-        while (bufPos < bufLen)
+        while (bufPos < data.size())
         {
-            if (!processHeaderByte(buffer, bufPos, bufLen))
+            if (!processHeaderByte(data.data(), bufPos, data.size()))
             {
                 if (_parseState != RAFTMULTIPART_PART_DATA)
                     _parseState = RAFTMULTIPART_ERROR;
@@ -142,7 +142,7 @@ RaftRetCode RaftWebMultipart::handleData(const uint8_t *buffer, uint32_t bufLen)
 
     // Process any payload
     if (_parseState == RAFTMULTIPART_PART_DATA)
-        processPayload(buffer, bufPos, bufLen);
+        processPayload(data.data(), bufPos, data.size());
 
     if (_parseState == RAFTMULTIPART_ERROR) 
         return RAFT_OTHER_FAILURE;

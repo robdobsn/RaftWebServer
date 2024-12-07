@@ -69,11 +69,11 @@ void RaftWebResponderSSEvents::loop()
 // Handle inbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderSSEvents::handleInboundData(const uint8_t *pBuf, uint32_t dataLen)
+bool RaftWebResponderSSEvents::handleInboundData(const SpiramAwareUint8Vector &data)
 {
 #ifdef DEBUG_RESPONDER_EVENTS
     String outStr(pBuf, dataLen);
-    LOG_I(MODULE_PREFIX, "handleInboundData len %d %s", dataLen, outStr.c_str());
+    LOG_I(MODULE_PREFIX, "handleInboundData len %d %s", data.size(), outStr.c_str());
 #endif
     return true;
 }
@@ -103,52 +103,48 @@ bool RaftWebResponderSSEvents::responseAvailable()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get response next
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t RaftWebResponderSSEvents::getResponseNext(uint8_t *pBuf, uint32_t bufMaxLen)
+/// @brief Get next response data
+/// @param maxLen Maximum length to return
+/// @return Response data
+SpiramAwareUint8Vector RaftWebResponderSSEvents::getResponseNext(uint32_t maxLen)
 {
-    uint32_t respLen = 0;
+    // Response
+    const char SSEVENT_RESPONSE[] =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/event-stream\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Cache-Control: no-cache\r\n"
+        "Connection: keep-alive\r\n"
+        "Accept-Ranges: none\r\n\r\n";
 
     // Check if initial response
     if (_isInitialResponse)
     {
-        // Response for snprintf
-        const char SSEVENT_RESPONSE[] =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/event-stream\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "Cache-Control: no-cache\r\n"
-            "Connection: keep-alive\r\n"
-            "Accept-Ranges: none\r\n\r\n";
-
-        // Reponse string
-        snprintf((char *)pBuf, bufMaxLen, SSEVENT_RESPONSE);
-
         // Response done
         _isInitialResponse = false;
 
         // Debug
 #ifdef DEBUG_RESPONDER_EVENTS
-        LOG_I(MODULE_PREFIX, "getResponseNext isActive %d resp %s", _isActive, (char *)pBuf);
+        LOG_I(MODULE_PREFIX, "getResponseNext isActive %d", _isActive);
 #endif
 
         // Return
-        return strnlen((char *)pBuf, bufMaxLen);
+        return SpiramAwareUint8Vector((const uint8_t *)SSEVENT_RESPONSE, (const uint8_t *)SSEVENT_RESPONSE+strlen(SSEVENT_RESPONSE));
     }
 
+    SpiramAwareUint8Vector respData;
     // TODO - review this
     // // Get
     // uint32_t respLen = _webSocketLink.getTxData(pBuf, bufMaxLen);
 
     // Done response
 #ifdef DEBUG_RESPONDER_EVENTS
-    if (respLen > 0)
+    if (respData.size() > 0)
     {
-        LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respLen, _isActive);
+        LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respData.size(), _isActive);
     }
 #endif
-    return respLen;
+    return respData;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -51,13 +51,13 @@ public:
     virtual RaftWebConnSendRetVal canSend() = 0;
 
     // Write
-    virtual RaftWebConnSendRetVal sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
+    virtual RaftWebConnSendRetVal sendDataBuffer(const SpiramAwareUint8Vector& buf, 
                 uint32_t maxRetryMs, uint32_t& bytesWritten) = 0;
 
     // Setup
     virtual void setup(bool blocking) = 0;
 
     // Data access
-    virtual RaftClientConnRslt getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf) = 0;
+    virtual RaftClientConnRslt getDataStart(SpiramAwareUint8Vector& dataBuf) = 0;
     virtual void getDataEnd() = 0;
 };

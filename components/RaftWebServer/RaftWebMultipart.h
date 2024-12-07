@@ -13,6 +13,7 @@
 #include <functional>
 #include "RaftArduino.h"
 #include "RaftRetCode.h"
+#include "SpiramAwareAllocator.h"
 
 class RaftMultipartForm
 {
@@ -72,7 +73,7 @@ public:
     ~RaftWebMultipart();
     void clear();
     void setBoundary(const String &boundary);
-    RaftRetCode handleData(const uint8_t *pBuf, uint32_t len);
+    RaftRetCode handleData(const SpiramAwareUint8Vector& data);
     bool succeeded() const;
     bool hasError() const;
     bool stopped() const;

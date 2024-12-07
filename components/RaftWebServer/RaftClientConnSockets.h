@@ -29,14 +29,14 @@ public:
     virtual RaftWebConnSendRetVal canSend() override final;
     
     // Send data
-    virtual RaftWebConnSendRetVal sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
+    virtual RaftWebConnSendRetVal sendDataBuffer(const SpiramAwareUint8Vector& buf, 
                         uint32_t maxRetryMs, uint32_t& bytesWritten) override final;
 
     // Setup
     virtual void setup(bool blocking) override final;
 
     // Data access
-    virtual RaftClientConnRslt getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf) override final;
+    virtual RaftClientConnRslt getDataStart(SpiramAwareUint8Vector& dataBuf) override final;
     virtual void getDataEnd() override final;
 
 private:
@@ -45,7 +45,7 @@ private:
 
 #ifdef RAFT_CLIENT_USE_PRE_ALLOCATED_BUFFER_FOR_RX
     // Pre-allocated Rx data buffer
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _rxDataBuf;
+    SpiramAwareUint8Vector _rxDataBuf;
 #endif
 
 #ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS

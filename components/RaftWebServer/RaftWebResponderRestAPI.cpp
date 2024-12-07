@@ -73,19 +73,19 @@ RaftWebResponderRestAPI::~RaftWebResponderRestAPI()
 // Handle inbound data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebResponderRestAPI::handleInboundData(const uint8_t* pBuf, uint32_t dataLen)
+bool RaftWebResponderRestAPI::handleInboundData(const SpiramAwareUint8Vector& data)
 {
     // Record data received so we know when to respond
     uint32_t curBufPos = _numBytesReceived;
-    _numBytesReceived += dataLen;
+    _numBytesReceived += data.size();
 
     // Handle data which may be multipart
     if (_headerExtract.isMultipart)
     {
 #ifdef DEBUG_RESPONDER_REST_API_MULTIPART_DATA
-        LOG_I(MODULE_PREFIX, "handleInboundData multipart len %d", dataLen);
+        LOG_I(MODULE_PREFIX, "handleInboundData multipart len %d", data.size());
 #endif
-        _multipartParser.handleData(pBuf, dataLen);
+        _multipartParser.handleData(data);
 #ifdef DEBUG_RESPONDER_REST_API_MULTIPART_DATA
         LOG_I(MODULE_PREFIX, "handleInboundData multipart finished bytesRx %d contentLen %d", 
                     _numBytesReceived, _headerExtract.contentLength);
@@ -94,11 +94,12 @@ bool RaftWebResponderRestAPI::handleInboundData(const uint8_t* pBuf, uint32_t da
     else
     {
 #ifdef DEBUG_RESPONDER_REST_API_NON_MULTIPART_DATA
-        LOG_I(MODULE_PREFIX, "handleInboundData curPos %d bufLen %d totalLen %d", curBufPos, dataLen, _headerExtract.contentLength);
+        LOG_I(MODULE_PREFIX, "handleInboundData curPos %d bufLen %d totalLen %d", curBufPos, data.size(), _headerExtract.contentLength);
 #endif
+        // TODO - consider if SpiramAwareUint8Vector should be passed to function
         // Send as the body
         if (_endpoint.restApiFnBody)
-            _endpoint.restApiFnBody(_requestStr, pBuf, dataLen, curBufPos, _headerExtract.contentLength, _apiSourceInfo);
+            _endpoint.restApiFnBody(_requestStr, data.data(), data.size(), curBufPos, _headerExtract.contentLength, _apiSourceInfo);
     }
     return true;
 }
@@ -122,10 +123,10 @@ bool RaftWebResponderRestAPI::startResponding(RaftWebConnection& request)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get response next
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t RaftWebResponderRestAPI::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLen)
+/// @brief Get next response data
+/// @param maxLen Maximum length to return
+/// @return Response data
+SpiramAwareUint8Vector RaftWebResponderRestAPI::getResponseNext(uint32_t maxLen)
 {
     // Check if all data received
     if (_numBytesReceived != _headerExtract.contentLength)
@@ -134,12 +135,12 @@ uint32_t RaftWebResponderRestAPI::getResponseNext(uint8_t*& pBuf, uint32_t bufMa
         LOG_I(MODULE_PREFIX, "getResponseNext not all data rx numRx %d contentLen %d", 
                     _numBytesReceived, _headerExtract.contentLength);
 #endif
-        return 0;
+        return SpiramAwareUint8Vector();
     }
 
 #ifdef DEBUG_RESPONDER_REST_API
     LOG_I(MODULE_PREFIX, "getResponseNext maxRespLen %d endpointCalled %d isActive %d", 
-                    bufMaxLen, _endpointCalled, _isActive);
+                    maxLen, _endpointCalled, _isActive);
 #endif
 
     // Check if we need to call API
@@ -152,34 +153,41 @@ uint32_t RaftWebResponderRestAPI::getResponseNext(uint8_t*& pBuf, uint32_t bufMa
 
         // Endpoint done
         _endpointCalled = true;
+        _respStrPos = 0;
     }
 
-    // Check how much of buffer to send
-    uint32_t respRemain = _respStr.length() - _respStrPos;
-    respLen = bufMaxLen > respRemain ? respRemain : bufMaxLen;
+    SpiramAwareUint8Vector respData;
+    if (_respStr.length() > _respStrPos)
+    {
+        // Check how much of buffer to send
+        uint32_t respRemain = _respStr.length() - _respStrPos;
+        respLen = maxLen > respRemain ? respRemain : maxLen;
 
-    // Prep buffer
-    pBuf = (uint8_t*) (_respStr.c_str() + _respStrPos);
+        // Append to buffer
+        respData.insert(respData.end(), _respStr.c_str() + _respStrPos, _respStr.c_str() + _respStrPos + respLen);
 
 #ifdef DEBUG_RESPONDER_API_START_END
-    LOG_I(MODULE_PREFIX, "getResponseNext API totalLen %d sending %d fromPos %d URL %s",
-                _respStr.length(), respLen, _respStrPos, _requestStr.c_str());
+        LOG_I(MODULE_PREFIX, "getResponseNext API totalLen %d sending %d fromPos %d URL %s",
+                    _respStr.length(), respLen, _respStrPos, _requestStr.c_str());
 #endif
 
-    // Update position
-    _respStrPos += respLen;
-    if (_respStrPos >= _respStr.length())
+        // Update position
+        _respStrPos += respLen;
+    }
+
+    // Check if all data sent
+    if (_respStr.length() <= _respStrPos)
     {
         _isActive = false;
 #ifdef DEBUG_RESPONDER_API_START_END
-        LOG_I(MODULE_PREFIX, "getResponseNext endOfFile sent final chunk ok");
+            LOG_I(MODULE_PREFIX, "getResponseNext endOfFile sent final chunk ok");
 #endif
     }
 
 #ifdef DEBUG_RESPONDER_REST_API
-    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respLen, _isActive);
+    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respData.size(), _isActive);
 #endif
-    return respLen;
+    return respData;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

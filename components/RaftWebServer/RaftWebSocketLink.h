@@ -13,6 +13,7 @@
 #include "RaftArduino.h"
 #include "RaftWebSocketDefs.h"
 #include "RaftWebConnDefs.h"
+#include "SpiramAwareAllocator.h"
 
 class RaftWebSocketLink
 {
@@ -34,12 +35,14 @@ public:
     void upgradeReceived(const String& wsKey, const String& wsVersion);
 
     // Handle incoming data
-    void handleRxData(const uint8_t* pBuf, uint32_t bufLen);
+    void handleRxData(const SpiramAwareUint8Vector& msg);
     
     bool isTxDataAvailable();
     
-    // Get data to tx
-    uint32_t getTxData(uint8_t*& pBuf, uint32_t bufMaxLen);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get data to tx
+    /// @param maxLen Maximum length to return
+    SpiramAwareUint8Vector getTxData(uint32_t maxLen);
 
     // Send message
     RaftWebConnSendRetVal sendMsg(RaftWebSocketOpCodes opCode, const uint8_t* pBuf, uint32_t bufLen);
@@ -87,17 +90,14 @@ private:
     String _wsVersion;
 
     // Data to be sent to callback when complete
-    std::vector<uint8_t> _callbackData;
+    SpiramAwareUint8Vector _callbackData;
     RaftWebSocketCB _webSocketCB = nullptr;
 
     // Received data not yet processed
-    std::vector<uint8_t> _rxDataToProcess;
+    SpiramAwareUint8Vector _rxDataToProcess;
 
     // Raw send on the connection
     RaftWebConnSendFn _rawConnSendFn = nullptr;
-
-    // Data to be sent
-    String _wsUpgradeResponse;
 
     // Active
     bool _isActive = false;
@@ -145,50 +145,50 @@ private:
             firstFrameOpcode = 0;
         }
         // Returns length of block (0 indicates header not long enough)
-        uint32_t extract(const uint8_t* pBuf, uint32_t bufLen)
+        uint32_t extract(const SpiramAwareUint8Vector& msg, uint32_t bufPos)
         {
             // First two bytes
-            uint32_t pos = 0;
-            if (bufLen < pos + 2)
+            uint32_t pos = bufPos;
+            if (msg.size() < pos + 2)
                 return 0;
-            fin = (pBuf[pos] & 0x80) != 0;
-            opcode = pBuf[pos] & 0x0f;
+            fin = (msg[pos] & 0x80) != 0;
+            opcode = msg[pos] & 0x0f;
             pos += 1;
-            mask = (pBuf[pos] & 0x80) != 0;
-            len = pBuf[pos] & 0x7f;
+            mask = (msg[pos] & 0x80) != 0;
+            len = msg[pos] & 0x7f;
             pos += 1;
 
             // Check if len is complete
             if (len == 126)
             {
-                if (bufLen < pos + 2)
+                if (msg.size() < pos + 2)
                     return 0;
-                len = pBuf[pos] * 256 + pBuf[pos+1];
+                len = msg[pos] * 256 + msg[pos+1];
                 pos += 2;
             }
             else if (len == 127)
             {
-                if (bufLen < pos + 8)
+                if (msg.size() < pos + 8)
                     return 0;
-                len = pBuf[pos++] & 0x7f;
-                len = (len << 8) + pBuf[pos++];
-                len = (len << 8) + pBuf[pos++];
-                len = (len << 8) + pBuf[pos++];
-                len = (len << 8) + pBuf[pos++];
-                len = (len << 8) + pBuf[pos++];
-                len = (len << 8) + pBuf[pos++];
-                len = (len << 8) + pBuf[pos++];
+                len = msg[pos++] & 0x7f;
+                len = (len << 8) + msg[pos++];
+                len = (len << 8) + msg[pos++];
+                len = (len << 8) + msg[pos++];
+                len = (len << 8) + msg[pos++];
+                len = (len << 8) + msg[pos++];
+                len = (len << 8) + msg[pos++];
+                len = (len << 8) + msg[pos++];
             }
 
             // Check for mask
             if (mask)
             {
-                if (bufLen < pos + 2)
+                if (msg.size() < pos + 2)
                     return 0;
-                maskKey[0] = pBuf[pos++];
-                maskKey[1] = pBuf[pos++];
-                maskKey[2] = pBuf[pos++];
-                maskKey[3] = pBuf[pos++];
+                maskKey[0] = msg[pos++];
+                maskKey[1] = msg[pos++];
+                maskKey[2] = msg[pos++];
+                maskKey[3] = msg[pos++];
             }
 
             // Data pos
@@ -218,12 +218,17 @@ private:
     WSHeaderInfo _wsHeader;
 
     // Helpers
-    uint32_t handleRxPacketData(const uint8_t* pBuf, uint32_t bufLen);
-    uint32_t extractWSHeaderInfo(const uint8_t* pBuf, uint32_t bufLen);
+    uint32_t handleRxPacketData(const SpiramAwareUint8Vector& msg, uint32_t bufPos);
+    uint32_t extractWSHeaderInfo(const SpiramAwareUint8Vector& msg, uint32_t bufPos);
     void unmaskData();
 
-    // Form response to upgrade connection
-    String formUpgradeResponse(const String& wsKey, const String& wsVersion, uint32_t bufMaxLen);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Form response to upgrade connection
+    /// @param wsKey Key from request
+    /// @param wsVersion Version from request
+    /// @param bufMaxLen Maximum length of buffer
+    /// @return Response
+    SpiramAwareUint8Vector formUpgradeResponse(const String &wsKey, const String &wsVersion, uint32_t bufMaxLen);
 
     // Gen the hash required for response
     String genMagicResponse(const String& wsKey, const String& wsVersion);
