@@ -15,9 +15,7 @@
 #include "RaftWebSocketDefs.h"
 #include "RaftClientListener.h"
 #include "ExecTimer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+#include "RaftThreading.h"
 
 // #define DEBUG_WEBCONN_SERVICE_TIMING
 
