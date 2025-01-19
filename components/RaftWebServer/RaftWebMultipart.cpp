@@ -15,6 +15,7 @@
 // #define DEBUG_MULTIPART_RECEIVE_ASCII_ONLY
 // #define DEBUG_MULTIPART_PAYLOAD
 // #define DEBUG_MULTIPART_BOUNDARY
+// #define DEBUG_CONTENT_DISPOSITION
 
 #if defined(DEBUG_MULTIPART_PAYLOAD) || defined(DEBUG_MULTIPART_BOUNDARY) || defined(DEBUG_MULTIPART_RECEIVE_ASCII_ONLY) || defined(WARN_ON_MULTIPART_ERRORS)
 static const char *MODULE_PREFIX = "RaftMultipart";
@@ -506,9 +507,17 @@ void RaftWebMultipart::headerValueFound(const uint8_t *pBuf, uint32_t pos, uint3
             else if (nvp.name.equalsIgnoreCase("name"))
             {
                 _formInfo._name = nvp.value;
-                _formInfo._fileName.replace("\"", "");
+                _formInfo._name.replace("\"", "");
             }
         }
+
+#ifdef DEBUG_CONTENT_DISPOSITION
+        String jsonStr = RaftJson::getJSONFromNVPairs(contentDispNameVals, true);
+        LOG_I(MODULE_PREFIX, "Content-Disposition %s JSON %s name %s filename %s", 
+                    _formInfo._contentDisp.c_str(), 
+                    jsonStr.c_str(),
+                    _formInfo._name.c_str(), _formInfo._fileName.c_str());
+#endif        
     }
     else if (_headerName.equalsIgnoreCase("Content-Type"))
     {
