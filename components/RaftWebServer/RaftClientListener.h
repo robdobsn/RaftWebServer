@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "lwip/api.h"
 #include <functional>
 #include "RaftClientConnBase.h"
 

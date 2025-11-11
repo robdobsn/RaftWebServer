@@ -11,27 +11,22 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <functional>
-extern "C"
-{
-#include "lwip/err.h"
-}
-#include "http_parser.h"
 #include "RaftRetCode.h"
 
 class FileStreamBlock;
 class String;
 class APISourceInfo;
 
-// Web methods
+// Web methods (HTTP method codes from http_parser.h)
 typedef int RaftWebServerMethod;
 #define WEB_METHOD_NONE -1
-#define WEB_METHOD_GET HTTP_GET
-#define WEB_METHOD_POST HTTP_POST
-#define WEB_METHOD_DELETE HTTP_DELETE
-#define WEB_METHOD_PUT HTTP_PUT
-#define WEB_METHOD_PATCH HTTP_PATCH
-#define WEB_METHOD_HEAD HTTP_HEAD
-#define WEB_METHOD_OPTIONS HTTP_OPTIONS
+#define WEB_METHOD_GET 1      // HTTP_GET
+#define WEB_METHOD_POST 3     // HTTP_POST
+#define WEB_METHOD_DELETE 0   // HTTP_DELETE
+#define WEB_METHOD_PUT 4      // HTTP_PUT
+#define WEB_METHOD_PATCH 28   // HTTP_PATCH
+#define WEB_METHOD_HEAD 2     // HTTP_HEAD
+#define WEB_METHOD_OPTIONS 5  // HTTP_OPTIONS
 
 // Web connection type
 enum RaftWebReqConnectionType
@@ -129,9 +124,6 @@ public:
 
     // Get conn type string
     static const char* getReqConnTypeStr(RaftWebReqConnectionType reqConnType);
-
-    // ESP IDF error codes
-    static const char* espIdfErrToStr(err_t err);
 
     // HTTP status codes
     static const char* getHTTPStatusStr(RaftHttpStatusCode status);

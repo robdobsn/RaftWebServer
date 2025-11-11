@@ -16,7 +16,22 @@
 #include "mbedtls/sha1.h"
 #include "mbedtls/base64.h"
 #include "RaftWebConnection.h"
+#ifdef ESP_PLATFORM
 #include "esp_system.h"
+#else
+#include <cstdlib>
+#include <ctime>
+// Portable random function for non-ESP platforms
+static uint32_t portable_random() {
+    static bool initialized = false;
+    if (!initialized) {
+        srand(time(nullptr));
+        initialized = true;
+    }
+    return (rand() << 16) | rand();
+}
+#define esp_random portable_random
+#endif
 
 static const char *MODULE_PREFIX = "RaftWSLink";
 

@@ -7,17 +7,30 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RaftClientListener.h"
-#include "RaftClientConnNetconn.h"
-#include "RaftClientConnSockets.h"
 #include "RaftWebInterface.h"
 #include "Logger.h"
 #include "ArduinoTime.h"
-#include "lwip/api.h"
-#include "lwip/sockets.h"
+#include "RaftThreading.h"
+#include <cstring>
+
+#define WEB_CONN_USE_BERKELEY_SOCKETS
 
 static const char *MODULE_PREFIX = "RaftClientListener";
 
-#define WEB_CONN_USE_BERKELEY_SOCKETS
+#ifdef WEB_CONN_USE_BERKELEY_SOCKETS
+#include "RaftClientConnSockets.h"
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#else
+#include "RaftClientConnNetconn.h"
+#include "lwip/api.h"
+#include "lwip/sockets.h"
+#endif
 
 #define WARN_ON_LISTENER_ERROR
 // #define DEBUG_NEW_CONNECTION
@@ -36,7 +49,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
         if (listenerSocketId < 0)
         {
             LOG_W(MODULE_PREFIX, "socketListenerTask failed to create socket");
-            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+            RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS);
             continue;
         }
 
@@ -58,9 +71,9 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
             LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) failed to bind on port %d errno %d",
                                 listenerSocketId, port, errorNumber);
             shutdown(listenerSocketId, SHUT_RDWR);
-            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / 10 / portTICK_PERIOD_MS);
+            RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS / 10);
             close(listenerSocketId);
-            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+            RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS);
             continue;
         }
 
@@ -71,9 +84,9 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
         {
             LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) failed to listen errno %d", listenerSocketId, errorNumber);
             shutdown(listenerSocketId, SHUT_RDWR);
-            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / 10 / portTICK_PERIOD_MS);
+            RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS / 10);
             close(listenerSocketId);
-            vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+            RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS);
             continue;
         }
         LOG_I(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d) listening on port %d", listenerSocketId, port);
@@ -103,7 +116,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                     case ENETUNREACH:
                     case ENFILE:
                         LOG_W(MODULE_PREFIX, "socketListenerTask (listenerSocketId %d port %d) failed to accept errno %d", listenerSocketId, port, errorNumber);
-                        vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+                        RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS);
                         consecErrorCount++;
                         break;
                     case EWOULDBLOCK:
@@ -119,7 +132,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                             listenerSocketId, port, errorNumber, socketReconnNeeded, consecErrorCount);
                     break;
                 }
-                vTaskDelay(1);
+                RaftThread_sleep(1);
                 continue;
             }
             else
@@ -183,7 +196,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
         LOG_E(MODULE_PREFIX,"socketListenerTask (listenerSocketId %d port %d) listener stopped", listenerSocketId, port);
 
         // Delay hoping networking recovers
-        vTaskDelay(WEB_SERVER_SOCKET_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+        RaftThread_sleep(WEB_SERVER_SOCKET_RETRY_DELAY_MS);
 
 #else // Use LWIP NetConn
 

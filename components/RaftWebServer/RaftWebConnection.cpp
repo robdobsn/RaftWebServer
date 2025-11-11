@@ -551,8 +551,8 @@ bool RaftWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataL
     // Delete any existing responder - there shouldn't be one
     if (_pResponder)
     {
-        LOG_W(MODULE_PREFIX, "onRxData connId %d unexpectedly deleting _pResponder %d", 
-                _pClientConn->getClientId(), (uint32_t)_pResponder);
+        LOG_W(MODULE_PREFIX, "onRxData connId %d unexpectedly deleting _pResponder %p", 
+                _pClientConn->getClientId(), (void*)_pResponder);
         delete _pResponder;
         _pResponder = nullptr;
     }

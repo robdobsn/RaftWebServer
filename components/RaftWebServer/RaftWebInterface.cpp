@@ -39,32 +39,6 @@ const char* RaftWebInterface::getReqConnTypeStr(RaftWebReqConnectionType reqConn
     return "NONE";
 }
 
-// ESP-IDF error codes
-const char* RaftWebInterface::espIdfErrToStr(err_t err)
-{
-    switch(err)
-    {
-        case ERR_OK: return "OK";
-        case ERR_MEM: return "Out of Mem";
-        case ERR_BUF: return "Buffer error";
-        case ERR_TIMEOUT: return "Timeout";
-        case ERR_RTE: return "Routing problem";
-        case ERR_INPROGRESS: return "Op in progress";
-        case ERR_VAL: return "Illegal value";
-        case ERR_WOULDBLOCK: return "Op would block";
-        case ERR_USE: return "Addr in Use";
-        case ERR_ALREADY: return "Already connecting";
-        case ERR_ISCONN: return "Already connected";
-        case ERR_CONN: return "Write error";
-        case ERR_IF: return "NETIF error";
-        case ERR_ABRT: return "Conn aborted";
-        case ERR_RST: return "Conn reset";
-        case ERR_CLSD: return "Conn closed";
-        case ERR_ARG: return "Illegal arg";
-    }
-    return "UNKNOWN";
-}
-
 // HTTP status codes
 const char* RaftWebInterface::getHTTPStatusStr(RaftHttpStatusCode status)
 {

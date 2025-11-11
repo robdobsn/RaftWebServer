@@ -16,6 +16,7 @@
 #include "RaftClientListener.h"
 #include "ExecTimer.h"
 #include "RaftThreading.h"
+#include "ThreadSafeQueue.h"
 
 // #define DEBUG_WEBCONN_SERVICE_TIMING
 
@@ -75,7 +76,7 @@ public:
 
 private:
     // New connection queue
-    QueueHandle_t _newConnQueue;
+    ThreadSafeQueue<RaftClientConnBase*> _newConnQueue;
     static const int _newConnQueueMaxLen = 10;
 
     // Web server settings
@@ -89,6 +90,12 @@ private:
 
     // Client Connection Listener
     RaftClientListener _connClientListener;
+
+    // Thread handles
+    RaftThreadHandle _socketListenerTaskHandle = RAFT_THREAD_HANDLE_INVALID;
+#ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
+    RaftThreadHandle _clientConnHandlerTaskHandle = RAFT_THREAD_HANDLE_INVALID;
+#endif
 
     // Client connection handler task
     static void clientConnHandlerTask(void* pvParameters);

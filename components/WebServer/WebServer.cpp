@@ -11,7 +11,9 @@
 #include "Logger.h"
 #include "RaftUtils.h"
 #include "RestAPIEndpointManager.h"
+#ifdef ESP_PLATFORM
 #include "NetworkSystem.h"
+#endif
 #include "FileSystem.h"
 #include "RaftWebServer.h"
 #include "CommsCoreIF.h"
@@ -88,8 +90,8 @@ void WebServer::applySetup()
     configGetArrayElems("websockets", _webSocketConfigs);
 
     // Get Task settings
-    UBaseType_t taskCore = configGetLong("taskCore", RaftWebServerSettings::DEFAULT_TASK_CORE);
-    BaseType_t taskPriority = configGetLong("taskPriority", RaftWebServerSettings::DEFAULT_TASK_PRIORITY);
+    uint32_t taskCore = configGetLong("taskCore", RaftWebServerSettings::DEFAULT_TASK_CORE);
+    int32_t taskPriority = configGetLong("taskPriority", RaftWebServerSettings::DEFAULT_TASK_PRIORITY);
     uint32_t taskStackSize = configGetLong("taskStack", RaftWebServerSettings::DEFAULT_TASK_STACK_BYTES);
 
     // Get server send buffer max length
@@ -197,7 +199,7 @@ RaftRetCode WebServer::apiWebCertificates(const String &reqStr, String &respStr,
     String rebootRequired = RestAPIEndpointManager::getNthArgStr(reqStr.c_str(), 1);
     if (rebootRequired.equalsIgnoreCase("set"))
     {
-        LOG_I(MODULE_PREFIX, "apiWebCertificates set %s certslen %d", reqStr.c_str(), _certsTempStorage.size());
+        LOG_I(MODULE_PREFIX, "apiWebCertificates set %s certslen %zu", reqStr.c_str(), _certsTempStorage.size());
         _certsTempStorage.clear();
     }
 

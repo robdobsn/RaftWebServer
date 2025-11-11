@@ -11,8 +11,19 @@
 #include "RaftWebInterface.h"
 #include "ArduinoTime.h"
 #include "RaftUtils.h"
+#include "RaftThreading.h"
+#ifdef WEB_CONN_USE_BERKELEY_SOCKETS
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <errno.h>
+#else
 #include "lwip/api.h"
 #include "lwip/sockets.h"
+#endif
 
 static const char *MODULE_PREFIX = "RaftClientConnSockets";
 
@@ -153,7 +164,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                 LOG_I(MODULE_PREFIX, "sendDataBuffer failed errno %d conn %d bufLen %d retrying for %dms", 
                                 opErrno, getClientId(), bufLen, maxRetryMs);
 #endif
-                vTaskDelay(1);
+                RaftThread_sleep(1);
                 continue;
             }
 #ifdef WARN_SOCKET_SEND_FAIL

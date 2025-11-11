@@ -43,11 +43,9 @@ const static char* MODULE_PREFIX = "WebConnMgr";
 // Constructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftWebConnManager::RaftWebConnManager()
+RaftWebConnManager::RaftWebConnManager() :
+    _newConnQueue(_newConnQueueMaxLen)
 {
-    // Connection queue
-    _newConnQueue = nullptr;
-
     // Setup callback for new connections
     _connClientListener.setHandOffNewConnCB(std::bind(&RaftWebConnManager::handleNewConnection, this, std::placeholders::_1));
 }
@@ -73,21 +71,16 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
     // Create slots
     _webConnections.resize(_webServerSettings.numConnSlots);
 
-    // Create queue for new connections
-    _newConnQueue = xQueueCreate(_newConnQueueMaxLen, sizeof(RaftClientConnBase*));
-
 #ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
     // Start task to service connections
-    xTaskCreatePinnedToCore(&clientConnHandlerTask, "clientConnTask", RD_WEB_CONN_STACK_SIZE, this, 6, NULL, 0);
+    RaftThread_start(_clientConnHandlerTaskHandle, &clientConnHandlerTask, this, 
+            RD_WEB_CONN_STACK_SIZE, "clientConnTask", 6, 0, false);
 #endif
 
 	// Start task to handle listen for connections
-	xTaskCreatePinnedToCore(&socketListenerTask,"socketLstnTask", 
-            settings.taskStackSize,
-            this, 
-            settings.taskPriority, 
-            NULL, 
-            settings.taskCore);
+	RaftThread_start(_socketListenerTaskHandle, &socketListenerTask, this,
+            settings.taskStackSize, "socketLstnTask",
+            settings.taskPriority, settings.taskCore, false);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -173,15 +166,12 @@ void RaftWebConnManager::serviceConnections()
 #endif
 
     // Get any new connection from queue
-    if (_newConnQueue == nullptr)
-        return;
-        
 #ifdef DEBUG_WEBCONN_SERVICE_TIMING
     _debugTimerNewConns.started();
 #endif
 
     RaftClientConnBase* pClientConn = nullptr;
-    if (xQueueReceive(_newConnQueue, &pClientConn, 0) == pdTRUE)
+    if (_newConnQueue.get(pClientConn, 0))
     {
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
         heap_trace_start(HEAP_TRACE_LEAKS);
@@ -460,5 +450,5 @@ bool RaftWebConnManager::handleNewConnection(RaftClientConnBase* pClientConn)
     LOG_I(MODULE_PREFIX, "handleNewConnection %d", pClientConn->getClientId());
 #endif
     // Add to queue for handling
-    return xQueueSendToBack(_newConnQueue, &pClientConn, pdMS_TO_TICKS(10)) == pdTRUE;
+    return _newConnQueue.put(pClientConn, 10);
 }

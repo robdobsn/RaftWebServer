@@ -9,7 +9,6 @@
 #pragma once
 
 #include <vector>
-#include "lwip/api.h"
 #include "RaftWebConnDefs.h"
 #include "SpiramAwareAllocator.h"
 
