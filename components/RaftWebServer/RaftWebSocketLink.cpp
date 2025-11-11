@@ -16,6 +16,7 @@
 #include "mbedtls/sha1.h"
 #include "mbedtls/base64.h"
 #include "RaftWebConnection.h"
+#include "PlatformUtils.h"
 #ifdef ESP_PLATFORM
 #include "esp_system.h"
 #else
@@ -356,7 +357,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     uint8_t maskBytes[WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES] = {0, 0, 0, 0};
     if (_maskSentData)
     {
-        uint32_t maskKey = esp_random();
+        uint32_t maskKey = platform_random();
         if (maskKey == 0)
             maskKey = 0x55555555;
         for (int i = 0; i < WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES; i++)

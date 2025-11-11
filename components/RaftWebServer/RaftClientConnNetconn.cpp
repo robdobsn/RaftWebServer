@@ -9,6 +9,7 @@
 #include "Logger.h"
 #include "RaftClientConnNetconn.h"
 #include "RaftWebInterface.h"
+#include "PlatformUtils.h"
 
 static const char *MODULE_PREFIX = "RaftClientConnNetconn";
 
@@ -46,7 +47,7 @@ RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf,
     if (err != ERR_OK)
     {
         LOG_W(MODULE_PREFIX, "write failed err %s (%d) connClient %d",
-                    RaftWebInterface::espIdfErrToStr(err), err, getClientId());
+                    espIdfErrToStr(err), err, getClientId());
     }
     return (err = ERR_OK) ? RaftWebConnSendRetVal::WEB_CONN_SEND_OK : RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
 }
@@ -73,7 +74,7 @@ RaftClientConnRslt RaftClientConnNetconn::getDataStart(std::vector<uint8_t, Spir
         if ((err != ERR_OK) || !pBuf)
         {
             LOG_W(MODULE_PREFIX, "getDataStart netconn_data error %s buf %d connClient %d", 
-                        RaftWebInterface::espIdfErrToStr(err), (uint32_t)pBuf, getClientId());
+                        espIdfErrToStr(err), (uint32_t)pBuf, getClientId());
             return RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;
         }
         dataBuf.assign(pBuf, pBuf+bufLen);
