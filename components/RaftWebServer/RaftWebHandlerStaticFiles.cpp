@@ -18,10 +18,59 @@
 #include "RaftWebResponderFile.h"
 #endif
 
+#if defined(__linux__) && !defined(ESP_PLATFORM)
+#include <unistd.h>
+#include <libgen.h>
+#include <limits.h>
+#endif
+
 // #define DEBUG_STATIC_FILE_HANDLER
 
-#if defined(DEBUG_STATIC_FILE_HANDLER)
 static const char* MODULE_PREFIX = "RaftWebHdlrStaticFiles";
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Helper function to resolve relative paths on Linux
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(__linux__) && !defined(ESP_PLATFORM)
+static String resolveRelativePath(const String& path)
+{
+    // If path is already absolute, return as-is
+    if (path.length() > 0 && path[0] == '/')
+        return path;
+    
+    // If path doesn't start with . then it's not a relative path we handle
+    if (path.length() == 0 || path[0] != '.')
+        return path;
+    
+    // Get the directory of the running executable
+    char exePath[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    if (len == -1)
+    {
+        LOG_W(MODULE_PREFIX, "resolveRelativePath failed to read executable path, using path as-is: %s", path.c_str());
+        return path;
+    }
+    exePath[len] = '\0';
+    
+    // Get the directory containing the executable
+    char* exeDir = dirname(exePath);
+    
+    // Resolve the relative path
+    String resolvedPath = String(exeDir) + "/" + path;
+    
+    // Normalize the path (remove ./ and ../)
+    char realPath[PATH_MAX];
+    if (realpath(resolvedPath.c_str(), realPath) != NULL)
+    {
+        LOG_I(MODULE_PREFIX, "resolveRelativePath %s -> %s", path.c_str(), realPath);
+        return String(realPath);
+    }
+    
+    // If realpath fails, just return the concatenated path
+    LOG_W(MODULE_PREFIX, "resolveRelativePath realpath failed, using: %s", resolvedPath.c_str());
+    return resolvedPath;
+}
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -65,11 +114,23 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
             if (path.endsWith("/"))
                 path.remove(path.length()-1);
 
-            // Ensure paths and URLs have a leading /
+            // Ensure URIs have a leading /
             if (uri.length() == 0 || uri[0] != '/')
                 uri = "/" + uri;
+            
+            // On Linux, resolve relative paths and support absolute paths
+            // On ESP32, ensure absolute paths have a leading /
+#if defined(__linux__) && !defined(ESP_PLATFORM)
+            // Linux: resolve relative paths to executable directory, keep absolute paths as-is
+            path = resolveRelativePath(path);
+            // Ensure paths that aren't relative start with /
+            if (path.length() > 0 && path[0] != '/' && path[0] != '.')
+                path = "/" + path;
+#else
+            // ESP32: ensure paths have a leading /
             if (path.length() == 0 || path[0] != '/')
                 path = "/" + path;
+#endif
 
             // Add to vector
             RaftJson::NameValuePair nvPair(uri, path);
@@ -81,9 +142,19 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
             if (folder.endsWith("/"))
                 folder.remove(folder.length()-1);
 
-            // Ensure paths and URLs have a leading /
+            // On Linux, resolve relative paths and support absolute paths
+            // On ESP32, ensure absolute paths have a leading /
+#if defined(__linux__) && !defined(ESP_PLATFORM)
+            // Linux: resolve relative paths to executable directory, keep absolute paths as-is
+            folder = resolveRelativePath(folder);
+            // Ensure paths that aren't relative start with /
+            if (folder.length() > 0 && folder[0] != '/' && folder[0] != '.')
+                folder = "/" + folder;
+#else
+            // ESP32: ensure paths have a leading /
             if (folder.length() == 0 || folder[0] != '/')
                 folder = "/" + folder;
+#endif
 
             // Add to vector
             RaftJson::NameValuePair nvPair("/", folder);
@@ -219,8 +290,8 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
     // Debug
 #ifdef DEBUG_STATIC_FILE_HANDLER
     uint64_t getResponderEndUs = micros();
-    LOG_I(MODULE_PREFIX, "canHandle constructed new responder %lx uri %s took %lld", 
-                (unsigned long)pResponder, requestHeader.URL.c_str(), getResponderEndUs-getResponderStartUs);
+    LOG_I(MODULE_PREFIX, "canHandle constructed new responder %lx uri %s took %d", 
+                (unsigned long)pResponder, requestHeader.URL.c_str(), (int)(getResponderEndUs-getResponderStartUs));
 #endif
 
     // Return new responder - caller must clean up by deleting object when no longer needed
