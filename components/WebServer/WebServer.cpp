@@ -351,13 +351,11 @@ void WebServer::webSocketSetup()
         for (uint32_t connIdx = 0; connIdx < maxConn; connIdx++)
         {
             String interfaceName = jsonConfig.getString("pfix", "ws");
-            String channelGroup = interfaceName;  // channelGroup is the same as interface prefix
             String wsName = interfaceName + "_" + connIdx;
             String protocol = jsonConfig.getString("pcol", "RICSerial");
             uint32_t wsChanID = pCommsCore->registerChannel(
                     protocol.c_str(), 
                     interfaceName.c_str(),
-                    channelGroup.c_str(),
                     wsName.c_str(),
                     [this](CommsChannelMsg& msg) { 
                         return _raftWebServer.sendBufferOnChannel(msg.getBuf(), msg.getBufLen(), 
@@ -373,9 +371,8 @@ void WebServer::webSocketSetup()
 
             // Debug
 #ifdef DEBUG_WEBSERVER_WEBSOCKETS
-            LOG_I(MODULE_PREFIX, "webSocketSetup prefix %s channelGroup %s wsName %s protocol %s maxConn %d channelID %d", 
+            LOG_I(MODULE_PREFIX, "webSocketSetup prefix %s wsName %s protocol %s maxConn %d channelID %d", 
                         interfaceName.c_str(), 
-                        channelGroup.c_str(),
                         wsName.c_str(),
                         protocol.c_str(), 
                         maxConn, 
