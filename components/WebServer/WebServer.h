@@ -49,6 +49,9 @@ protected:
     // Setup
     virtual void setup() override final;
 
+    // Post-setup - called after all SysMods are set up
+    virtual void postSetup() override final;
+
     // Loop - called frequently
     virtual void loop() override final;
 

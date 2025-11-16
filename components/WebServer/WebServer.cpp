@@ -22,7 +22,7 @@
 #include "RaftWebHandlerRestAPI.h"
 #include "RaftWebHandlerWS.h"
 
-// #define DEBUG_WEBSERVER_WEBSOCKETS
+#define DEBUG_WEBSERVER_WEBSOCKETS
 #define DEBUG_API_WEB_CERTS
 
 static const char* MODULE_PREFIX = "WebServer";
@@ -124,7 +124,16 @@ void WebServer::applySetup()
         _isWebServerSetup = true;
     }
 
-    // Serve websockets
+    // Note: webSocketSetup() is called in postSetup() after CommsCore is available
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Post-setup - called after all SysMods are set up
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void WebServer::postSetup()
+{
+    // Setup websockets now that CommsCore is available
     webSocketSetup();
 }
 
