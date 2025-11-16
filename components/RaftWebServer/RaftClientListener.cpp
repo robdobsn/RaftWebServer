@@ -56,6 +56,13 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
         // Set non-blocking
         fcntl(listenerSocketId, F_SETFL, fcntl(listenerSocketId, F_GETFL, 0) | O_NONBLOCK);
 
+        // Set SO_REUSEADDR to allow immediate reuse of the port after shutdown
+        int reuseaddr = 1;
+        if (setsockopt(listenerSocketId, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr)) < 0)
+        {
+            LOG_W(MODULE_PREFIX, "socketListenerTask failed to set SO_REUSEADDR");
+        }
+
         // Form address to be used in bind call - IPV4 assumed
         struct sockaddr_in bindAddr;
         memset(&bindAddr, 0, sizeof(bindAddr));
