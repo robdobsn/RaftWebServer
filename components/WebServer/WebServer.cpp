@@ -22,7 +22,7 @@
 #include "RaftWebHandlerRestAPI.h"
 #include "RaftWebHandlerWS.h"
 
-#define DEBUG_WEBSERVER_WEBSOCKETS
+// #define DEBUG_WEBSERVER_WEBSOCKETS
 #define DEBUG_API_WEB_CERTS
 
 static const char* MODULE_PREFIX = "WebServer";
