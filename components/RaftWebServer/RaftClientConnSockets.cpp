@@ -12,7 +12,7 @@
 #include "ArduinoTime.h"
 #include "RaftUtils.h"
 #include "RaftThreading.h"
-#ifdef WEB_CONN_USE_BERKELEY_SOCKETS
+#ifndef WEB_CONN_USE_LWIP
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <fcntl.h>

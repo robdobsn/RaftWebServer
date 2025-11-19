@@ -370,7 +370,8 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     // Sanity check
     if (pos + bufLen != frameBuffer.size())
     {
-        LOG_W(MODULE_PREFIX, "sendMsg something awry with frameLen %d + %d != %d", pos, bufLen, frameBuffer.size());
+        LOG_W(MODULE_PREFIX, "sendMsg something awry with frameLen %d + %d != %d", 
+                    (int)pos, (int)bufLen, (int)frameBuffer.size());
         return WEB_CONN_SEND_FRAME_ERROR;
     }
 

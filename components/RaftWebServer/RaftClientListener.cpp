@@ -13,11 +13,9 @@
 #include "RaftThreading.h"
 #include <cstring>
 
-#define WEB_CONN_USE_BERKELEY_SOCKETS
-
 static const char *MODULE_PREFIX = "RaftClientListener";
 
-#ifdef WEB_CONN_USE_BERKELEY_SOCKETS
+#ifndef WEB_CONN_USE_LWIP
 #include "RaftClientConnSockets.h"
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -42,7 +40,7 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
     while (1)
     {
 
-#ifdef WEB_CONN_USE_BERKELEY_SOCKETS
+#ifndef WEB_CONN_USE_LWIP
 
         // Create socket
         int listenerSocketId = socket(AF_INET , SOCK_STREAM, 0);
