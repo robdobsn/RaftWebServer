@@ -185,7 +185,7 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
         {
 #ifdef WARN_WEBSOCKET_DATA_DISCARD_AS_EXCEEDS_MSG_SIZE
         LOG_W(MODULE_PREFIX, "handleRxData discard as exceeds max stashed %d len %d max %d", 
-                _rxDataToProcess.size(), bufLen, MAX_WS_MESSAGE_SIZE);
+                (int)_rxDataToProcess.size(), bufLen, MAX_WS_MESSAGE_SIZE);
 #endif
             _rxDataToProcess.clear();
         }

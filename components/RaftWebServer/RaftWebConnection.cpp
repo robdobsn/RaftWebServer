@@ -269,8 +269,8 @@ void RaftWebConnection::loop()
     {
         LOG_W(MODULE_PREFIX, "loop timeout on connection connId %d sinceStartMs %d sinceLastActivityMs %d", 
                 _pClientConn->getClientId(), 
-                Raft::timeElapsed(millis(), _timeoutStartMs),
-                Raft::timeElapsed(millis(), _timeoutLastActivityMs));
+                (int)Raft::timeElapsed(millis(), _timeoutStartMs),
+                (int)Raft::timeElapsed(millis(), _timeoutLastActivityMs));
         clear();
         return;
     }

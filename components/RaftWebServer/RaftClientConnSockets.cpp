@@ -169,7 +169,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
             }
 #ifdef WARN_SOCKET_SEND_FAIL
             LOG_W(MODULE_PREFIX, "sendDataBuffer failed errno error %d conn %d bufLen %d totalMs %d", 
-                        opErrno, getClientId(), bufLen, Raft::timeElapsed(millis(), startMs));
+                        opErrno, getClientId(), bufLen, (int)Raft::timeElapsed(millis(), startMs));
 #endif
             return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
         }
