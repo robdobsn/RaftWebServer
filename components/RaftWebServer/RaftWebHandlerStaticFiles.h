@@ -71,6 +71,9 @@ private:
     // Helpers
     String getContentType(const String& filePath) const;
 
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RaftWebHdlrStaticFiles";
+
 #endif
 
     // MIME types for files
