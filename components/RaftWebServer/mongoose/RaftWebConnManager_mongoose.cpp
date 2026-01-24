@@ -117,6 +117,30 @@ bool RaftWebConnManager_mongoose::addHandler(RaftWebHandler *pHandler)
     return true;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check if a channel is currently connected (does not perform send-readiness checks)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebConnManager_mongoose::isChannelConnected(uint32_t channelID)
+{
+#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
+    if (!_isSetup)
+        return false;
+
+    // See if a suitable handler exists and if the channel is present
+    for (RaftWebHandler *pHandler : _webHandlers)
+    {
+        if (!pHandler || !pHandler->isWebSocketHandler())
+            continue;
+        bool noConn = true;
+        (void)pHandler->canSend(channelID, noConn);
+        if (!noConn)
+            return true;
+    }
+#endif
+    return false;
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Check if channel can send a message

@@ -47,6 +47,9 @@ public:
     // Handler
     bool addHandler(RaftWebHandler* pHandler, bool highPriority = false);
 
+     // Check if a channel is currently connected (does not perform send-readiness checks)
+     bool isChannelConnected(uint32_t channelID);
+
     // Get new responder
     // NOTE: this returns a new object or NULL
     // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate

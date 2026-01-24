@@ -11,6 +11,20 @@
 #include "RaftWebInterface.h"
 #include "PlatformUtils.h"
 
+#ifdef ESP_PLATFORM
+#include "esp_private/esp_clk.h"
+#endif
+
+// Debug
+#define DEBUG_NETCONN_CAN_SEND_TIMING
+#define DEBUG_NETCONN_WRITE_TIMING
+
+#ifdef DEBUG_NETCONN_WRITE_TIMING
+#ifdef ESP_PLATFORM
+#include <xtensa/hal.h>
+#endif
+#endif
+
 static const char *MODULE_PREFIX = "RaftClientConnNetconn";
 
 RaftClientConnNetconn::RaftClientConnNetconn(struct netconn* client)
@@ -36,20 +50,55 @@ void RaftClientConnNetconn::setup(bool blocking)
 RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf, uint32_t bufLen, 
             uint32_t maxRetryMs, uint32_t& bytesWritten)
 {
+#ifdef DEBUG_NETCONN_WRITE_TIMING
+#ifdef ESP_PLATFORM
+    static uint32_t netconnWriteCycles = 0;
+    static uint32_t lastReportMs = 0;
+    static uint32_t callCount = 0;
+    uint32_t startCycles = xthal_get_ccount();
+#endif
+#endif
+
     // Check active
+    bytesWritten = 0;
     if (!isActive())
     {
         LOG_W(MODULE_PREFIX, "write conn %d isActive FALSE", getClientId());
         return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     }
 
-    esp_err_t err = netconn_write(_client, pBuf, bufLen, NETCONN_COPY);
+    (void)maxRetryMs;
+    err_t err = netconn_write(_client, pBuf, bufLen, NETCONN_COPY);
+    if (err == ERR_OK)
+        bytesWritten = bufLen;
+
+#ifdef DEBUG_NETCONN_WRITE_TIMING
+#ifdef ESP_PLATFORM
+    uint32_t afterWriteCycles = xthal_get_ccount();
+    netconnWriteCycles += (afterWriteCycles - startCycles);
+    callCount++;
+
+    // Report every 5 seconds
+    uint32_t nowMs = millis();
+    if (nowMs - lastReportMs > 5000)
+    {
+        uint32_t cyclesPerUs = esp_clk_cpu_freq() / 1000000;
+        uint32_t totalUs = cyclesPerUs ? (uint32_t)(netconnWriteCycles / cyclesPerUs) : 0;
+        LOG_I(MODULE_PREFIX, "netconn_write timing (us): total=%u calls=%u avg=%u",
+            totalUs, callCount, callCount > 0 ? (totalUs / callCount) : 0);
+        netconnWriteCycles = 0;
+        callCount = 0;
+        lastReportMs = nowMs;
+    }
+#endif
+#endif
+
     if (err != ERR_OK)
     {
         LOG_W(MODULE_PREFIX, "write failed err %s (%d) connClient %d",
                     espIdfErrToStr(err), err, getClientId());
     }
-    return (err = ERR_OK) ? RaftWebConnSendRetVal::WEB_CONN_SEND_OK : RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+    return (err == ERR_OK) ? RaftWebConnSendRetVal::WEB_CONN_SEND_OK : RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
 }
 
 RaftClientConnRslt RaftClientConnNetconn::getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf)

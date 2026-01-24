@@ -38,6 +38,8 @@ const static char* MODULE_PREFIX = "WebConnMgr";
 // #define DEBUG_WEBSOCKETS_SEND
 // #define DEBUG_WEBSOCKETS_SEND_DETAIL
 // #define DEBUG_NEW_RESPONDER
+// #define DEBUG_WEBCONN_SERVICE_TIMING
+// #define DEBUG_CAN_SEND_TIMING
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor
@@ -241,6 +243,36 @@ bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check if a channel is currently connected (does not perform send-readiness checks)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebConnManager::isChannelConnected(uint32_t channelID)
+{
+    // Find websocket responder corresponding to channel
+    for (uint32_t i = 0; i < _webConnections.size(); i++)
+    {
+        // Check active
+        if (!_webConnections[i].isActive())
+            continue;
+
+        // Get responder
+        RaftWebResponder* pResponder = _webConnections[i].getResponder();
+        if (!pResponder)
+            continue;
+
+        // Get channelID
+        uint32_t usedChannelID = 0;
+        if (!pResponder->getChannelID(usedChannelID))
+            continue;
+
+        // Check for channelID match
+        if (usedChannelID == channelID)
+            return true;
+    }
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Add handler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -335,9 +367,18 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
 
 bool RaftWebConnManager::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
 {
+#ifdef DEBUG_CAN_SEND_TIMING
+    uint64_t startUs = micros();
+    uint32_t iterCount = 0;
+#endif
+
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
+#ifdef DEBUG_CAN_SEND_TIMING
+        iterCount++;
+#endif
+
         // Check active
         if (!_webConnections[i].isActive())
             continue;
@@ -355,9 +396,33 @@ bool RaftWebConnManager::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCod
         // Check for channelID match
         if (usedChannelID == channelID)
         {
-            return pResponder->isReadyToSend();
+#ifdef DEBUG_CAN_SEND_TIMING
+            uint64_t beforeIsReadyUs = micros();
+#endif
+            bool result = pResponder->isReadyToSend();
+#ifdef DEBUG_CAN_SEND_TIMING
+            uint64_t endUs = micros();
+            uint32_t totalUs = endUs - startUs;
+            uint32_t isReadyUs = endUs - beforeIsReadyUs;
+            if (totalUs > 1000) // Log if > 1ms
+            {
+                LOG_I(MODULE_PREFIX, "canSendBufOnChannel chanID %d totalUs %d isReadyUs %d iters %d connIdx %d result %d",
+                            channelID, totalUs, isReadyUs, iterCount, i, result);
+            }
+#endif
+            return result;
         }
     }
+
+#ifdef DEBUG_CAN_SEND_TIMING
+    uint64_t endUs = micros();
+    uint32_t totalUs = endUs - startUs;
+    if (totalUs > 1000) // Log if > 1ms
+    {
+        LOG_I(MODULE_PREFIX, "canSendBufOnChannel chanID %d NOT FOUND totalUs %d iters %d",
+                    channelID, totalUs, iterCount);
+    }
+#endif
 
     // If channel doesn't exist (maybe it has just closed) then
     // indicate no connection so that messages can be discarded

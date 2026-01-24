@@ -29,11 +29,7 @@
 // #define DEBUG_WEBSOCKETS_PING_PONG
 // #define DEBUG_WS_IS_ACTIVE
 // #define DEBUG_WS_SERVICE
-// #define DEBUG_WEBSOCKET_ANY 
-
-#ifdef DEBUG_WEBSOCKET_ANY
-static const char *MODULE_PREFIX = "RaftWebRespWS";
-#endif
+// #define DEBUG_IS_READY_TO_SEND_TIMING
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -266,9 +262,30 @@ bool RaftWebResponderWS::leaveConnOpen()
 
 bool RaftWebResponderWS::isReadyToSend()
 {
+#ifdef DEBUG_IS_READY_TO_SEND_TIMING
+    uint64_t startUs = micros();
+#endif
+
     bool isReady = _webSocketLink.isActiveAndUpgraded();
+
+#ifdef DEBUG_IS_READY_TO_SEND_TIMING
+    uint64_t afterLinkCheckUs = micros();
+#endif
+
     if (isReady)
         isReady = _reqParams.getWebConnReadyToSend() ? _reqParams.getWebConnReadyToSend()() == WEB_CONN_SEND_OK : true;
+
+#ifdef DEBUG_IS_READY_TO_SEND_TIMING
+    uint64_t endUs = micros();
+    uint32_t totalUs = endUs - startUs;
+    uint32_t connCheckUs = endUs - afterLinkCheckUs;
+    if (totalUs > 1000) // Log if > 1ms
+    {
+        LOG_I(MODULE_PREFIX, "isReadyToSend connId %d totalUs %d linkCheckUs %d connCheckUs %d result %d",
+                    _reqParams.connId, totalUs, (uint32_t)(afterLinkCheckUs - startUs), connCheckUs, isReady);
+    }
+#endif
+
 #ifdef DEBUG_RESPONDER_IS_READY_TO_SEND
     LOG_I(MODULE_PREFIX, "isReadyToSend connId %d %s",
                 _reqParams.connId, isReady ? "READY" : "NOT READY");

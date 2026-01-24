@@ -34,6 +34,9 @@ public:
     // Handler
     bool addHandler(RaftWebHandler* pHandler);
 
+    // Check if a channel is currently connected (does not perform send-readiness checks)
+    bool isChannelConnected(uint32_t channelID);
+
     // Get server settings
     const RaftWebServerSettings& getServerSettings() const
     {

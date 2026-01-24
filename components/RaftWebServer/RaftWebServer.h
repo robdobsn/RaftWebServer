@@ -40,6 +40,12 @@ public:
         return _connManager.canSendBufOnChannel(channelID, msgType, noConn);
     }
 
+    // Check if a channel is currently connected (does not perform send-readiness checks)
+    bool isChannelConnected(uint32_t channelID)
+    {
+        return _connManager.isChannelConnected(channelID);
+    }
+
     // Send message on a channel
     bool sendBufferOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
     {

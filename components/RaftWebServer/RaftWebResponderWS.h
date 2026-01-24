@@ -126,5 +126,7 @@ private:
 
     // Debug
     static const uint32_t MAX_DEBUG_TEXT_STR_LEN = 100;
-    static const uint32_t MAX_DEBUG_BIN_HEX_LEN = 50;    
+    static const uint32_t MAX_DEBUG_BIN_HEX_LEN = 50;
+    static constexpr const char *MODULE_PREFIX = "RaftWebRespWS";
+
 };

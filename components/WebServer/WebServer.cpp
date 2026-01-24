@@ -22,6 +22,11 @@
 #include "RaftWebHandlerRestAPI.h"
 #include "RaftWebHandlerWS.h"
 
+// This define enables checking of channel connection state for websockets
+// Comment the following to use canSendBufferOnChannel (which gets actual busy state of channel but
+// may be more expensive to call)
+#define USE_IS_CHANNEL_CONNECTED_FOR_WEBSOCKETS
+
 // #define DEBUG_WEBSERVER_WEBSOCKETS
 #define DEBUG_API_WEB_CERTS
 
@@ -362,7 +367,15 @@ void WebServer::webSocketSetup()
                                 msg.getChannelID());
                     },
                     [this](uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn) {
+                        (void)msgType;
+#ifdef USE_IS_CHANNEL_CONNECTED_FOR_WEBSOCKETS
+                        // Use isChannelConnected to check if there is a connection (less expensive)
+                        noConn = ! _raftWebServer.isChannelConnected(channelID);
+                        return !noConn;
+#else
+                        // Use canSendBufferOnChannel to check if we can send
                         return _raftWebServer.canSendBufferOnChannel(channelID, msgType, noConn); 
+#endif
                     },
                     &commsChannelSettings);
 

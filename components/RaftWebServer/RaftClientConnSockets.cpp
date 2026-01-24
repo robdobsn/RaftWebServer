@@ -86,6 +86,10 @@ void RaftClientConnSockets::setup(bool blocking)
 
 RaftWebConnSendRetVal RaftClientConnSockets::canSend()
 {
+#ifdef DEBUG_CAN_SEND_SELECT_TIMING
+    uint64_t startUs = micros();
+#endif
+
     // Use select to check if socket is ready to send
     fd_set writefds;
     FD_ZERO(&writefds);
@@ -93,7 +97,24 @@ RaftWebConnSendRetVal RaftClientConnSockets::canSend()
     struct timeval tv;
     tv.tv_sec = 0;
     tv.tv_usec = 0;
+
+#ifdef DEBUG_CAN_SEND_SELECT_TIMING
+    uint64_t beforeSelectUs = micros();
+#endif
+
     int rslt = select(_client + 1, NULL, &writefds, NULL, &tv);
+
+#ifdef DEBUG_CAN_SEND_SELECT_TIMING
+    uint64_t afterSelectUs = micros();
+    uint32_t selectUs = afterSelectUs - beforeSelectUs;
+    uint32_t totalUs = afterSelectUs - startUs;
+    if (totalUs > 1000) // Log if > 1ms
+    {
+        LOG_I(MODULE_PREFIX, "canSend conn %d totalUs %d selectUs %d setupUs %d result %d",
+                    getClientId(), totalUs, selectUs, (uint32_t)(beforeSelectUs - startUs), rslt);
+    }
+#endif
+
     if (rslt < 0)
     {
         LOG_W(MODULE_PREFIX, "canSend conn %d select error %d", getClientId(), errno);

@@ -47,6 +47,13 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // #define DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS 10
 // #define DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS 10
 // #define DEBUG_RESPONDER_FAILURE
+// #define DEBUG_CAN_SEND_ON_CONN_TIMING
+// #define DEBUG_WEB_CONN_SERVICE_TIMING
+
+#if defined(ESP_PLATFORM) && (defined(DEBUG_WEB_CONN_SERVICE_TIMING) || defined(DEBUG_CAN_SEND_ON_CONN_TIMING))
+#include <xtensa/hal.h>
+#include "esp_private/esp_clk.h"
+#endif
 
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
 #include "esp_heap_trace.h"
@@ -1002,6 +1009,10 @@ void RaftWebConnection::setHTTPResponseStatus(RaftHttpStatusCode responseCode)
 
 RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
 {
+#if defined(ESP_PLATFORM) && defined(DEBUG_CAN_SEND_ON_CONN_TIMING)
+    uint64_t startUs = micros();
+#endif
+
     // Don't accept any more data while the buffer is not empty
     if (_socketTxQueuedBuffer.size() != 0)
     {
@@ -1011,7 +1022,25 @@ RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
     {
         return WEB_CONN_NO_CONNECTION;
     }
-    return _pClientConn->canSend();
+#if defined(ESP_PLATFORM) && defined(DEBUG_CAN_SEND_ON_CONN_TIMING)
+    uint64_t beforeCheckBufferUs = micros();
+#endif
+
+    RaftWebConnSendRetVal result = _pClientConn->canSend();
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_CAN_SEND_ON_CONN_TIMING)
+    uint64_t endUs = micros();
+    uint32_t totalUs = endUs - startUs;
+    uint32_t clientCanSendUs = endUs - beforeClientCanSendUs;
+    if (totalUs > 1000) // Log if > 1ms
+    {
+        LOG_I(MODULE_PREFIX, "canSendOnConn connId %d totalUs %d clientCanSendUs %d bufSize %d result %d",
+                    _pClientConn->getClientId(), totalUs, clientCanSendUs, 
+                    (int)_socketTxQueuedBuffer.size(), result);
+    }
+#endif
+
+    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1020,98 +1049,216 @@ RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
 
 RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs)
 {
-    // Check connection
-    if (!_pClientConn)
-    {
-#ifdef WARN_WEB_CONN_CANNOT_SEND
-        LOG_W(MODULE_PREFIX, "rawSendOnConn conn is nullptr");
-#endif
-        return WEB_CONN_SEND_FAIL;
-    }
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+    static uint64_t totalCycles = 0;
+    static uint64_t canSendCycles = 0;
+    static uint64_t handleQueuedCycles = 0;
+    static uint64_t sendDataCycles = 0;
+    static uint64_t queueAppendCycles = 0;
+    static uint64_t totalElapsedUs = 0;
+    static uint64_t sendDataElapsedUs = 0;
+    static uint32_t lastReportMs = 0;
+    static uint32_t callCount = 0;
+    static uint32_t totalBytes = 0;
+    static uint32_t eagainCount = 0;
+    static uint32_t failCount = 0;
 
-    // Check buffer
-    if (!pBuf)
-    {
-#ifdef WARN_WEB_CONN_CANNOT_SEND
-        LOG_W(MODULE_PREFIX, "rawSendOnConn pBuf is nullptr");
+    uint32_t startCycles = xthal_get_ccount();
+    uint32_t startUs = micros();
+    uint32_t afterCanSendCycles = startCycles;
+    uint32_t afterHandleQueuedCycles = startCycles;
 #endif
-        return WEB_CONN_SEND_FAIL;
-    }
 
-    // Check if we can send
-    RaftWebConnSendRetVal canSendRetVal = canSendOnConn();
-    if (canSendRetVal != WEB_CONN_SEND_OK)
+    RaftWebConnSendRetVal retFinal = WEB_CONN_SEND_FAIL;
+    uint32_t bytesWritten = 0;
+    RaftWebConnSendRetVal sendRetVal = WEB_CONN_SEND_FAIL;
+
+    do
     {
+        // Check connection
+        if (!_pClientConn)
+        {
 #ifdef WARN_WEB_CONN_CANNOT_SEND
-        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d cannot send %s", 
-            _pClientConn->getClientId(), RaftWebConnDefs::getSendRetValStr(canSendRetVal));
+            LOG_W(MODULE_PREFIX, "rawSendOnConn conn is nullptr");
 #endif
-        return canSendRetVal;
-    }
+            retFinal = WEB_CONN_SEND_FAIL;
+            break;
+        }
+
+        // Check buffer
+        if (!pBuf)
+        {
+#ifdef WARN_WEB_CONN_CANNOT_SEND
+            LOG_W(MODULE_PREFIX, "rawSendOnConn pBuf is nullptr");
+#endif
+            retFinal = WEB_CONN_SEND_FAIL;
+            break;
+        }
+
+        // Intentionally avoid pre-checking send readiness here (e.g. select()).
+        // Attempt the send and if it returns EAGAIN we will queue the bytes for retry
+        // by RaftWebConnection::loop() via handleTxQueuedData().
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+        afterCanSendCycles = xthal_get_ccount();
+#endif
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
-    String debugStr;
-    Raft::getHexStrFromBytes(pBuf, bufLen, debugStr);
-    LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d TX: %s", _pClientConn->getClientId(), debugStr.c_str());
+        String debugStr;
+        Raft::getHexStrFromBytes(pBuf, bufLen, debugStr);
+        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d TX: %s", _pClientConn->getClientId(), debugStr.c_str());
 #endif
 
-    // Handle any data waiting to be written
-    if (!handleTxQueuedData())
-    {
+        // Handle any data waiting to be written
+        if (!handleTxQueuedData())
+        {
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d failed handleTxQueueData", _pClientConn->getClientId());
+            LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d failed handleTxQueueData", _pClientConn->getClientId());
 #endif
-        return WEB_CONN_SEND_FAIL;
-    }
+            retFinal = WEB_CONN_SEND_FAIL;
+            break;
+        }
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+        afterHandleQueuedCycles = xthal_get_ccount();
+#endif
 
     // Check if data can be sent immediately
-    uint32_t bytesWritten = 0;
-    RaftWebConnSendRetVal retVal = WEB_CONN_SEND_FAIL;
-    if (_socketTxQueuedBuffer.size() == 0)
-    {
-        // Queue is currently empty so try to send
-        retVal = _pClientConn->sendDataBuffer(pBuf, bufLen, maxRetryMs, bytesWritten);
-#ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send len %d result %s bytesWritten %d", 
-                    _pClientConn->getClientId(), bufLen, RaftWebConnDefs::getSendRetValStr(retVal), bytesWritten);
+        if (_socketTxQueuedBuffer.size() == 0)
+        {
+            // Queue is currently empty so try to send
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+            uint32_t sendStartCycles = xthal_get_ccount();
+            uint32_t sendStartUs = micros();
 #endif
-        if ((retVal == WEB_CONN_SEND_OK) && (bytesWritten == bufLen))
-            return WEB_CONN_SEND_OK;
-        if ((retVal != WEB_CONN_SEND_EAGAIN) && (retVal != WEB_CONN_SEND_OK))
-            return retVal;
-    }
+
+            sendRetVal = _pClientConn->sendDataBuffer(pBuf, bufLen, maxRetryMs, bytesWritten);
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)            
+            uint32_t sendEndCycles = xthal_get_ccount();
+            uint32_t sendEndUs = micros();
+            sendDataCycles += (uint32_t)(sendEndCycles - sendStartCycles);
+            sendDataElapsedUs += (uint32_t)(sendEndUs - sendStartUs);
+#endif
+#ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
+            LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send len %d result %s bytesWritten %d", 
+                        _pClientConn->getClientId(), bufLen, RaftWebConnDefs::getSendRetValStr(sendRetVal), bytesWritten);
+#endif
+            if ((sendRetVal == WEB_CONN_SEND_OK) && (bytesWritten == bufLen))
+            {
+                retFinal = WEB_CONN_SEND_OK;
+                break;
+            }
+            if ((sendRetVal != WEB_CONN_SEND_EAGAIN) && (sendRetVal != WEB_CONN_SEND_OK))
+            {
+                retFinal = sendRetVal;
+                break;
+            }
+        }
 
     // Check queue max size
     int32_t bytesToAddToQueue = bufLen - bytesWritten;
-    if (bytesToAddToQueue < 0)
-    {
+        if (bytesToAddToQueue < 0)
+        {
 #ifdef WARN_ON_PACKET_SEND_MISMATCH
-        LOG_I(MODULE_PREFIX, "rawSendOnConn MISMATCH connId %d send len %d bytesWritten %d bytesToAddToQueue %d", 
-                    _pClientConn->getClientId(), bufLen, bytesWritten, bytesToAddToQueue);
+            LOG_I(MODULE_PREFIX, "rawSendOnConn MISMATCH connId %d send len %d bytesWritten %d bytesToAddToQueue %d", 
+                        _pClientConn->getClientId(), bufLen, bytesWritten, bytesToAddToQueue);
 #endif
-        return WEB_CONN_SEND_FAIL;
-    }
+            retFinal = WEB_CONN_SEND_FAIL;
+            break;
+        }
     uint32_t curSize = _socketTxQueuedBuffer.size();
-    if (curSize + bytesToAddToQueue > _maxSendBufferBytes)
-    {
+        if (curSize + bytesToAddToQueue > _maxSendBufferBytes)
+        {
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
-        LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send buffer overflow was %d trying to add %d max %d", 
-                    _pClientConn->getClientId(), curSize, bytesToAddToQueue, _maxSendBufferBytes);
+            LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send buffer overflow was %d trying to add %d max %d", 
+                        _pClientConn->getClientId(), curSize, bytesToAddToQueue, _maxSendBufferBytes);
 #endif
-        return WEB_CONN_SEND_FAIL;
-    }
+            retFinal = WEB_CONN_SEND_FAIL;
+            break;
+        }
 
     // Append to buffer
-    _socketTxQueuedBuffer.resize(_socketTxQueuedBuffer.size() + bytesToAddToQueue);
-    memcpy(_socketTxQueuedBuffer.data() + curSize, pBuf + bytesWritten, bytesToAddToQueue);
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+    uint32_t queueStartCycles = xthal_get_ccount();
+#endif
+        _socketTxQueuedBuffer.resize(_socketTxQueuedBuffer.size() + bytesToAddToQueue);
+        memcpy(_socketTxQueuedBuffer.data() + curSize, pBuf + bytesWritten, bytesToAddToQueue);
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+    uint32_t queueEndCycles = xthal_get_ccount();
+    queueAppendCycles += (uint32_t)(queueEndCycles - queueStartCycles);
+#endif
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
     LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d added %d bytes to send buffer newLen %d", 
                 _pClientConn->getClientId(), bytesToAddToQueue, _socketTxQueuedBuffer.size());
 #endif
 
-    // The data has been queued for sending (WEB_CONN_SEND_OK)
-    return WEB_CONN_SEND_OK;
+        // The data has been queued for sending (WEB_CONN_SEND_OK)
+        retFinal = WEB_CONN_SEND_OK;
+    } while(false);
+
+#if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
+    uint32_t endCycles = xthal_get_ccount();
+    uint32_t endUs = micros();
+
+    totalCycles += (uint32_t)(endCycles - startCycles);
+    totalElapsedUs += (uint32_t)(endUs - startUs);
+    canSendCycles += (uint32_t)(afterCanSendCycles - startCycles);
+    if (afterHandleQueuedCycles > afterCanSendCycles)
+        handleQueuedCycles += (uint32_t)(afterHandleQueuedCycles - afterCanSendCycles);
+
+    callCount++;
+    totalBytes += bufLen;
+    if ((sendRetVal == WEB_CONN_SEND_EAGAIN) || (retFinal == WEB_CONN_SEND_EAGAIN))
+        eagainCount++;
+    if (retFinal == WEB_CONN_SEND_FAIL)
+        failCount++;
+
+    uint32_t nowMs = millis();
+    if (nowMs - lastReportMs > 5000)
+    {
+        uint32_t cyclesPerUs = esp_clk_cpu_freq() / 1000000;
+        uint32_t totalUsCPU = cyclesPerUs ? (uint32_t)(totalCycles / cyclesPerUs) : 0;
+        uint32_t canSendUsCPU = cyclesPerUs ? (uint32_t)(canSendCycles / cyclesPerUs) : 0;
+        uint32_t queuedUsCPU = cyclesPerUs ? (uint32_t)(handleQueuedCycles / cyclesPerUs) : 0;
+        uint32_t sendUsCPU = cyclesPerUs ? (uint32_t)(sendDataCycles / cyclesPerUs) : 0;
+        uint32_t appendUsCPU = cyclesPerUs ? (uint32_t)(queueAppendCycles / cyclesPerUs) : 0;
+
+        LOG_I(MODULE_PREFIX,
+              "rawSendOnConn timing (us): cpuTotal=%u elTotal=%llu cpuCanSend=%u cpuHandleQueued=%u cpuSend=%u elSend=%llu cpuQueueAppend=%u calls=%u avgCpuTotal=%u avgElTotal=%u bytes=%u avgBytes=%u eagain=%u fail=%u",
+              totalUsCPU,
+              (unsigned long long)totalElapsedUs,
+              canSendUsCPU,
+              queuedUsCPU,
+              sendUsCPU,
+              (unsigned long long)sendDataElapsedUs,
+              appendUsCPU,
+              callCount,
+              callCount ? (totalUsCPU / callCount) : 0,
+              callCount ? (uint32_t)(totalElapsedUs / callCount) : 0,
+              totalBytes,
+              callCount ? (totalBytes / callCount) : 0,
+              eagainCount,
+              failCount);
+
+        totalCycles = 0;
+        canSendCycles = 0;
+        handleQueuedCycles = 0;
+        sendDataCycles = 0;
+        queueAppendCycles = 0;
+        totalElapsedUs = 0;
+        sendDataElapsedUs = 0;
+        callCount = 0;
+        totalBytes = 0;
+        eagainCount = 0;
+        failCount = 0;
+        lastReportMs = nowMs;
+    }
+#endif
+
+    return retFinal;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

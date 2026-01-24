@@ -55,6 +55,12 @@ static const char *MODULE_PREFIX = "RaftWSLink";
 // #define DEBUG_WEBSOCKET_DATA_BUFFERING_CONTENT
 // #define DEBUG_WEBSOCKET_DATA_PROCESSING
 // #define DEBUG_WEBSOCKET_RX_DETAIL
+// #define DEBUG_WEBSOCKET_TIME_SEND_MSG
+
+#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
+#include "esp_private/esp_clk.h"
+#include <xtensa/hal.h>
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -307,6 +313,9 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 
 RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen)
 {
+#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
+    uint32_t startCycles = xthal_get_ccount();
+#endif
     // Get length of frame
     uint32_t frameLen = bufLen + 2;
     uint32_t hdrLenCode = bufLen;
@@ -385,6 +394,15 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
             frameBuffer[pos + i] ^= maskBytes[i % WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
     }
 
+#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
+    static uint64_t framePrepareCycles = 0;
+    static uint64_t rawConnSendCycles = 0;
+    static uint32_t lastReportMs = 0;
+    static uint32_t callCount = 0;
+    uint32_t framePrepareDone = xthal_get_ccount();
+    framePrepareCycles += (uint32_t)(framePrepareDone - startCycles);
+#endif
+
     // Send
 #ifdef DEBUG_WEBSOCKET_LINK_SEND
     uint64_t timeNowUs = micros();
@@ -392,6 +410,28 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     RaftWebConnSendRetVal sendRetc = RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     if (_rawConnSendFn)
         sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
+
+#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
+    uint32_t afterSendCycles = xthal_get_ccount();
+    rawConnSendCycles += (afterSendCycles - framePrepareDone);
+    callCount++;
+
+    // Report every 5 seconds
+    uint32_t nowMs = millis();
+    if (nowMs - lastReportMs > 5000)
+    {
+        uint32_t cyclesPerUs = esp_clk_cpu_freq() / 1000000;
+        uint32_t framePrepareUs = cyclesPerUs ? (uint32_t)(framePrepareCycles / cyclesPerUs) : 0;
+        uint32_t rawConnSendUs = cyclesPerUs ? (uint32_t)(rawConnSendCycles / cyclesPerUs) : 0;
+        LOG_I(MODULE_PREFIX, "sendMsg timing (us): framePrepare=%d rawConnSend=%d calls=%d avgRawSend=%d",
+            framePrepareUs, rawConnSendUs, callCount,
+            callCount > 0 ? rawConnSendUs / callCount : 0);
+        framePrepareCycles = 0;
+        rawConnSendCycles = 0;
+        callCount = 0;
+        lastReportMs = nowMs;
+    }
+#endif
 
 #ifdef DEBUG_WEBSOCKET_LINK_SEND
     uint64_t timeTakenUs = micros() - timeNowUs;
