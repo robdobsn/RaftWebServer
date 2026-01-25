@@ -109,16 +109,16 @@ bool RaftWebResponderRestAPI::handleInboundData(const uint8_t* pBuf, uint32_t da
 
 bool RaftWebResponderRestAPI::startResponding(RaftWebConnection& request)
 {
-    _isActive = true;
+    _connStatus = CONN_ACTIVE;  // REST API connections are immediately active
     _endpointCalled = false;
     _numBytesReceived = 0;
     _respStrPos = 0;
     _sendStartMs = millis();
 
 #ifdef DEBUG_RESPONDER_REST_API
-    LOG_I(MODULE_PREFIX, "startResponding isActive %d", _isActive);
+    LOG_I(MODULE_PREFIX, "startResponding connStatus %d", _connStatus);
 #endif
-    return _isActive;
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -170,14 +170,14 @@ uint32_t RaftWebResponderRestAPI::getResponseNext(uint8_t*& pBuf, uint32_t bufMa
     _respStrPos += respLen;
     if (_respStrPos >= _respStr.length())
     {
-        _isActive = false;
+        _connStatus = CONN_INACTIVE;
 #ifdef DEBUG_RESPONDER_API_START_END
         LOG_I(MODULE_PREFIX, "getResponseNext endOfFile sent final chunk ok");
 #endif
     }
 
 #ifdef DEBUG_RESPONDER_REST_API
-    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d isActive %d", respLen, _isActive);
+    LOG_I(MODULE_PREFIX, "getResponseNext respLen %d connStatus %d", respLen, _connStatus);
 #endif
     return respLen;
 }

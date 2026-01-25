@@ -17,6 +17,7 @@
 #include "mbedtls/base64.h"
 #include "RaftWebConnection.h"
 #include "PlatformUtils.h"
+
 #ifdef ESP_PLATFORM
 #include "esp_system.h"
 #else
@@ -56,11 +57,8 @@ static const char *MODULE_PREFIX = "RaftWSLink";
 // #define DEBUG_WEBSOCKET_DATA_PROCESSING
 // #define DEBUG_WEBSOCKET_RX_DETAIL
 // #define DEBUG_WEBSOCKET_TIME_SEND_MSG
-
-#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
-#include "esp_private/esp_clk.h"
-#include <xtensa/hal.h>
-#endif
+// #define DEBUG_WEBSOCKET_HANDSHAKE
+// #define DEBUG_WEBSOCKET_TX_AVAILABLE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
@@ -82,6 +80,11 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
                 uint32_t pingIntervalMs, bool roleIsServer, uint32_t disconnIfNoPongMs,
                 bool isBinary)
 {
+#ifdef DEBUG_WEBSOCKET_HANDSHAKE
+    LOG_I(MODULE_PREFIX, "setup roleIsServer=%d upgradeRespSent was=%d (resetting to false)",
+            roleIsServer, _upgradeRespSent);
+#endif
+    
     _webSocketCB = webSocketCB;
     _rawConnSendFn = rawConnSendFn;
     _pingIntervalMs = pingIntervalMs;
@@ -91,6 +94,9 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
     _maskSentData = !roleIsServer;
     _isActive = true;
     _defaultContentOpCode = isBinary ? WEBSOCKET_OPCODE_BINARY : WEBSOCKET_OPCODE_TEXT;
+    // Reset upgrade response flag for new connection
+    _upgradeRespSent = false;
+    _upgradeReqReceived = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +105,7 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
 
 void RaftWebSocketLink::loop()
 {
-    static const uint8_t PING_MSG[] = "RIC";
+    static const uint8_t PING_MSG[] = "RAFT";
     // Handle ping / pong
     if (_upgradeRespSent && _pingIntervalMs != 0)
     {
@@ -278,7 +284,12 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 
 bool RaftWebSocketLink::isTxDataAvailable()
 {
-    return _upgradeReqReceived && !_upgradeRespSent;
+    bool result = _upgradeReqReceived && !_upgradeRespSent;
+#ifdef DEBUG_WEBSOCKET_TX_AVAILABLE
+    LOG_I(MODULE_PREFIX, "isTxDataAvailable reqReceived=%d respSent=%d result=%d",
+            _upgradeReqReceived, _upgradeRespSent, result);
+#endif
+    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +298,12 @@ bool RaftWebSocketLink::isTxDataAvailable()
 
 uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 {
+#ifdef DEBUG_WEBSOCKET_HANDSHAKE
+    // Debug logging for troubleshooting reconnection issues
+    LOG_I(MODULE_PREFIX, "getTxData upgradeRespSent=%d upgradeReqReceived=%d",
+            _upgradeRespSent, _upgradeReqReceived);
+#endif
+    
     // Check if upgrade received but no response yet sent
     if (!_upgradeRespSent && _upgradeReqReceived)
     {
@@ -298,12 +315,18 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 
         // Form the upgrade response
         _wsUpgradeResponse = formUpgradeResponse(_wsKey, _wsVersion, bufMaxLen);
+#ifdef DEBUG_WEBSOCKET_HANDSHAKE
+        LOG_I(MODULE_PREFIX, "getTxData sending upgrade response length=%d", _wsUpgradeResponse.length());
+#endif
         pBuf = (uint8_t*)_wsUpgradeResponse.c_str();
         return _wsUpgradeResponse.length();
     }
 
     // Other comms on the link is done through _rawConnSendFn
     _wsUpgradeResponse.clear();
+#ifdef DEBUG_WEBSOCKET_HANDSHAKE
+    LOG_I(MODULE_PREFIX, "getTxData no data to send (upgrade already sent or not received)");
+#endif
     return 0;
 }
 
@@ -313,8 +336,19 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 
 RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen)
 {
-#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
-    uint32_t startCycles = xthal_get_ccount();
+#ifdef DEBUG_WEBSOCKET_SEND
+    // Log all sends to debug reconnection issue
+    static const char* opCodeNames[] = {"CONT", "TEXT", "BIN", "?", "?", "?", "?", "?", "CLOSE", "PING", "PONG"};
+    const char* opName = (opCode < 11) ? opCodeNames[opCode] : "UNKNOWN";
+    LOG_I(MODULE_PREFIX, "sendMsg opCode=%s(%d) len=%d upgradeRespSent=%d", opName, opCode, bufLen, _upgradeRespSent);
+#endif
+
+#ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
+    static uint64_t framePrepareUs = 0;
+    static uint64_t rawConnSendUs = 0;
+    static uint32_t lastReportMs = 0;
+    static uint32_t callCount = 0;
+    uint64_t startUs = micros();
 #endif
     // Get length of frame
     uint32_t frameLen = bufLen + 2;
@@ -394,13 +428,9 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
             frameBuffer[pos + i] ^= maskBytes[i % WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
     }
 
-#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
-    static uint64_t framePrepareCycles = 0;
-    static uint64_t rawConnSendCycles = 0;
-    static uint32_t lastReportMs = 0;
-    static uint32_t callCount = 0;
-    uint32_t framePrepareDone = xthal_get_ccount();
-    framePrepareCycles += (uint32_t)(framePrepareDone - startCycles);
+#ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
+    framePrepareUs += (micros() - startUs);
+    startUs = micros();
 #endif
 
     // Send
@@ -411,23 +441,19 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     if (_rawConnSendFn)
         sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
 
-#if defined(DEBUG_WEBSOCKET_TIME_SEND_MSG) && defined(ESP_PLATFORM)
-    uint32_t afterSendCycles = xthal_get_ccount();
-    rawConnSendCycles += (afterSendCycles - framePrepareDone);
+#ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
+    rawConnSendUs += (micros() - startUs);
     callCount++;
 
     // Report every 5 seconds
     uint32_t nowMs = millis();
     if (nowMs - lastReportMs > 5000)
     {
-        uint32_t cyclesPerUs = esp_clk_cpu_freq() / 1000000;
-        uint32_t framePrepareUs = cyclesPerUs ? (uint32_t)(framePrepareCycles / cyclesPerUs) : 0;
-        uint32_t rawConnSendUs = cyclesPerUs ? (uint32_t)(rawConnSendCycles / cyclesPerUs) : 0;
-        LOG_I(MODULE_PREFIX, "sendMsg timing (us): framePrepare=%d rawConnSend=%d calls=%d avgRawSend=%d",
-            framePrepareUs, rawConnSendUs, callCount,
-            callCount > 0 ? rawConnSendUs / callCount : 0);
-        framePrepareCycles = 0;
-        rawConnSendCycles = 0;
+        LOG_I(MODULE_PREFIX, "sendMsg timing (us): framePrepare=%dus rawConnSend=%dus calls=%d avgRawSend=%dus",
+            (int)framePrepareUs, (int)rawConnSendUs, callCount,
+            callCount > 0 ? (int)(rawConnSendUs / callCount) : 0);
+        framePrepareUs = 0;
+        rawConnSendUs = 0;
         callCount = 0;
         lastReportMs = nowMs;
     }

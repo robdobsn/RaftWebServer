@@ -56,6 +56,9 @@ public:
     // Leave connection open
     virtual bool leaveConnOpen() override final;
 
+    // Override connection status (for WebSocket state machine)
+    virtual RaftWebConnStatus getConnStatus() override final;
+
     // Send standard headers
     virtual bool isStdHeaderRequired() override final
     {
@@ -72,6 +75,12 @@ public:
     virtual const char* getResponderType() override final
     {
         return "WS";
+    }
+
+    // Requires immediate cleanup (WebSocket needs socket closed immediately when inactive)
+    virtual bool requiresImmediateCleanup() override final
+    {
+        return true;
     }
 
     // Get channelID for responder
@@ -105,6 +114,9 @@ private:
 
     // ChannelID
     uint32_t _channelID = UINT32_MAX;
+    
+    // Slot freed flag to prevent double-freeing
+    bool _slotFreed = false;
 
     // Vars
     String _requestStr;

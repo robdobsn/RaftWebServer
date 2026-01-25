@@ -274,7 +274,7 @@ RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebReques
         return nullptr;
 
     // Check active (otherwise file didn't exist, etc)
-    if (!pResponder->isActive())
+    if (pResponder->getConnStatus() == CONN_INACTIVE)
     {
         delete pResponder;
 #ifdef DEBUG_STATIC_FILE_HANDLER

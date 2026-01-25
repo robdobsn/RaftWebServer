@@ -29,8 +29,10 @@ static const char *MODULE_PREFIX = "RaftClientConnSockets";
 
 // Warn
 #define WARN_SOCKET_SEND_FAIL
+#define WARN_ON_FATAL_ERROR
 
 // Debug
+// #define DEBUG_SOCKET_CLOSE
 // #define DEBUG_SOCKET_EAGAIN
 // #define DEBUG_SOCKET_SEND
 // #define DEBUG_SOCKET_SEND_VERBOSE
@@ -40,6 +42,10 @@ RaftClientConnSockets::RaftClientConnSockets(int client, bool traceConn)
 {
     _client = client;
     _traceConn = traceConn;
+    if (_traceConn)
+    {
+        LOG_I(MODULE_PREFIX, "RaftClientConnSockets CREATED client connId %d this=%p", _client, this);
+    }
 }
 
 RaftClientConnSockets::~RaftClientConnSockets()
@@ -48,10 +54,10 @@ RaftClientConnSockets::~RaftClientConnSockets()
     {
 #ifdef RD_CLIENT_CONN_SOCKETS_CONN_STATS
         double connOpenTimeSecs = Raft::timeElapsed(millis(), _connOpenTimeMs) / 1000.0;
-        LOG_I(MODULE_PREFIX, "RaftClientConnSockets CLOSED client connId %d bytesRead %d bytesWritten %d connOpenTimeSecs %.2f",
-                    _client, _bytesRead, _bytesWritten, connOpenTimeSecs);
+        LOG_I(MODULE_PREFIX, "RaftClientConnSockets CLOSED client connId %d bytesRead %d bytesWritten %d connOpenTimeSecs %.2f this=%p",
+                    _client, _bytesRead, _bytesWritten, connOpenTimeSecs, this);
 #else
-        LOG_I(MODULE_PREFIX, "RaftClientConnSockets CLOSED client connId %d", _client);
+        LOG_I(MODULE_PREFIX, "RaftClientConnSockets CLOSED client connId %d this=%p", _client, this);
 #endif
     }
     shutdown(_client, SHUT_RDWR);
@@ -61,6 +67,16 @@ RaftClientConnSockets::~RaftClientConnSockets()
 
 void RaftClientConnSockets::setup(bool blocking)
 {
+    // Set SO_LINGER with short timeout for balanced close behavior
+    struct linger ling = {0};
+    ling.l_onoff = 1;   // Enable linger
+    ling.l_linger = 2;  // Wait up to 2 seconds for graceful close, then force close
+    setsockopt(_client, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
+    
+    // Set SO_REUSEADDR to allow immediate port reuse
+    int reuseAddr = 1;
+    setsockopt(_client, SOL_SOCKET, SO_REUSEADDR, &reuseAddr, sizeof(reuseAddr));
+    
     // Check for non blocking
     if (!blocking)
     {
@@ -86,6 +102,12 @@ void RaftClientConnSockets::setup(bool blocking)
 
 RaftWebConnSendRetVal RaftClientConnSockets::canSend()
 {
+    // Check if socket is still valid
+    if (_client < 0)
+    {
+        return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+    }
+
 #ifdef DEBUG_CAN_SEND_SELECT_TIMING
     uint64_t startUs = micros();
 #endif
@@ -134,7 +156,7 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
     bytesWritten = 0;
     if (!isActive())
     {
-        LOG_W(MODULE_PREFIX, "write conn %d isActive FALSE", getClientId());
+        LOG_W(MODULE_PREFIX, "sendDataBuffer conn %d isActive FALSE", getClientId());
         return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
     }
 
@@ -188,6 +210,21 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                 RaftThread_sleep(1);
                 continue;
             }
+            // Fatal errors (connection reset, broken pipe, etc.) - immediately close socket
+            // to prevent zombie connections that continue trying to send
+            if ((opErrno == ECONNRESET) || (opErrno == EPIPE) || (opErrno == ENOTCONN) || 
+                (opErrno == ECONNABORTED) || (opErrno == ENETDOWN) || (opErrno == ENETRESET))
+            {
+#ifdef WARN_SOCKET_SEND_FAIL
+                LOG_W(MODULE_PREFIX, "sendDataBuffer FATAL errno %d conn %d - closing socket immediately", 
+                            opErrno, getClientId());
+#endif
+                // Immediately close the socket to free resources
+                shutdown(_client, SHUT_RDWR);
+                close(_client);
+                _client = -1;
+                return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+            }
 #ifdef WARN_SOCKET_SEND_FAIL
             LOG_W(MODULE_PREFIX, "sendDataBuffer failed errno error %d conn %d bufLen %d totalMs %d", 
                         opErrno, getClientId(), bufLen, (int)Raft::timeElapsed(millis(), startMs));
@@ -217,6 +254,13 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
 
 RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, SpiramAwareAllocator<uint8_t>>& dataBuf)
 {
+    // Check if socket is still valid
+    if (_client < 0)
+    {
+        dataBuf.clear();
+        return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
+    }
+
     // End any current data operation
     getDataEnd();
 
@@ -250,6 +294,19 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
             case EWOULDBLOCK:
             case EINPROGRESS:
                 break;
+            case ECONNRESET:
+            case EPIPE:
+            case ENOTCONN:
+            case ECONNABORTED:
+                // Fatal connection errors - immediately close socket
+#ifdef WARN_ON_FATAL_ERROR
+                LOG_W(MODULE_PREFIX, "service read FATAL error %d - closing socket", errno);
+#endif
+                shutdown(_client, SHUT_RDWR);
+                close(_client);
+                _client = -1;
+                getDataEnd();
+                return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
             default:
                 LOG_W(MODULE_PREFIX, "service read error %d", errno);
                 connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;
@@ -263,7 +320,13 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
     if (bufLen == 0)
     {
         dataBuf.clear();
-        LOG_W(MODULE_PREFIX, "service read conn closed %d", errno);
+#ifdef DEBUG_SOCKET_CLOSE
+        LOG_I(MODULE_PREFIX, "service read conn closed gracefully - closing socket");
+#endif
+        // Immediately close the socket
+        shutdown(_client, SHUT_RDWR);
+        close(_client);
+        _client = -1;
         getDataEnd();
         return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
     }

@@ -25,6 +25,12 @@ public:
         return (uint32_t) _client;
     }
 
+    // Check if connection is active
+    virtual bool isActive() override final
+    {
+        return _client >= 0;
+    }
+
     // Check if sending is ok
     virtual RaftWebConnSendRetVal canSend() override final;
     

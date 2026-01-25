@@ -25,6 +25,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 #define WARN_ON_PACKET_SEND_MISMATCH
 
 // Debug
+// #define DEBUG_WEB_CONN_OPEN_CLOSE
 // #define DEBUG_WEB_REQUEST_HEADERS
 // #define DEBUG_WEB_REQUEST_HEADER_DETAIL
 // #define DEBUG_WEB_REQUEST_READ
@@ -47,8 +48,11 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // #define DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS 10
 // #define DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS 10
 // #define DEBUG_RESPONDER_FAILURE
+// #define DEBUG_RESPONDER_CLEAR
 // #define DEBUG_CAN_SEND_ON_CONN_TIMING
 // #define DEBUG_WEB_CONN_SERVICE_TIMING
+// #define DEBUG_WEB_CONN_RESPONDER_STATUS
+// #define DEBUG_WEB_CONN_RESPONSE_CHUNK
 
 #if defined(ESP_PLATFORM) && (defined(DEBUG_WEB_CONN_SERVICE_TIMING) || defined(DEBUG_CAN_SEND_ON_CONN_TIMING))
 #include <xtensa/hal.h>
@@ -181,6 +185,13 @@ void RaftWebConnection::clear()
     _parseHeaderStr = "";
     _debugDataRxCount = 0;
     _maxSendBufferBytes = 0;
+#ifdef DEBUG_RESPONDER_CLEAR
+    if (_socketTxQueuedBuffer.size() > 0)
+    {
+        LOG_I(MODULE_PREFIX, "clear() clearing _socketTxQueuedBuffer with %d bytes", _socketTxQueuedBuffer.size());
+    }
+#endif
+    _socketTxQueuedBuffer.clear();
     _header.clear();
 }
 
@@ -421,8 +432,16 @@ void RaftWebConnection::loop()
                 _pClientConn->getClientId());
 #endif
 
-        // Clear connection after send completion
-        clearAfterSendCompletion();
+        // Clear connection - immediate for responders that require it (e.g., WebSocket)
+        // to prevent socket FD reuse conflicts during rapid reconnection
+        if (_pResponder && _pResponder->requiresImmediateCleanup())
+        {
+            clear();
+        }
+        else
+        {
+            clearAfterSendCompletion();
+        }
 
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
         heap_trace_stop();
@@ -659,16 +678,19 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
     uint64_t debugHandleRespStartUs = micros();
 #endif
 
-    // Handle active responder responses
-    bool isActive = _pResponder && _pResponder->isActive();
-    if (isActive)
+    // Get connection status
+    RaftWebConnStatus connStatus = _pResponder ? _pResponder->getConnStatus() : CONN_INACTIVE;
+    bool isConnecting = (connStatus == CONN_CONNECTING);
+    bool isActive = (connStatus == CONN_ACTIVE);
+    
+    // Handle response chunks when connecting (for WebSocket handshake) or when active
+    if (isConnecting || isActive)
     {
         // Handle next chunk of response
         errorOccurred = !handleResponseChunk();
 
         // Record time of activity for timeouts
         _timeoutLastActivityMs = millis();
-
     }
 
 #ifdef DEBUG_WEB_RESPONDER_HDL_DATA_TIME_THRESH_MS
@@ -676,8 +698,9 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
     uint64_t debugSendStdHdrStartUs = micros();
 #endif
 
-    // Send the standard response and headers if required    
-    if (!isActive && _isStdHeaderRequired && (!_pResponder || _pResponder->isStdHeaderRequired()))
+    // Send the standard response and headers if required (for responders that need them)
+    // WebSocket responders return false for isStdHeaderRequired() so they skip this
+    if (_isStdHeaderRequired && (!_pResponder || _pResponder->isStdHeaderRequired()))
     {
         errorOccurred = !sendStandardHeaders();
         // Done headers
@@ -690,11 +713,11 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
 #endif
 
     // Debug
-#ifdef DEBUG_RESPONDER_PROGRESS_DETAIL
-    LOG_I(MODULE_PREFIX, "responderHandleData connId %d responder %s isActive %s errorOccurred %s", 
+#ifdef DEBUG_WEB_CONN_RESPONDER_STATUS
+    LOG_I(MODULE_PREFIX, "responderHandleData connId %d responder %s connStatus %d errorOccurred %s", 
                 _pClientConn->getClientId(),
                 _pResponder ? "YES" : "NO", 
-                (_pResponder && _pResponder->isActive()) ? "YES" : "NO", 
+                _pResponder ? _pResponder->getConnStatus() : CONN_INACTIVE, 
                 errorOccurred ? "YES" : "NO");
 #endif
 
@@ -722,8 +745,16 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
         return false;
     }
 
-    // Return indication of more to come
-    return _pResponder->isActive();
+    // Return indication of more to come - keep processing if not inactive
+    connStatus = _pResponder->getConnStatus();
+    if (connStatus == CONN_INACTIVE)
+    {
+#ifdef DEBUG_WEB_CONN_OPEN_CLOSE
+        LOG_I(MODULE_PREFIX, "responderHandleData connId %d status INACTIVE - triggering close", 
+                _pClientConn->getClientId());
+#endif
+    }
+    return connStatus != CONN_INACTIVE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1356,9 +1387,26 @@ bool RaftWebConnection::sendStandardHeaders()
 
 bool RaftWebConnection::handleResponseChunk()
 {
+#ifdef DEBUG_WEB_CONN_RESPONSE_CHUNK
+    // Log entry for debugging
+    bool responderExists = (_pResponder != nullptr);
+    bool stdHdrNeeded = _isStdHeaderRequired && (_pResponder ? _pResponder->isStdHeaderRequired() : false);
+    bool respAvail = _pResponder ? _pResponder->responseAvailable() : false;
+    LOG_I(MODULE_PREFIX, "handleResponseChunk connId %d responder=%s stdHdrNeeded=%s respAvail=%s",
+            _pClientConn ? _pClientConn->getClientId() : -1,
+            responderExists ? "Y" : "N",
+            stdHdrNeeded ? "Y" : "N",
+            respAvail ? "Y" : "N");
+#endif
+    
     // Check if there is anything to do
     if (!_pResponder || !((_isStdHeaderRequired && _pResponder->isStdHeaderRequired()) || _pResponder->responseAvailable()))
+    {
+#ifdef DEBUG_WEB_CONN_RESPONSE_CHUNK
+        LOG_I(MODULE_PREFIX, "handleResponseChunk connId %d NOTHING TO DO", _pClientConn ? _pClientConn->getClientId() : -1);
+#endif
         return true;
+    }
 
 #ifdef DEBUG_WEB_RESPONDER_HDL_CHUNK_THRESH_MS
     uint64_t debugHdlRespChunkStartUs = micros();
@@ -1480,6 +1528,10 @@ bool RaftWebConnection::handleTxQueuedData()
     // Check if data in the queue to send
     if (_socketTxQueuedBuffer.size() > 0)
     {
+#ifdef DEBUG_WEB_CONN_OPEN_CLOSE
+        LOG_I(MODULE_PREFIX, "handleTxQueuedData connId %d HAS DATA: %d bytes queued", 
+                        _pClientConn ? _pClientConn->getClientId() : -1, _socketTxQueuedBuffer.size());
+#endif
         // Try to send
         uint32_t bytesWritten = 0;
         uint32_t bytesToSend = _socketTxQueuedBuffer.size();

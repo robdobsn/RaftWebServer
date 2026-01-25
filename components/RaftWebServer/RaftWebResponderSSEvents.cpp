@@ -60,7 +60,7 @@ void RaftWebResponderSSEvents::loop()
         {
             bool rslt = rawSendFn((const uint8_t*)outMsg.c_str(), outMsg.length(), MAX_SSEVENT_SEND_RETRY_MS) == RaftWebConnSendRetVal::WEB_CONN_SEND_OK;
             if (!rslt)
-                _isActive = false;
+                _connStatus = CONN_INACTIVE;
         }
     }
 }
@@ -85,7 +85,7 @@ bool RaftWebResponderSSEvents::handleInboundData(const uint8_t *pBuf, uint32_t d
 bool RaftWebResponderSSEvents::startResponding(RaftWebConnection &request)
 {
     // Now active
-    _isActive = true;
+    _connStatus = CONN_ACTIVE;
 #ifdef DEBUG_RESPONDER_EVENTS
     LOG_I(MODULE_PREFIX, "startResponding isActive %d", _isActive);
 #endif

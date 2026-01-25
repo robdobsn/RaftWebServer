@@ -48,13 +48,14 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
     }
 
     // If gzip valid try that first
-    _isActive = false;
+    _connStatus = CONN_INACTIVE;
     if (gzipValid)
     {
         String gzipFilePath = filePath + ".gz";
-        _isActive = _fileChunker.start(gzipFilePath, maxSendSize, false, false, true, false);
-        if (_isActive)
+        bool isActive = _fileChunker.start(gzipFilePath, maxSendSize, false, false, true, false);
+        if (isActive)
         {
+            _connStatus = CONN_ACTIVE;
             addHeader("Content-Encoding", "gzip");
 #ifdef DEBUG_RESPONDER_FILE
             LOG_I(MODULE_PREFIX, "constructor connId %d filePath %s",
@@ -64,20 +65,21 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
     }
 
     // Fallback to unzipped file if necessary
-    if (!_isActive)
+    if (_connStatus == CONN_INACTIVE)
     {
-        _isActive = _fileChunker.start(filePath, maxSendSize, false, false, true, false);
-#ifdef DEBUG_RESPONDER_FILE
-        if (_isActive)
+        bool isActive = _fileChunker.start(filePath, maxSendSize, false, false, true, false);
+        if (isActive)
         {
+            _connStatus = CONN_ACTIVE;
+#ifdef DEBUG_RESPONDER_FILE
             LOG_I(MODULE_PREFIX, "constructor connId %d filePath %s",
                     _reqParams.connId, filePath.c_str());
-        }
 #endif
+        }
     }
 
 #ifdef WARN_RESPONDER_FILE
-    if (!_isActive)
+    if (_connStatus == CONN_INACTIVE)
     {
         LOG_E(MODULE_PREFIX, "constructor connId %d failed to start filepath %s",
                     _reqParams.connId, filePath.c_str());
@@ -110,11 +112,11 @@ bool RaftWebResponderFile::handleInboundData(const uint8_t* pBuf, uint32_t dataL
 bool RaftWebResponderFile::startResponding(RaftWebConnection& request)
 {
 #ifdef DEBUG_RESPONDER_FILE_START_END
-    LOG_I(MODULE_PREFIX, "startResponding connId %d isActive %d filePath %s",
-                _reqParams.connId, _isActive, _filePath.c_str());
+    LOG_I(MODULE_PREFIX, "startResponding connId %d connStatus=%d filePath %s",
+                _reqParams.connId, _connStatus, _filePath.c_str());
 #endif
     _fileSendStartMs = millis();
-    return _isActive;
+    return _connStatus != CONN_INACTIVE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -136,7 +138,7 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
 #endif
     if (!_fileChunker.nextRead(_lastChunkData.data(), bufMaxLen, readLen, _isFinalChunk))
     {
-        _isActive = false;
+        _connStatus = CONN_INACTIVE;
         _lastChunkData.clear();
         LOG_W(MODULE_PREFIX, "getResponseNext connId %d failed filePath %s", _reqParams.connId, _filePath.c_str());
         return 0;
@@ -148,8 +150,8 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
 #endif
 
 #ifdef DEBUG_RESPONDER_FILE_CONTENTS
-    LOG_I(MODULE_PREFIX, "getResponseNext connId %d newChunk len %d isActive %d isFinalChunk %d filePos %d filePath %s", 
-                _reqParams.connId, readLen, _isActive, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
+    LOG_I(MODULE_PREFIX, "getResponseNext connId %d newChunk len %d connStatus %d isFinalChunk %d filePos %d filePath %s", 
+                _reqParams.connId, readLen, _connStatus, _isFinalChunk, _fileChunker.getFilePos(), _filePath.c_str());
 #endif
     _lastChunkData.resize(readLen);
     pBuf = _lastChunkData.data();
@@ -157,7 +159,7 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
     // Check if done
     if (_isFinalChunk)
     {
-        _isActive = false;
+        _connStatus = CONN_INACTIVE;
 #ifdef DEBUG_RESPONDER_FILE_START_END
         LOG_I(MODULE_PREFIX, "getResponseNext connId %d endOfFile sent final chunk ok filePath %s",
                 _reqParams.connId, _filePath.c_str());

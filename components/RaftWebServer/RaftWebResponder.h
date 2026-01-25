@@ -15,19 +15,27 @@
 
 class RaftWebConnection;
 
+// Connection status for responders
+enum RaftWebConnStatus
+{
+    CONN_INACTIVE,      // Connection is inactive, responder can be cleaned up
+    CONN_CONNECTING,    // Connection is being established (e.g., WebSocket handshake)
+    CONN_ACTIVE         // Connection is fully active, data can be sent/received
+};
+
 class RaftWebResponder
 {
 public:
     RaftWebResponder()
     {
-        _isActive = false;
+        _connStatus = CONN_INACTIVE;
     }
     virtual ~RaftWebResponder()
     {
     }
-    virtual bool isActive()
+    virtual RaftWebConnStatus getConnStatus()
     {
-        return _isActive;
+        return _connStatus;
     }
 
     virtual void loop()
@@ -49,7 +57,7 @@ public:
     // Check if any reponse data is available
     virtual bool responseAvailable()
     {
-        return _isActive;
+        return _connStatus == CONN_ACTIVE;
     }
 
     // Get response next
@@ -129,9 +137,15 @@ public:
         return true;
     }
 
+    // Requires immediate cleanup (e.g., WebSocket needs socket closed immediately when inactive)
+    virtual bool requiresImmediateCleanup()
+    {
+        return false;
+    }
+
 protected:
-    // Is Active
-    bool _isActive;
+    // Connection status
+    RaftWebConnStatus _connStatus;
 
 private:
     // Additional headers to send

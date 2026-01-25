@@ -71,6 +71,7 @@ public:
                 ) override final;
 
     void responderDelete(RaftWebResponderWS* pResponder);
+    void responderInactive(uint32_t channelID);
 
 #endif
 

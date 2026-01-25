@@ -15,6 +15,8 @@
 #include "RaftWebConnManager.h"
 #endif
 
+#define WARN_ON_RESPONDER_NOT_FOUND
+
 // #define WARN_WS_CLOSE_UNKNOWN_CONNECTION
 // #define DEBUG_WS_SEND_APP_DATA_FAIL
 // #define DEBUG_WEB_HANDLER_WS
@@ -102,6 +104,13 @@ RaftWebResponder* RaftWebHandlerWS::getNewResponder(const RaftWebRequestHeader& 
 
     // Looks like we can handle this so create a new responder object
     uint32_t channelID = _connectionSlots[connSlotIdx].channelID;
+    
+#ifdef DEBUG_WEB_HANDLER_WS        
+    // Log slot allocation
+    LOG_I(MODULE_PREFIX, "getNewResponder allocating slot %d channelID %d wasUsed %d", 
+            connSlotIdx, channelID, _connectionSlots[connSlotIdx].isUsed);
+#endif
+    
     RaftWebResponder* pResponder = new RaftWebResponderWS(this, params, requestHeader.URL, 
                 _inboundCanAcceptCB, 
                 _rxMsgCB, 
@@ -142,17 +151,47 @@ void RaftWebHandlerWS::responderDelete(RaftWebResponderWS* pResponder)
         int connSlotIdx = findConnectionSlotByChannelID(channelID);
         if (connSlotIdx < 0)
         {
-            LOG_W(MODULE_PREFIX, "responderDelete NOT FOUND responder %p channelID %d", pResponder, channelID);
+            // Slot may have already been freed by responderInactive() - this is OK
+#ifdef DEBUG_WS_OPEN_CLOSE
+            LOG_I(MODULE_PREFIX, "responderDelete slot already freed channelID %d", channelID);
+#endif
             return;
         }
 
         // Clear the connection slot
         _connectionSlots[connSlotIdx].isUsed = false;
+#ifdef DEBUG_WS_OPEN_CLOSE
+        LOG_I(MODULE_PREFIX, "responderDelete freed slot channelID %d connSlotIdx %d", channelID, connSlotIdx);
+#endif
     }
     else
     {
         LOG_W(MODULE_PREFIX, "responderDelete FAIL NO CHANNELID responder %p channelID %d", pResponder, channelID);
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// responderInactive
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void RaftWebHandlerWS::responderInactive(uint32_t channelID)
+{
+    // Find the connection slot
+    int connSlotIdx = findConnectionSlotByChannelID(channelID);
+    if (connSlotIdx < 0)
+    {
+#ifdef WARN_ON_RESPONDER_NOT_FOUND
+        LOG_W(MODULE_PREFIX, "responderInactive NOT FOUND channelID %d", channelID);
+#endif
+        return;
+    }
+
+    // Clear the connection slot immediately to allow reconnection with same ID
+    _connectionSlots[connSlotIdx].isUsed = false;
+
+#ifdef DEBUG_WEB_HANDLER_WS            
+    LOG_I(MODULE_PREFIX, "responderInactive freed slot channelID %d connSlotIdx %d", channelID, connSlotIdx);
+#endif
 }
 
 #elif defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
