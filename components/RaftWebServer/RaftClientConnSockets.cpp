@@ -68,7 +68,7 @@ RaftClientConnSockets::~RaftClientConnSockets()
 void RaftClientConnSockets::setup(bool blocking)
 {
     // Set SO_LINGER with short timeout for balanced close behavior
-    struct linger ling = {0};
+    struct linger ling;
     ling.l_onoff = 1;   // Enable linger
     ling.l_linger = 2;  // Wait up to 2 seconds for graceful close, then force close
     setsockopt(_client, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
