@@ -81,7 +81,7 @@ RaftWebResponderFile::RaftWebResponderFile(const String& filePath, RaftWebHandle
 #ifdef WARN_RESPONDER_FILE
     if (_connStatus == CONN_INACTIVE)
     {
-        LOG_E(MODULE_PREFIX, "constructor connId %d failed to start filepath %s",
+        LOG_W(MODULE_PREFIX, "constructor connId %d failed to start filepath %s",
                     _reqParams.connId, filePath.c_str());
     }
 #endif
