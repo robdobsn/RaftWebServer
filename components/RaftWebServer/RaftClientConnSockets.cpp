@@ -12,6 +12,7 @@
 #include "ArduinoTime.h"
 #include "RaftUtils.h"
 #include "RaftThreading.h"
+#include "esp_heap_caps.h"
 #ifndef WEB_CONN_USE_LWIP
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -60,18 +61,17 @@ RaftClientConnSockets::~RaftClientConnSockets()
         LOG_I(MODULE_PREFIX, "RaftClientConnSockets CLOSED client connId %d this=%p", _client, this);
 #endif
     }
-    shutdown(_client, SHUT_RDWR);
-    delay(20);
-    close(_client);
+    if (_client >= 0)
+    {
+        close(_client);
+    }
 }
 
 void RaftClientConnSockets::setup(bool blocking)
 {
-    // Set SO_LINGER with short timeout for balanced close behavior
-    struct linger ling;
-    ling.l_onoff = 1;   // Enable linger
-    ling.l_linger = 2;  // Wait up to 2 seconds for graceful close, then force close
-    setsockopt(_client, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
+    // Don't set SO_LINGER - let close() return immediately on non-blocking sockets.
+    // LWIP handles the TCP close sequence asynchronously via the PCB.
+    // TIME_WAIT is managed by PCBs (CONFIG_LWIP_MAX_ACTIVE_TCP=32), not socket FDs.
     
     // Set SO_REUSEADDR to allow immediate port reuse
     int reuseAddr = 1;
@@ -219,10 +219,15 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                 LOG_W(MODULE_PREFIX, "sendDataBuffer FATAL errno %d conn %d - closing socket immediately", 
                             opErrno, getClientId());
 #endif
-                // Immediately close the socket to free resources
-                shutdown(_client, SHUT_RDWR);
+                // Set SO_LINGER(0) for RST close — connection is dead, skip TIME_WAIT
+                struct linger ling = {1, 0};
+                setsockopt(_client, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
                 close(_client);
                 _client = -1;
+                if (!heap_caps_check_integrity_all(true))
+                {
+                    ESP_LOGE(MODULE_PREFIX, "HEAP CORRUPT after sendDataBuffer close conn %d", getClientId());
+                }
                 return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
             }
 #ifdef WARN_SOCKET_SEND_FAIL
@@ -298,15 +303,19 @@ RaftClientConnRslt RaftClientConnSockets::getDataStart(std::vector<uint8_t, Spir
             case EPIPE:
             case ENOTCONN:
             case ECONNABORTED:
+            {
                 // Fatal connection errors - immediately close socket
 #ifdef WARN_ON_FATAL_ERROR
                 LOG_W(MODULE_PREFIX, "service read FATAL error %d - closing socket", errno);
 #endif
-                shutdown(_client, SHUT_RDWR);
+                // Set SO_LINGER(0) for RST close — connection is dead, skip TIME_WAIT
+                struct linger ling = {1, 0};
+                setsockopt(_client, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
                 close(_client);
                 _client = -1;
                 getDataEnd();
                 return RaftClientConnRslt::CLIENT_CONN_RSLT_CONN_CLOSED;
+            }
             default:
                 LOG_W(MODULE_PREFIX, "service read error %d", errno);
                 connRslt = RaftClientConnRslt::CLIENT_CONN_RSLT_ERROR;

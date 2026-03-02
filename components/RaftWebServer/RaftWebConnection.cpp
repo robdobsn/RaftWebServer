@@ -16,8 +16,22 @@
 #include "RaftWebHandler.h"
 #include "RaftWebConnManager.h"
 #include "RaftWebResponder.h"
+#include "esp_heap_caps.h"
 
 static const char *MODULE_PREFIX = "RaftWebConn";
+
+// Heap corruption debugging - check heap at critical lifecycle points
+// #define DEBUG_HEAP_ON_LIFECYCLE
+#ifdef DEBUG_HEAP_ON_LIFECYCLE
+#define HEAP_CHECK(tag) do { \
+    if (!heap_caps_check_integrity_all(true)) { \
+        ESP_LOGE("HEAP", "CORRUPT after %s connId %d", tag, \
+            _pClientConn ? _pClientConn->getClientId() : -1); \
+    } \
+} while(0)
+#else
+#define HEAP_CHECK(tag)
+#endif
 
 // Warn
 #define WARN_WEB_CONN_ERROR_CLOSE
@@ -156,8 +170,10 @@ void RaftWebConnection::clear()
 #ifdef DEBUG_RESPONDER_CREATE_DELETE
         LOG_W(MODULE_PREFIX, "clear deleting _pResponder %d", (uint32_t)_pResponder);
 #endif
+        HEAP_CHECK("clear pre-del-responder");
         delete _pResponder;
         _pResponder = nullptr;
+        HEAP_CHECK("clear post-del-responder");
     }
 
     // Delete any client
@@ -167,8 +183,10 @@ void RaftWebConnection::clear()
         LOG_I(MODULE_PREFIX, "clear deleting clientConn %d", _pClientConn->getClientId());
     }
 #endif
+    HEAP_CHECK("clear pre-del-client");
     delete _pClientConn;
     _pClientConn = nullptr;
+    HEAP_CHECK("clear post-del-client");
 
     // Clear all fields
     _pConnManager = nullptr;
@@ -305,7 +323,9 @@ void RaftWebConnection::loop()
     bool checkForNewData = true;
     if (_pResponder)
     {
+        HEAP_CHECK("loop pre-responder-loop");
         _pResponder->loop();
+        HEAP_CHECK("loop post-responder-loop");
         checkForNewData = _pResponder->readyToReceiveData();
     }
 

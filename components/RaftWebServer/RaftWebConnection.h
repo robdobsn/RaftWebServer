@@ -82,8 +82,8 @@ private:
     RaftHttpStatusCode _httpResponseStatus;
 
     // Timeout timer
-    static const uint32_t MAX_STD_CONN_DURATION_MS = 60 * 60 * 1000;
-    static const uint32_t MAX_CONN_IDLE_DURATION_MS = 60 * 1000;
+    static const uint32_t MAX_STD_CONN_DURATION_MS = 5 * 60 * 1000;
+    static const uint32_t MAX_CONN_IDLE_DURATION_MS = 5 * 1000;
     static const uint32_t MAX_HEADER_SEND_RETRY_MS = 10;
     static const uint32_t MAX_CONTENT_SEND_RETRY_MS = 0;
     uint32_t _timeoutStartMs;

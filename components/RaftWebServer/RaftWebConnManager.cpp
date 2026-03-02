@@ -15,6 +15,7 @@
 #include "RaftWebHandlerWS.h"
 #include "RaftWebResponder.h"
 #include "RaftUtils.h"
+#include "esp_heap_caps.h"
 
 const static char* MODULE_PREFIX = "WebConnMgr";
 
@@ -163,6 +164,14 @@ void RaftWebConnManager::serviceConnections()
         webConn.loop();
     }
 
+    // Check heap after servicing all connections
+#ifdef DEBUG_HEAP_ON_LIFECYCLE
+    if (!heap_caps_check_integrity_all(true))
+    {
+        ESP_LOGE(MODULE_PREFIX, "HEAP CORRUPT after serviceConnections loop");
+    }
+#endif
+
 #ifdef DEBUG_WEBCONN_SERVICE_TIMING
     _debugTimerExistingConns.ended();
 #endif
@@ -187,6 +196,14 @@ void RaftWebConnManager::serviceConnections()
             // Delete client (which closes any connection)
             delete pClientConn;
         }
+
+        // Check heap after accommodating new connection
+#ifdef DEBUG_HEAP_ON_LIFECYCLE
+        if (!heap_caps_check_integrity_all(true))
+        {
+            ESP_LOGE(MODULE_PREFIX, "HEAP CORRUPT after accommodateConnection");
+        }
+#endif
     }
 
 #ifdef DEBUG_WEBCONN_SERVICE_TIMING
