@@ -422,6 +422,8 @@ bool RaftWebMultipart::processPayload(const uint8_t *buffer, uint32_t bufPos, ui
 #endif
                     // Failed to match boundary - the chars in the boundaryBuf were regular data
                     dataCallback(_boundaryBuf.data(), 0, _boundaryIdx);
+                    // Advance past current-buffer bytes already sent from _boundaryBuf
+                    payloadStartPos = bufPos;
                 }
                 else
                 {
