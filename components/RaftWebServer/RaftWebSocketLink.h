@@ -109,7 +109,7 @@ private:
     static const uint32_t MAX_WS_MESSAGE_SIZE = 500000;
 
     // Retry
-    static const uint32_t MAX_WS_SEND_RETRY_MS = 0;
+    static const uint32_t MAX_WS_SEND_RETRY_MS = 100;
 
     // Ping/Pong sending
     // Set _pingIntervalMs to 0 to disable pings from server
