@@ -15,7 +15,7 @@ class RaftWebServerSettings
 {
 public:
     static const int DEFAULT_HTTP_PORT = 80;
-    static const int DEFAULT_CONN_SLOTS = 10;
+    static const int DEFAULT_CONN_SLOTS = 12;
     static const int DEFAULT_ENABLE_WEBSOCKETS = true;
     static const int DEFAULT_ENABLE_FILE_SERVER = true;
     static constexpr const char* DEFAULT_REST_API_PREFIX = "/api";
@@ -24,10 +24,10 @@ public:
     // Task settings
     static const int DEFAULT_TASK_CORE = 0;
     static const int DEFAULT_TASK_PRIORITY = 9;
-    static const int DEFAULT_TASK_STACK_BYTES = 5000;   
+    static const int DEFAULT_TASK_STACK_BYTES = 5000;
 
     // Send buffer max length
-    static const int DEFAULT_SEND_BUFFER_MAX_LEN = 5000;
+    static const int DEFAULT_SEND_BUFFER_MAX_LEN = 20000;
 
     // Constructor
     RaftWebServerSettings()

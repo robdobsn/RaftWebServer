@@ -108,8 +108,10 @@ private:
     // Max message size
     static const uint32_t MAX_WS_MESSAGE_SIZE = 500000;
 
-    // Retry
-    static const uint32_t MAX_WS_SEND_RETRY_MS = 100;
+    // Retry on EAGAIN - set to 0 to avoid blocking the main loop;
+    // relies on _socketTxQueuedBuffer (sized via sendMax) to absorb EAGAIN overflow
+    // See devdocs/websocket-backpressure-analysis.md for details
+    static const uint32_t MAX_WS_SEND_RETRY_MS = 0;
 
     // Ping/Pong sending
     // Set _pingIntervalMs to 0 to disable pings from server

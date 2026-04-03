@@ -52,7 +52,7 @@ RaftWebHandlerWS::RaftWebHandlerWS(const RaftJsonIF& config,
     _isBinaryWS = config.getString("content", "binary").equalsIgnoreCase("binary");
 
     // Setup channelIDs mapping
-    _maxConnections = config.getLong("maxConn", 1);
+    _maxConnections = config.getLong("maxConn", 5);
     _connectionSlots.clear();
     _connectionSlots.resize(_maxConnections);
 
