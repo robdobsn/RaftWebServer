@@ -14,14 +14,10 @@
 #include "RaftWebServerSettings.h"
 #include "RaftJson.h"
 
-#ifdef FEATURE_WEB_SERVER_USE_MONGOOSE
-class RaftWebConnManager_mongoose;
-#else
 class RaftWebConnManager;
 class RaftWebRequestParams;
 class RaftWebRequestHeader;
 class RaftWebResponder;
-#endif
 
 class RaftWebHandler
 {
@@ -36,19 +32,12 @@ public:
     {
         return "HandlerBase";
     }
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
-    {
-        return false;
-    }
-#else
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params,
                 RaftHttpStatusCode &statusCode)
     {
         return NULL;
     }
-#endif
     virtual bool canSend(uint32_t channelID, bool& noConn)
     {
         noConn = false;
@@ -75,30 +64,15 @@ public:
         return _webServerSettings.sendBufferMaxLen;
     }
 
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    // Connection manager
-    RaftWebConnManager_mongoose* _pConnManager = nullptr;
-    void setConnManager(RaftWebConnManager_mongoose* pConnManager)
-    {
-        _pConnManager = pConnManager;
-    }
-#else
     // Connection manager
     RaftWebConnManager* _pConnManager = nullptr;
     void setConnManager(RaftWebConnManager* pConnManager)
     {
         _pConnManager = pConnManager;
     }
-#endif
 
 protected:
     RaftWebServerSettings _defaultWebServerSettings;
     RaftWebServerSettings& _webServerSettings = _defaultWebServerSettings;
 
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_POS = 0;
-    static const int RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN = 4;
-    static const int RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_POS = RAFT_MG_HTTP_DATA_CHANNEL_ID_POS + RAFT_MG_HTTP_DATA_CHANNEL_ID_LEN;
-    static const int RAFT_MG_HTTP_DATA_MULTIPART_STATE_PTR_LEN = sizeof(void*);
-#endif
 };

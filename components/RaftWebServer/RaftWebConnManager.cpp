@@ -343,7 +343,6 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
 {
     // Iterate handlers to find one that gives a responder
     statusCode = HTTP_STATUS_NOTFOUND;
-#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     for (RaftWebHandler *pHandler : _webHandlers)
     {
         if (pHandler)
@@ -374,7 +373,6 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
                 break;
         }
     }
-#endif
     return nullptr;
 }
 

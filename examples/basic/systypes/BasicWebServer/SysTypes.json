@@ -1,0 +1,18 @@
+{
+    "SysName": "BasicWebServer",
+    "NetMan": {
+        "wifiSTAEn": 1,
+        "wifiSSID": "SET_SSID_HERE",
+        "wifiPass": "SET_PASSWORD_HERE",
+        "hostname": "BasicWebServer"
+    },
+    "FileManager": {
+        "enable": 1
+    },
+    "WebServer": {
+        "enable": 1,
+        "stdRespHeaders": [
+            "Access-Control-Allow-Origin: *"
+        ]
+    }
+}

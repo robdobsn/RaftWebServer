@@ -77,11 +77,9 @@ RaftWebResponderWS::~RaftWebResponderWS()
             this, _reqParams.connId, _channelID, _slotFreed);
 #endif
             
-#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     // Only call responderDelete if slot wasn't already freed
     if (_pWebHandler && !_slotFreed)
         _pWebHandler->responderDelete(this);
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

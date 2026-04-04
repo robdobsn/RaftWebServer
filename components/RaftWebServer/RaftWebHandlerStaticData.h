@@ -11,9 +11,7 @@
 #include "RaftWebHandler.h"
 #include "Logger.h"
 #include "RaftWebResponderData.h"
-#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 #include "RaftWebRequestHeader.h"
-#endif
 
 // #define DEBUG_STATIC_DATA_HANDLER
 
@@ -60,7 +58,6 @@ public:
     // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode) override final
@@ -105,7 +102,6 @@ public:
         return pResponder;
 
     }
-#endif
     virtual bool isFileHandler() const override final
     {
         return true;

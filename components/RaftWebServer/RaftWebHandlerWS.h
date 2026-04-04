@@ -12,14 +12,8 @@
 #include "RaftArduino.h"
 #include "Logger.h"
 #include <vector>
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include "mongoose.h"
-#include "ThreadSafeQueue.h"
-#include "RaftWebDataFrame.h"
-#else
 #include "RaftWebRequestHeader.h"
 #include "RaftWebResponderWS.h"
-#endif
 
 class RaftWebHandlerWS : public RaftWebHandler
 {
@@ -53,18 +47,6 @@ public:
         _connectionSlots[wsConnIdx].isUsed = false;
     }
 
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-
-    // Handle request
-    virtual bool handleRequest(struct mg_connection *pConn, int ev, void *ev_data) override final;
-
-    // Check is a message can be sent
-    virtual bool canSend(uint32_t channelID, bool& noConn) override final;
-    // Send message (on a channel)
-    virtual bool sendMsg(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID) override final;
-
-#else
-
     virtual RaftWebResponder* getNewResponder(const RaftWebRequestHeader& requestHeader, 
                 const RaftWebRequestParams& params, 
                 RaftHttpStatusCode &statusCode
@@ -72,8 +54,6 @@ public:
 
     void responderDelete(RaftWebResponderWS* pResponder);
     void responderInactive(uint32_t channelID);
-
-#endif
 
 private:
     // Max connections
@@ -108,14 +88,6 @@ private:
 
         // Channel ID
         uint32_t channelID = UINT32_MAX;
-
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-        // Last ping request time
-        uint32_t lastPingRequestTimeMs = 0;
-
-        // Connection
-        struct mg_connection* pConn = NULL;
-#endif
     };
     std::vector<ConnSlotRec> _connectionSlots;
 
@@ -132,19 +104,4 @@ private:
     // Handle connection slots
     int findFreeConnectionSlot();
     int findConnectionSlotByChannelID(uint32_t channelID);
-
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    // Queue for sending frames over the web socket
-    ThreadSafeQueue<RaftWebDataFrame> _txQueue;
-    static const uint32_t MAX_WAIT_FOR_TX_QUEUE_MS = 2;
-    static const uint32_t MAX_TIME_IN_QUEUE_MS = 5000;
-
-    // Get/set channel ID in connection info
-    uint32_t getChannelIDFromConnInfo(struct mg_connection *pConn);
-    void setChannelIDInConnInfo(struct mg_connection *pConn, uint32_t channelID);  
-
-    // Handle connection slots
-    int findConnectionSlotByConn(struct mg_connection *pConn);
-
-#endif
 };

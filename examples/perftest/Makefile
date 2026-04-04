@@ -7,10 +7,7 @@ COM_PORT ?= COM3
 build:
 	$(DOCKER) $(CMD)
 
-mongoose:
-	$(DOCKER) $(CMD) -D USE_MONGOOSE=1
-
-.PHONY: build mongoose
+.PHONY: build
 
 clean:
 	$(DOCKER) rm -rf build sdkconfig || true

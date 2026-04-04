@@ -1,0 +1,28 @@
+{
+    "SysName": "PerftestWebServer",
+    "NetMan": {
+        "wifiSTAEn": 1,
+        "wifiSSID": "SET_SSID_HERE",
+        "wifiPass": "SET_PASSWORD_HERE",
+        "hostname": "PerftestWebServer"
+    },
+    "FileManager": {
+        "enable": 1
+    },
+    "WebServer": {
+        "enable": 1,
+        "stdRespHeaders": [
+            "Access-Control-Allow-Origin: *"
+        ],
+        "websockets": [
+            {
+                "pfix": "ws",
+                "pcol": "RICSerial",
+                "maxConn": 4,
+                "txQueueMax": 20,
+                "pktMaxBytes": 5000,
+                "pingMs": 2000
+            }
+        ]
+    }
+}

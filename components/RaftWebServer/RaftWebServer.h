@@ -11,12 +11,7 @@
 #include "RaftWebServerSettings.h"
 #include "RaftWebHandler.h"
 #include "RaftJson.h"
-
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include "RaftWebConnManager_mongoose.h"
-#else
 #include "RaftWebConnManager.h"
-#endif
 
 class RaftWebServer
 {
@@ -57,13 +52,8 @@ public:
 
 private:
 
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-    // Connection manager
-    RaftWebConnManager_mongoose _connManager;
-#else
     // Connection manager
     RaftWebConnManager _connManager;
-#endif
 
 };
 

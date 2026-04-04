@@ -10,13 +10,9 @@
 #include "RaftWebHandlerStaticFiles.h"
 #include "FileSystem.h"
 #include "RaftJson.h"
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-#include "mongoose.h"
-#else
 #include "RaftWebConnection.h"
 #include "RaftWebResponder.h"
 #include "RaftWebResponderFile.h"
-#endif
 
 #if defined(__linux__) && !defined(ESP_PLATFORM)
 #include <unistd.h>
@@ -82,8 +78,6 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
         _servePaths = pServePaths;
     if (pCacheControl)
         _cacheControl = pCacheControl;
-
-#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
     // Split the base folders by comma
     String baseFolders = _servePaths;
@@ -171,8 +165,6 @@ RaftWebHandlerStaticFiles::RaftWebHandlerStaticFiles(const char* pServePaths, co
     }
 #endif
 
-#endif
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -197,8 +189,6 @@ const char* RaftWebHandlerStaticFiles::getName() const
 // NOTE: this returns a new object or NULL
 // NOTE: if a new object is returned the caller is responsible for deleting it when appropriate
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if !defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
 
 RaftWebResponder* RaftWebHandlerStaticFiles::getNewResponder(const RaftWebRequestHeader& requestHeader, 
             const RaftWebRequestParams& params,
@@ -324,54 +314,4 @@ String RaftWebHandlerStaticFiles::getContentType(const String& filePath) const
     return "text/plain";
 }
 
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Mongoose handlers
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if defined(FEATURE_WEB_SERVER_USE_MONGOOSE)
-
-bool RaftWebHandlerStaticFiles::handleRequest(struct mg_connection *pConn, int ev, void *ev_data)
-{
-    // Check event
-    if (ev == MG_EV_HTTP_MSG) 
-    {
-        // Debug
-#ifdef DEBUG_STATIC_FILE_HANDLER
-        LOG_I(MODULE_PREFIX, "handleRequest stdRespHeaders %s", _webServerSettings.stdRespHeaders.c_str());
-#endif
-        // Extract message
-        struct mg_http_message *hm = (struct mg_http_message *)ev_data;
-        struct mg_http_serve_opts opts = 
-        {
-            .root_dir = _servePaths.c_str(),
-            .ssi_pattern = NULL,
-            .extra_headers = _webServerSettings.stdRespHeaders.length() > 0 ? _webServerSettings.stdRespHeaders.c_str() : NULL,
-            .mime_types = _webServerSettings.mimeTypes.length() > 0 ? _webServerSettings.mimeTypes.c_str() : _mimeTypesStr,
-            .page404 = _webServerSettings.pageSource404.length() > 0 ? _webServerSettings.404PageSource.c_str() : NULL,
-            .fs = NULL,
-        };
-        mg_http_serve_dir(pConn, hm, &opts);
-
-#ifdef DEBUG_STATIC_FILE_HANDLER
-        // Debug
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-        struct mg_http_message tmp = {0};
-#pragma GCC diagnostic pop
-        mg_http_parse((char *) pConn->send.buf, pConn->send.len, &tmp);
-        struct mg_str unknown = mg_str_n("?", 1), *cl;
-        cl = mg_http_get_header(&tmp, "Content-Length");
-        if (cl == NULL) cl = &unknown;
-        LOG_I(MODULE_PREFIX, "handleRequest %.*s %.*s %.*s %.*s", (int) hm->method.len, hm->method.ptr,
-                (int) hm->uri.len, hm->uri.ptr, (int) tmp.uri.len, tmp.uri.ptr,
-                (int) cl->len, cl->ptr);
-#endif
-        return true;
-    }
-    return false;
-}
-
-#endif
 
