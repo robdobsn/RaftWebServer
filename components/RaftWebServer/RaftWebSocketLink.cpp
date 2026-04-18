@@ -13,7 +13,12 @@
 #include "RaftArduino.h"
 #include "RaftUtils.h"
 #include "ArduinoTime.h"
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "psa/crypto.h"
+#else
 #include "mbedtls/sha1.h"
+#endif
 #include "mbedtls/base64.h"
 #include "RaftWebConnection.h"
 #include "PlatformUtils.h"
@@ -508,7 +513,13 @@ String RaftWebSocketLink::genMagicResponse(const String &wsKey, const String &ws
     // Use MBED TLS to perform SHA1 step
     static const uint32_t SHA1_RESULT_LEN = 20;
     uint8_t sha1Result[SHA1_RESULT_LEN];
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    size_t hashLen = 0;
+    psa_hash_compute(PSA_ALG_SHA_1, (const uint8_t *)concatKey.c_str(), concatKey.length(),
+                     sha1Result, SHA1_RESULT_LEN, &hashLen);
+#else
     mbedtls_sha1((uint8_t *)concatKey.c_str(), concatKey.length(), sha1Result);
+#endif
 
     // Base64 result can't be larger than 2x the input
     char base64Result[SHA1_RESULT_LEN * 2];
