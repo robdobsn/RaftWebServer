@@ -21,7 +21,7 @@
 
 #ifdef DEBUG_NETCONN_WRITE_TIMING
 #ifdef ESP_PLATFORM
-#include <xtensa/hal.h>
+#include "esp_cpu.h"
 #endif
 #endif
 
@@ -55,7 +55,7 @@ RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf,
     static uint32_t netconnWriteCycles = 0;
     static uint32_t lastReportMs = 0;
     static uint32_t callCount = 0;
-    uint32_t startCycles = xthal_get_ccount();
+    uint32_t startCycles = esp_cpu_get_cycle_count();
 #endif
 #endif
 
@@ -74,7 +74,7 @@ RaftWebConnSendRetVal RaftClientConnNetconn::sendDataBuffer(const uint8_t* pBuf,
 
 #ifdef DEBUG_NETCONN_WRITE_TIMING
 #ifdef ESP_PLATFORM
-    uint32_t afterWriteCycles = xthal_get_ccount();
+    uint32_t afterWriteCycles = esp_cpu_get_cycle_count();
     netconnWriteCycles += (afterWriteCycles - startCycles);
     callCount++;
 

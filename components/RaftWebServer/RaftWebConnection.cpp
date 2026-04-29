@@ -69,7 +69,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 // #define DEBUG_WEB_CONN_RESPONSE_CHUNK
 
 #if defined(ESP_PLATFORM) && (defined(DEBUG_WEB_CONN_SERVICE_TIMING) || defined(DEBUG_CAN_SEND_ON_CONN_TIMING))
-#include <xtensa/hal.h>
+#include "esp_cpu.h"
 #include "esp_private/esp_clk.h"
 #endif
 
@@ -1114,7 +1114,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
     static uint32_t eagainCount = 0;
     static uint32_t failCount = 0;
 
-    uint32_t startCycles = xthal_get_ccount();
+    uint32_t startCycles = esp_cpu_get_cycle_count();
     uint32_t startUs = micros();
     uint32_t afterCanSendCycles = startCycles;
     uint32_t afterHandleQueuedCycles = startCycles;
@@ -1151,7 +1151,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
         // by RaftWebConnection::loop() via handleTxQueuedData().
 
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
-        afterCanSendCycles = xthal_get_ccount();
+        afterCanSendCycles = esp_cpu_get_cycle_count();
 #endif
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS_CONTENTS
@@ -1171,7 +1171,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
         }
 
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
-        afterHandleQueuedCycles = xthal_get_ccount();
+        afterHandleQueuedCycles = esp_cpu_get_cycle_count();
 #endif
 
     // Check if data can be sent immediately
@@ -1179,14 +1179,14 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
         {
             // Queue is currently empty so try to send
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
-            uint32_t sendStartCycles = xthal_get_ccount();
+            uint32_t sendStartCycles = esp_cpu_get_cycle_count();
             uint32_t sendStartUs = micros();
 #endif
 
             sendRetVal = _pClientConn->sendDataBuffer(pBuf, bufLen, maxRetryMs, bytesWritten);
 
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)            
-            uint32_t sendEndCycles = xthal_get_ccount();
+            uint32_t sendEndCycles = esp_cpu_get_cycle_count();
             uint32_t sendEndUs = micros();
             sendDataCycles += (uint32_t)(sendEndCycles - sendStartCycles);
             sendDataElapsedUs += (uint32_t)(sendEndUs - sendStartUs);
@@ -1231,13 +1231,13 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 
     // Append to buffer
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
-    uint32_t queueStartCycles = xthal_get_ccount();
+    uint32_t queueStartCycles = esp_cpu_get_cycle_count();
 #endif
         _socketTxQueuedBuffer.resize(_socketTxQueuedBuffer.size() + bytesToAddToQueue);
         memcpy(_socketTxQueuedBuffer.data() + curSize, pBuf + bytesWritten, bytesToAddToQueue);
 
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
-    uint32_t queueEndCycles = xthal_get_ccount();
+    uint32_t queueEndCycles = esp_cpu_get_cycle_count();
     queueAppendCycles += (uint32_t)(queueEndCycles - queueStartCycles);
 #endif
 
@@ -1251,7 +1251,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
     } while(false);
 
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
-    uint32_t endCycles = xthal_get_ccount();
+    uint32_t endCycles = esp_cpu_get_cycle_count();
     uint32_t endUs = micros();
 
     totalCycles += (uint32_t)(endCycles - startCycles);
