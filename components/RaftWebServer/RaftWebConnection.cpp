@@ -767,6 +767,10 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
 
     // Return indication of more to come - keep processing if not inactive
     connStatus = _pResponder->getConnStatus();
+    if ((connStatus == CONN_INACTIVE) && (_socketTxQueuedBuffer.size() != 0))
+    {
+        return true;
+    }
     if (connStatus == CONN_INACTIVE)
     {
 #ifdef DEBUG_WEB_CONN_OPEN_CLOSE
