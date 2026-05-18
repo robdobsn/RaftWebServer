@@ -13,6 +13,10 @@
 #include "RaftThreading.h"
 #include <cstring>
 
+#ifdef ESP_PLATFORM
+#include "esp_netif.h"
+#endif
+
 static const char *MODULE_PREFIX = "RaftClientListener";
 
 #ifndef WEB_CONN_USE_LWIP
@@ -33,12 +37,57 @@ static const char *MODULE_PREFIX = "RaftClientListener";
 #define WARN_ON_LISTENER_ERROR
 // #define DEBUG_NEW_CONNECTION
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Wait until the lwIP / esp_netif TCP/IP stack is initialised
+//
+// Calling any lwIP socket API (e.g. socket(), bind()) before esp_netif_init /
+// tcpip_init has run causes a null-pointer panic inside lwIP's sys_mbox_post -
+// the tcpip thread mailbox is uninitialised. This can happen at boot if NetMan
+// fails to bring up any interface (no Wi-Fi STA/AP, no Ethernet) and is the
+// crash that triggered this defensive guard.
+//
+// Once esp_netif_init() has run successfully (one netif registered) the tcpip
+// thread stays alive for the rest of the boot, so lwIP socket APIs remain safe
+// across subsequent Wi-Fi disconnects, AP loss, antenna removal etc. - those
+// surface as errno's (ENETDOWN etc.) handled by the accept-loop below.
+//
+// On non-ESP platforms this is a no-op (the host POSIX stack is always ready).
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+static void waitForTcpIpStackReady()
+{
+#ifdef ESP_PLATFORM
+    static bool s_warnedNotReady = false;
+    uint32_t backoffMs = 250;
+    while (esp_netif_get_nr_of_ifs() == 0)
+    {
+        if (!s_warnedNotReady)
+        {
+            LOG_W("RaftClientListener", "waitForTcpIpStackReady TCP/IP stack not ready (no network interfaces) - waiting for NetMan");
+            s_warnedNotReady = true;
+        }
+        RaftThread_sleep(backoffMs);
+        backoffMs = (backoffMs < 2000) ? backoffMs * 2 : 2000;
+    }
+    if (s_warnedNotReady)
+    {
+        LOG_I("RaftClientListener", "waitForTcpIpStackReady TCP/IP stack ready (%d interface(s)) - resuming listener",
+                (int)esp_netif_get_nr_of_ifs());
+        s_warnedNotReady = false;
+    }
+#endif
+}
+
 void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
 {
 
     // Loop forever
     while (1)
     {
+
+        // Defence against lwIP not being initialised yet (NetMan failure at boot)
+        // and against runtime stack teardown - this is the single re-entry point
+        // for the outer loop so it also gates re-binds after accept-loop breaks.
+        waitForTcpIpStackReady();
 
 #ifndef WEB_CONN_USE_LWIP
 
