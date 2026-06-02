@@ -38,6 +38,7 @@ static const char *MODULE_PREFIX = "RaftClientConnSockets";
 // #define DEBUG_SOCKET_SEND
 // #define DEBUG_SOCKET_SEND_VERBOSE
 // #define DEBUG_TIME_RECV_FN_SLOW_US 1000
+// #define DEBUG_SOCKET_SEND_FAIL_IF_CLIENT_CLOSED
 
 RaftClientConnSockets::RaftClientConnSockets(int client, bool traceConn)
 {
@@ -210,14 +211,27 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                 RaftThread_sleep(1);
                 continue;
             }
-            // Fatal errors (connection reset, broken pipe, etc.) - immediately close socket
-            // to prevent zombie connections that continue trying to send
-            if ((opErrno == ECONNRESET) || (opErrno == EPIPE) || (opErrno == ENOTCONN) || 
+            // Unrecoverable send errors - immediately close socket to prevent
+            // zombie connections that continue trying to send.
+            if ((opErrno == ECONNRESET) || (opErrno == EPIPE) || (opErrno == ENOTCONN) ||
                 (opErrno == ECONNABORTED) || (opErrno == ENETDOWN) || (opErrno == ENETRESET))
             {
 #ifdef WARN_SOCKET_SEND_FAIL
-                LOG_W(MODULE_PREFIX, "sendDataBuffer FATAL errno %d conn %d - closing socket immediately", 
-                            opErrno, getClientId());
+                // ECONNRESET/EPIPE/ENOTCONN/ECONNABORTED are routine: a client (e.g. a
+                // browser reloading the page) dropped the connection. Log quietly.
+                // ENETDOWN/ENETRESET indicate a local network problem - keep as a warning.
+                if ((opErrno == ENETDOWN) || (opErrno == ENETRESET))
+                {
+                    LOG_W(MODULE_PREFIX, "sendDataBuffer network error errno %d conn %d - closing socket",
+                                opErrno, getClientId());
+                }
+#endif
+#ifdef DEBUG_SOCKET_SEND_FAIL_IF_CLIENT_CLOSED
+                if (!((opErrno == ENETDOWN) || (opErrno == ENETRESET)))
+                {
+                    LOG_I(MODULE_PREFIX, "sendDataBuffer peer closed connection (errno %d) conn %d - closing socket",
+                                opErrno, getClientId());
+                }
 #endif
                 // Set SO_LINGER(0) for RST close — connection is dead, skip TIME_WAIT
                 struct linger ling = {1, 0};

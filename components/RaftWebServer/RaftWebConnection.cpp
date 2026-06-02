@@ -17,6 +17,8 @@
 #include "RaftWebConnManager.h"
 #include "RaftWebResponder.h"
 #include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *MODULE_PREFIX = "RaftWebConn";
 
@@ -1509,11 +1511,19 @@ bool RaftWebConnection::handleResponseChunk()
             if (retVal != WEB_CONN_SEND_OK)
             {
 #ifdef DEBUG_RESPONDER_FAILURE
-                LOG_I(MODULE_PREFIX, "handleResponseChunk failed retVal %s connId %d", 
+                LOG_I(MODULE_PREFIX, "handleResponseChunk failed retVal %s connId %d",
                         RaftWebConnDefs::getSendRetValStr(retVal), _pClientConn ? _pClientConn->getClientId() : 0);
 #endif
                 if (retVal != WEB_CONN_SEND_EAGAIN)
                     return false;
+            }
+            // Chunk sent OK and more chunks remain (e.g. serving a large static
+            // file during a page load): yield the CPU so a big transfer doesn't
+            // monopolise the WebServer task / starve other tasks. Cooperative
+            // yield — adds no latency, doesn't change one-chunk-per-pass pacing.
+            else if (_pResponder->responseAvailable())
+            {
+                taskYIELD();
             }
         }
 
