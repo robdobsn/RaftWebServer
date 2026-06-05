@@ -86,10 +86,16 @@ private:
     static const uint32_t MAX_CONN_IDLE_DURATION_MS = 5 * 1000;
     static const uint32_t MAX_HEADER_SEND_RETRY_MS = 10;
     static const uint32_t MAX_CONTENT_SEND_RETRY_MS = 0;
+    // A gap between service-loop iterations longer than this means the whole system
+    // was blocked (e.g. a flash erase during OTA disables the cache and starves all
+    // tasks). When this happens the inactivity (idle) timeout must not be applied as
+    // the stall is the server's fault, not an idle client.
+    static const uint32_t CONN_SERVICE_STALL_THRESHOLD_MS = 1000;
     uint32_t _timeoutStartMs;
     uint32_t _timeoutDurationMs;
     uint32_t _timeoutLastActivityMs;
     uint32_t _timeoutOnIdleDurationMs;
+    uint32_t _lastLoopServiceMs = 0;
     bool _timeoutActive;
 
     // Responder/connection clear pending

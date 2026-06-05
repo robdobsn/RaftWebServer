@@ -141,6 +141,7 @@ bool RaftWebConnection::setNewConn(RaftClientConnBase* pClientConn, RaftWebConnM
     _pConnManager = pConnManager;
     _timeoutStartMs = millis();
     _timeoutLastActivityMs = millis();
+    _lastLoopServiceMs = millis();
     _timeoutActive = true;
     _timeoutDurationMs = MAX_STD_CONN_DURATION_MS;
     _timeoutOnIdleDurationMs = MAX_CONN_IDLE_DURATION_MS;
@@ -197,6 +198,7 @@ void RaftWebConnection::clear()
     _httpResponseStatus = HTTP_STATUS_OK;
     _timeoutStartMs = 0;
     _timeoutLastActivityMs = 0;
+    _lastLoopServiceMs = 0;
     _timeoutDurationMs = MAX_STD_CONN_DURATION_MS;
     _timeoutOnIdleDurationMs = MAX_CONN_IDLE_DURATION_MS;
     _timeoutActive = false;
@@ -274,6 +276,24 @@ void RaftWebConnection::loop()
     if (!_pClientConn)
         return;
 
+    // Detect a service-loop stall: if a long time has elapsed since this connection was
+    // last serviced then the whole system was blocked (e.g. a flash erase during OTA or
+    // a file upload disables the flash cache and starves all tasks). Advance the
+    // inactivity marker by the stalled duration so the idle (inactivity) timeout below
+    // is not tripped by a stall that is the server's fault rather than an idle client.
+    uint32_t nowMs = millis();
+    if (_lastLoopServiceMs != 0)
+    {
+        uint32_t sinceLastServiceMs = Raft::timeElapsed(nowMs, _lastLoopServiceMs);
+        if (sinceLastServiceMs > CONN_SERVICE_STALL_THRESHOLD_MS)
+        {
+            _timeoutLastActivityMs += sinceLastServiceMs;
+            LOG_W(MODULE_PREFIX, "loop service stall %dms - forgiving idle timeout connId %d",
+                    (int)sinceLastServiceMs, _pClientConn->getClientId());
+        }
+    }
+    _lastLoopServiceMs = nowMs;
+
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
     uint64_t debugServiceStartUs = micros();
     uint64_t debugHandleTxStartUs = micros();
@@ -329,6 +349,15 @@ void RaftWebConnection::loop()
         _pResponder->loop();
         HEAP_CHECK("loop post-responder-loop");
         checkForNewData = _pResponder->readyToReceiveData();
+
+        // If the responder is not ready to receive data it is applying backpressure
+        // because it is busy processing data we have already given it (e.g. an OTA
+        // worker erasing/writing flash, which can take several seconds). This is the
+        // server being busy, NOT an idle client, so refresh the inactivity marker to
+        // prevent the idle timeout from aborting an in-progress upload. The overall
+        // connection duration cap (_timeoutDurationMs) still applies as a backstop.
+        if (!checkForNewData)
+            _timeoutLastActivityMs = millis();
     }
 
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
