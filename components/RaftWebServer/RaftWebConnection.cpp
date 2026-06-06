@@ -287,7 +287,12 @@ void RaftWebConnection::loop()
         uint32_t sinceLastServiceMs = Raft::timeElapsed(nowMs, _lastLoopServiceMs);
         if (sinceLastServiceMs > CONN_SERVICE_STALL_THRESHOLD_MS)
         {
-            _timeoutLastActivityMs += sinceLastServiceMs;
+            // Peg the inactivity marker to "now". A simple `+=` is wrong because
+            // _timeoutLastActivityMs can already have been updated mid-stall by
+            // network/responder code running on another (non-cached) task, which
+            // would push the marker into the future relative to nowMs and trip the
+            // idle timeout via unsigned wraparound in isTimeout().
+            _timeoutLastActivityMs = nowMs;
             LOG_W(MODULE_PREFIX, "loop service stall %dms - forgiving idle timeout connId %d",
                     (int)sinceLastServiceMs, _pClientConn->getClientId());
         }
