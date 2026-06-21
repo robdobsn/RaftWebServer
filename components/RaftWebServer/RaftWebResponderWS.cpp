@@ -420,8 +420,18 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     if (_connStatus != CONN_ACTIVE)
     {
 #ifdef WARN_ON_SEND_INACTIVE
-        LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d REJECTED - not ACTIVE (status=%d)",
-                _reqParams.connId, _connStatus);
+        // Throttle warning to avoid flooding the log when a channel keeps
+        // broadcasting to a connection whose handshake has not completed
+        _inactiveSendSuppressedCount++;
+        uint32_t nowMs = millis();
+        if ((_inactiveSendWarnLastMs == 0) ||
+            (Raft::isTimeout(nowMs, _inactiveSendWarnLastMs, INACTIVE_SEND_WARN_MIN_INTERVAL_MS)))
+        {
+            LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d REJECTED - not ACTIVE (status=%d) suppressed %d since last",
+                    _reqParams.connId, _connStatus, _inactiveSendSuppressedCount);
+            _inactiveSendWarnLastMs = nowMs;
+            _inactiveSendSuppressedCount = 0;
+        }
 #endif
         return false;
     }

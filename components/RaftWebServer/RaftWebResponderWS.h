@@ -118,6 +118,11 @@ private:
     // Slot freed flag to prevent double-freeing
     bool _slotFreed = false;
 
+    // Throttling for "send while not active" warnings to avoid log flooding
+    uint32_t _inactiveSendWarnLastMs = 0;
+    uint32_t _inactiveSendSuppressedCount = 0;
+    static const uint32_t INACTIVE_SEND_WARN_MIN_INTERVAL_MS = 5000;
+
     // Vars
     String _requestStr;
 
