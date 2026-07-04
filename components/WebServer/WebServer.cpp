@@ -367,8 +367,13 @@ void WebServer::webSocketSetup()
                                 msg.getChannelID());
                     },
                     [this](uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn) {
-                        (void)msgType;
 #ifdef USE_IS_CHANNEL_CONNECTED_FOR_WEBSOCKETS
+                        // For publish messages (e.g. high-rate camera frames) check the actual
+                        // send-readiness of the connection so publishers back off (drop frames)
+                        // when the socket TX path is congested - otherwise the send queue
+                        // overflows and the connection is closed
+                        if (msgType == MSG_TYPE_PUBLISH)
+                            return _raftWebServer.canSendBufferOnChannel(channelID, msgType, noConn);
                         // Use isChannelConnected to check if there is a connection (less expensive)
                         noConn = ! _raftWebServer.isChannelConnected(channelID);
                         return !noConn;
