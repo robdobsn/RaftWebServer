@@ -288,10 +288,13 @@ void RaftWebConnection::loop()
         if (sinceLastServiceMs > CONN_SERVICE_STALL_THRESHOLD_MS)
         {
             // Peg the inactivity marker to "now". A simple `+=` is wrong because
-            // _timeoutLastActivityMs can already have been updated mid-stall by
-            // network/responder code running on another (non-cached) task, which
+            // _timeoutLastActivityMs can already be later than _lastLoopServiceMs: it is
+            // updated further down this function (after nowMs was sampled) so, if the
+            // stall happened inside the previous pass (e.g. in the responder), a `+=`
             // would push the marker into the future relative to nowMs and trip the
             // idle timeout via unsigned wraparound in isTimeout().
+            // Note: all connection servicing runs on the main task (SysManager loop) -
+            // there is no separate web server task.
             _timeoutLastActivityMs = nowMs;
             LOG_W(MODULE_PREFIX, "loop service stall %dms - forgiving idle timeout connId %d",
                     (int)sinceLastServiceMs, _pClientConn->getClientId());
@@ -1553,8 +1556,10 @@ bool RaftWebConnection::handleResponseChunk()
             }
             // Chunk sent OK and more chunks remain (e.g. serving a large static
             // file during a page load): yield the CPU so a big transfer doesn't
-            // monopolise the WebServer task / starve other tasks. Cooperative
-            // yield — adds no latency, doesn't change one-chunk-per-pass pacing.
+            // starve other tasks. Note that there is no separate web server task -
+            // this runs on the main task (SysManager loop) and taskYIELD() only
+            // yields to ready tasks of equal or higher priority on the same core.
+            // Cooperative yield — adds no latency, doesn't change one-chunk-per-pass pacing.
             else if (_pResponder->responseAvailable())
             {
                 taskYIELD();

@@ -35,7 +35,8 @@ public:
     // Setup
     void setup(const RaftWebServerSettings& settings);
 
-    // Service
+    // Service - must be called from the main task (the task running SysManager::loop())
+    // All connection servicing (HTTP, REST API and WebSocket receive/send) is done from here
     void loop();
     
     // Listen for client connections
@@ -48,6 +49,7 @@ public:
     bool addHandler(RaftWebHandler* pHandler, bool highPriority = false);
 
      // Check if a channel is currently connected (does not perform send-readiness checks)
+     // NOTE: main task only - not thread-safe
      bool isChannelConnected(uint32_t channelID);
 
     // Get new responder
@@ -62,13 +64,18 @@ public:
         return _webServerSettings;
     }
 
-    // Check if channel can send a message
+    // NOTE: the send functions below are main task only (the task running SysManager::loop())
+    // The send path is not protected by locks (a connection can be closed and its responder deleted
+    // by the main task at any time) so other tasks must hand-off to the main task (e.g. via a queue)
+    // Calls from other tasks are detected by RAFT_CHECK_MAIN_TASK (see RaftMainTask.h)
+
+    // Check if channel can send a message (main task only)
     bool canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn);
 
-    // Send a buffer on a channel
+    // Send a buffer on a channel (main task only)
     bool sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID);
 
-    // Send to all server-side events
+    // Send to all server-side events (main task only)
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 
     // Get web server settings
@@ -96,12 +103,6 @@ private:
 
     // Thread handles
     RaftThreadHandle _socketListenerTaskHandle = RAFT_THREAD_HANDLE_INVALID;
-#ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
-    RaftThreadHandle _clientConnHandlerTaskHandle = RAFT_THREAD_HANDLE_INVALID;
-#endif
-
-    // Client connection handler task
-    static void clientConnHandlerTask(void* pvParameters);
 
     // Helpers
     static void socketListenerTask(void* pvParameters);
@@ -109,7 +110,7 @@ private:
     bool findEmptySlot(uint32_t& slotIx);
     void serviceConnections();
     bool allocateWebSocketChannelID(uint32_t& channelID);
-    // Handle an incoming connection
+    // Handle an incoming connection (called from the socket listener task - only accesses _newConnQueue)
     bool handleNewConnection(RaftClientConnBase* pClientConn);
 
 #ifdef DEBUG_WEBCONN_SERVICE_TIMING
