@@ -119,12 +119,13 @@ void WebServer::applySetup()
                     CommsCoreIF::CHANNEL_ID_REST_API, stdRespHeaders, nullptr, nullptr,
                     clearPendingDurationMs);
             _raftWebServer.setup(settings);
-        }
 
-        // Serve static paths if enabled
-        if (enableFileServer)
-        {
-            serveStaticFiles(staticFilePaths.isEmpty() ? nullptr : staticFilePaths.c_str(), nullptr);
+            // Serve static paths if enabled
+            // Note: only done on first setup as otherwise every config change adds another static-files handler
+            if (enableFileServer)
+            {
+                serveStaticFiles(staticFilePaths.isEmpty() ? nullptr : staticFilePaths.c_str(), nullptr);
+            }
         }
         _isWebServerSetup = true;
     }
@@ -235,7 +236,7 @@ RaftRetCode WebServer::apiWebCertsBody(const String& reqStr, const uint8_t *pDat
         // Form the JSON document
         _certsTempStorage.assign(pData, pData + len);
         // Make sure it is null-terminated
-        if (_certsTempStorage[_certsTempStorage.size() - 1] != 0)
+        if ((_certsTempStorage.size() == 0) || (_certsTempStorage[_certsTempStorage.size() - 1] != 0))
             _certsTempStorage.push_back(0);
         return RAFT_OK;
     }
@@ -251,7 +252,7 @@ RaftRetCode WebServer::apiWebCertsBody(const String& reqStr, const uint8_t *pDat
     if (_certsTempStorage.size() == total)
     {
         // Check the buffer is null-terminated
-        if (_certsTempStorage[_certsTempStorage.size() - 1] != 0)
+        if ((_certsTempStorage.size() == 0) || (_certsTempStorage[_certsTempStorage.size() - 1] != 0))
             _certsTempStorage.push_back(0);
     }
     return RAFT_OK;
@@ -358,6 +359,11 @@ void WebServer::webSocketSetup()
             String interfaceName = jsonConfig.getString("pfix", "ws");
             String wsName = interfaceName + "_" + connIdx;
             String protocol = jsonConfig.getString("pcol", "RICSerial");
+
+            // Note: the send and ready-to-send callbacks below must only be called from the main task
+            // (the task running SysManager::loop()) as the websocket send path is not thread-safe.
+            // So anything publishing/sending on these channels (via CommsChannelManager::outboundHandleMsg)
+            // from another task must hand-off to the main task first (e.g. via a queue)
             uint32_t wsChanID = pCommsCore->registerChannel(
                     protocol.c_str(), 
                     interfaceName.c_str(),
@@ -372,6 +378,8 @@ void WebServer::webSocketSetup()
                         // send-readiness of the connection so publishers back off (drop frames)
                         // when the socket TX path is congested - otherwise the send queue
                         // overflows and the connection is closed
+                        // Note: high-rate publishers must still publish from the main task (not
+                        // from their own task) - see note above
                         if (msgType == MSG_TYPE_PUBLISH)
                             return _raftWebServer.canSendBufferOnChannel(channelID, msgType, noConn);
                         // Use isChannelConnected to check if there is a connection (less expensive)

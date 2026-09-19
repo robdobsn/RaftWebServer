@@ -42,6 +42,8 @@ public:
     void serveStaticFiles(const char* servePaths, const char* cacheControl = NULL);
     
     // Server-side event handler (one-way text to browser)
+    // NOTE: sending is main task only (the task running SysManager::loop()) - the web server send path
+    // (including websocket channels registered with CommsCore) is not thread-safe
     void enableServerSideEvents(const String& eventsURL);
     void sendServerSideEvent(const char* eventContent, const char* eventGroup);
 

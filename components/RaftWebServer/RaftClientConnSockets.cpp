@@ -39,6 +39,8 @@ static const char *MODULE_PREFIX = "RaftClientConnSockets";
 // #define DEBUG_SOCKET_SEND_VERBOSE
 // #define DEBUG_TIME_RECV_FN_SLOW_US 1000
 // #define DEBUG_SOCKET_SEND_FAIL_IF_CLIENT_CLOSED
+// Note: the heap check walks every heap with the heap lock held (stalls allocators on both cores)
+// #define DEBUG_HEAP_ON_LIFECYCLE
 
 RaftClientConnSockets::RaftClientConnSockets(int client, bool traceConn)
 {
@@ -238,10 +240,12 @@ RaftWebConnSendRetVal RaftClientConnSockets::sendDataBuffer(const uint8_t* pBuf,
                 setsockopt(_client, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
                 close(_client);
                 _client = -1;
+#ifdef DEBUG_HEAP_ON_LIFECYCLE
                 if (!heap_caps_check_integrity_all(true))
                 {
                     ESP_LOGE(MODULE_PREFIX, "HEAP CORRUPT after sendDataBuffer close conn %d", getClientId());
                 }
+#endif
                 return RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
             }
 #ifdef WARN_SOCKET_SEND_FAIL

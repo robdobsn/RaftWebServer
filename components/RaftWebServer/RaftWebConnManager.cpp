@@ -15,15 +15,14 @@
 #include "RaftWebHandlerWS.h"
 #include "RaftWebResponder.h"
 #include "RaftUtils.h"
+#include "RaftMainTask.h"
 #include "esp_heap_caps.h"
 
 const static char* MODULE_PREFIX = "WebConnMgr";
 
-// #define USE_THREAD_FOR_CLIENT_CONN_SERVICING
-
-#ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
-#define RD_WEB_CONN_STACK_SIZE 5000
-#endif
+// Note: connection servicing (HTTP, REST API and WebSocket receive/send) runs on the main task from loop()
+// Servicing connections from a separate task is not supported as REST API handlers would then race
+// the loop() code of the SysMods they call into
 
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
 #include "esp_heap_trace.h"
@@ -74,16 +73,21 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
     // Create slots
     _webConnections.resize(_webServerSettings.numConnSlots);
 
-#ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
-    // Start task to service connections
-    RaftThread_start(_clientConnHandlerTaskHandle, &clientConnHandlerTask, this, 
-            RD_WEB_CONN_STACK_SIZE, "clientConnTask", 6, 0, false);
+    // Core for listener task (an invalid core would assert in xTaskCreatePinnedToCore so fall back to core 0)
+    uint32_t taskCore = settings.taskCore;
+#ifdef portNUM_PROCESSORS
+    if (taskCore >= (uint32_t)portNUM_PROCESSORS)
+    {
+        LOG_W(MODULE_PREFIX, "setup taskCore %d invalid - using core 0", (int)taskCore);
+        taskCore = 0;
+    }
 #endif
 
-	// Start task to handle listen for connections
+	// Start task to handle listen for connections - pinned to the configured core (default 0, alongside lwIP)
+	// Note: this task only accepts connections and hands them to the main task via _newConnQueue
 	RaftThread_start(_socketListenerTaskHandle, &socketListenerTask, this,
             settings.taskStackSize, "socketLstnTask",
-            settings.taskPriority, settings.taskCore, false);
+            settings.taskPriority, taskCore, true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -92,14 +96,13 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
 
 void RaftWebConnManager::loop()
 {
-#ifndef USE_THREAD_FOR_CLIENT_CONN_SERVICING
+    // Service connections (on the main task)
     serviceConnections();
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Web Server Task
-// Listen for connections and add to queue for handling
+// Socket Listener Task
+// Listen for connections and add to queue for handling (by the main task)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void RaftWebConnManager::socketListenerTask(void* pvParameters) 
@@ -110,31 +113,6 @@ void RaftWebConnManager::socketListenerTask(void* pvParameters)
     // Listen for client connections
     pWebConnMgr->listenForClients(pWebConnMgr->getWebServerSettings().serverTCPPort, 
                     pWebConnMgr->getWebServerSettings().numConnSlots);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Client Connection Handler Task
-// Handles client connections received on a queue and processes their HTTP requests
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void RaftWebConnManager::clientConnHandlerTask(void *pvParameters)
-{
-#ifdef USE_THREAD_FOR_CLIENT_CONN_SERVICING
-    // Get pointer to specific RaftWebServer object
-    RaftWebConnManager *pConnMgr = (RaftWebConnManager *)pvParameters;
-
-    // Handle connection
-    const static char *MODULE_PREFIX = "clientConnTask";
-
-    // Debug
-    LOG_I(MODULE_PREFIX, "clientConnHandlerTask starting");
-
-    // Service connections
-    while (1)
-    {
-        pConnMgr->serviceConnections();
-    }
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -265,6 +243,9 @@ bool RaftWebConnManager::findEmptySlot(uint32_t &slotIdx)
 
 bool RaftWebConnManager::isChannelConnected(uint32_t channelID)
 {
+    // Main task only (connections are not protected by locks)
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "isChannelConnected");
+
     // Find websocket responder corresponding to channel
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
@@ -382,6 +363,9 @@ RaftWebResponder *RaftWebConnManager::getNewResponder(const RaftWebRequestHeader
 
 bool RaftWebConnManager::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn)
 {
+    // Main task only (connections are not protected by locks)
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "canSendBufOnChannel");
+
 #ifdef DEBUG_CAN_SEND_TIMING
     uint64_t startUs = micros();
     uint32_t iterCount = 0;
@@ -451,6 +435,9 @@ bool RaftWebConnManager::canSendBufOnChannel(uint32_t channelID, CommsMsgTypeCod
 
 bool RaftWebConnManager::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID)
 {
+    // Main task only (the send path is not protected by locks)
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "sendBufOnChannel");
+
     bool sendOk = false;
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
@@ -509,6 +496,9 @@ bool RaftWebConnManager::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, 
 
 void RaftWebConnManager::serverSideEventsSendMsg(const char *eventContent, const char *eventGroup)
 {
+    // Main task only (the send path is not protected by locks)
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "serverSideEventsSendMsg");
+
     for (uint32_t i = 0; i < _webConnections.size(); i++)
     {
         // Check active
