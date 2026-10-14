@@ -111,6 +111,9 @@ private:
     // Queued data to send
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _socketTxQueuedBuffer;
 
+    // Heap to leave free (for the network stack) when growing the send buffer
+    static const uint32_t SEND_BUFFER_HEAP_MARGIN_BYTES = 8192;
+
     // Debug
     uint32_t _debugDataRxCount;
 

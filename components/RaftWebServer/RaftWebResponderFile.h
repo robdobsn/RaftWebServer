@@ -57,6 +57,10 @@ private:
     uint32_t _fileLength = 0;
     uint32_t _fileSendStartMs = 0;
     std::vector<uint8_t> _lastChunkData;
+
+    // Heap to leave free (for the network stack) when allocating the chunk buffer and minimum chunk size
+    static const uint32_t CHUNK_HEAP_MARGIN_BYTES = 8192;
+    static const uint32_t CHUNK_MIN_BYTES = 512;
     static const uint32_t SEND_DATA_OVERALL_TIMEOUT_MS = 5 * 60 * 1000;
     bool _isFinalChunk = false;
 };

@@ -10,6 +10,9 @@
 #include "Logger.h"
 #include "FileSystemChunker.h"
 #include "RaftWebRequestHeader.h"
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 
 static const char *MODULE_PREFIX = "RaftWebRespFile";
 
@@ -128,6 +131,25 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
 #ifdef DEBUG_RESPONDER_FILE_PERFORMANCE_THRESH_MS
     uint64_t debugTotalStartUs = micros();
     uint64_t debugStartUs = micros();
+#endif
+
+    // Limit the chunk to what can be allocated (a failed allocation aborts) leaving a margin for the network stack
+#ifdef ESP_PLATFORM
+    if (bufMaxLen > _lastChunkData.capacity())
+    {
+        uint32_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+        uint32_t allocatable = largestBlock > CHUNK_HEAP_MARGIN_BYTES ? largestBlock - CHUNK_HEAP_MARGIN_BYTES : 0;
+        if (bufMaxLen > allocatable)
+            bufMaxLen = allocatable > _lastChunkData.capacity() ? allocatable : _lastChunkData.capacity();
+        if (bufMaxLen < CHUNK_MIN_BYTES)
+        {
+            _connStatus = CONN_INACTIVE;
+            _lastChunkData.clear();
+            LOG_W(MODULE_PREFIX, "getResponseNext connId %d insufficient memory (largest block %d) filePath %s", 
+                        _reqParams.connId, (int)largestBlock, _filePath.c_str());
+            return 0;
+        }
+    }
 #endif
 
     uint32_t readLen = 0;

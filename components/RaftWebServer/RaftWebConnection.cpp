@@ -39,6 +39,7 @@ static const char *MODULE_PREFIX = "RaftWebConn";
 #define WARN_WEB_CONN_ERROR_CLOSE
 #define WARN_WEB_CONN_CANNOT_SEND
 #define WARN_ON_PACKET_SEND_MISMATCH
+#define WARN_ON_SEND_BUFFER_ALLOC_FAIL
 
 // Debug
 // #define DEBUG_WEB_CONN_OPEN_CLOSE
@@ -1276,7 +1277,25 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
     uint32_t queueStartCycles = esp_cpu_get_cycle_count();
 #endif
-        _socketTxQueuedBuffer.resize(_socketTxQueuedBuffer.size() + bytesToAddToQueue);
+        // Check the larger buffer can be allocated - an allocation failure can't be detected afterwards (exceptions
+        // are disabled) and would crash. This happens when several connections queue data at once while the link 
+        // drains slowly (e.g. weak WiFi) and the heap is fragmented. The buffer is grown to the exact size needed
+        // (reserve) so the check is accurate, and a margin is left for the network stack
+        uint32_t newSize = curSize + bytesToAddToQueue;
+        if (newSize > _socketTxQueuedBuffer.capacity())
+        {
+            if (newSize + SEND_BUFFER_HEAP_MARGIN_BYTES > SpiramAwareAllocator<uint8_t>::max_allocatable())
+            {
+#ifdef WARN_ON_SEND_BUFFER_ALLOC_FAIL
+                LOG_W(MODULE_PREFIX, "rawSendOnConn connId %d can't grow send buffer to %d (largest free block %d)", 
+                            _pClientConn->getClientId(), newSize, SpiramAwareAllocator<uint8_t>::max_allocatable());
+#endif
+                retFinal = WEB_CONN_SEND_FAIL;
+                break;
+            }
+            _socketTxQueuedBuffer.reserve(newSize);
+        }
+        _socketTxQueuedBuffer.resize(newSize);
         memcpy(_socketTxQueuedBuffer.data() + curSize, pBuf + bytesWritten, bytesToAddToQueue);
 
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
