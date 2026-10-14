@@ -136,6 +136,14 @@ typedef std::function<RaftRetCode(const String &reqStr, const uint8_t *pData, si
 typedef std::function<RaftRetCode(const String &reqStr, FileStreamBlock& fileStreamBlock, const APISourceInfo& sourceInfo)> RaftWebAPIFnChunk;
 typedef std::function<bool(const APISourceInfo& sourceInfo)> RaftWebAPIFnIsReady;
 
+// Deferred response support (optional)
+// RaftWebAPIDeferAllocTokenFn allocates a token for a request whose response may be deferred by the endpoint and
+// RaftWebAPIDeferBindFn binds the function which delivers the response when the endpoint completes the request
+// (returns false if the request is not pending)
+typedef std::function<void(const String& respStr)> RaftWebAPIDeferDeliveryFn;
+typedef std::function<uint32_t()> RaftWebAPIDeferAllocTokenFn;
+typedef std::function<bool(uint32_t deferToken, RaftWebAPIDeferDeliveryFn deliveryFn)> RaftWebAPIDeferBindFn;
+
 // REST API support
 class RaftWebServerRestEndpoint
 {
@@ -146,6 +154,8 @@ public:
         restApiFnBody = nullptr;
         restApiFnChunk = nullptr;
 		restApiFnIsReady = nullptr;
+		restApiDeferAllocToken = nullptr;
+		restApiDeferBind = nullptr;
     }
 	RaftWebServerRestEndpoint(const RaftWebServerRestEndpoint& other)
 	{
@@ -153,6 +163,8 @@ public:
 		restApiFnBody = other.restApiFnBody;
 		restApiFnChunk = other.restApiFnChunk;
 		restApiFnIsReady = other.restApiFnIsReady;
+		restApiDeferAllocToken = other.restApiDeferAllocToken;
+		restApiDeferBind = other.restApiDeferBind;
 	}
 	RaftWebServerRestEndpoint& operator=(const RaftWebServerRestEndpoint& other)
 	{
@@ -160,12 +172,16 @@ public:
 		restApiFnBody = other.restApiFnBody;
 		restApiFnChunk = other.restApiFnChunk;
 		restApiFnIsReady = other.restApiFnIsReady;
+		restApiDeferAllocToken = other.restApiDeferAllocToken;
+		restApiDeferBind = other.restApiDeferBind;
 		return *this;
 	}
     RaftWebAPIFunction restApiFn;
     RaftWebAPIFnBody restApiFnBody;
     RaftWebAPIFnChunk restApiFnChunk;
 	RaftWebAPIFnIsReady restApiFnIsReady;
+	RaftWebAPIDeferAllocTokenFn restApiDeferAllocToken;
+	RaftWebAPIDeferBindFn restApiDeferBind;
 };
 
 typedef std::function<bool(const char* url, RaftWebServerMethod method, RaftWebServerRestEndpoint& endpoint)> RaftWebAPIMatchEndpointCB;

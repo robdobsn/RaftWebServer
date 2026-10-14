@@ -17,6 +17,7 @@
 #include "RaftWebConnection.h"
 #include "RaftWebMultipart.h"
 #include "APISourceInfo.h"
+#include <vector>
 
 // #define APPLY_MIN_GAP_BETWEEN_API_CALLS_MS 200
 
@@ -58,6 +59,17 @@ public:
     // Ready to receive data
     virtual bool readyToReceiveData() override final;
 
+    // Service (handles GET requests so that their response can be deferred)
+    virtual void loop() override final;
+
+    // Response availability (false while a deferred response is pending)
+    virtual bool responseAvailable() override final;
+    virtual bool isStdHeaderRequired() override final;
+
+    // Complete a deferred response (main task only)
+    // @return true if a responder with a pending deferred response for this token was found
+    static bool completeDeferredResponse(uint32_t deferToken, const String& respStr);
+
 private:
     // Endpoint
     RaftWebServerRestEndpoint _endpoint;
@@ -73,6 +85,14 @@ private:
 
     // Vars
     bool _endpointCalled;
+
+    // Deferred response
+    bool _deferPending = false;
+    uint32_t _deferToken = 0;
+
+    // Responders which currently exist (so a deferred response is only delivered to a responder which still
+    // exists - the client may have disconnected and the responder been deleted)
+    static std::vector<RaftWebResponderRestAPI*> _liveResponders;
     String _requestStr;
     String _respStr;
     uint32_t _respStrPos;
@@ -98,4 +118,5 @@ private:
     RaftRetCode multipartOnData(void* pCtx, const uint8_t *pBuf, uint32_t len, RaftMultipartForm& formInfo, 
                 uint32_t contentPos, bool isFinalPart);
     void multipartOnHeaderNameValue(void* pCtx, const String& name, const String& val);
+    void callEndpoint(bool allowDefer);
 };

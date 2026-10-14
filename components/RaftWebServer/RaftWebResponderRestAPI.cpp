@@ -19,7 +19,12 @@
 // #define DEBUG_MULTIPART_DATA
 // #define DEBUG_RESPONDER_API_START_END
 
-#if defined(DEBUG_RESPONDER_REST_API) || defined(DEBUG_RESPONDER_REST_API_NON_MULTIPART_DATA) || defined(DEBUG_RESPONDER_REST_API_MULTIPART_DATA) || defined(DEBUG_MULTIPART_EVENTS) || defined(DEBUG_RESPONDER_REST_API) || defined(DEBUG_MULTIPART_DATA) || defined(DEBUG_RESPONDER_API_START_END)
+// #define DEBUG_RESPONDER_REST_API_DEFERRED
+
+// Responders which currently exist
+std::vector<RaftWebResponderRestAPI*> RaftWebResponderRestAPI::_liveResponders;
+
+#if defined(DEBUG_RESPONDER_REST_API_DEFERRED) || defined(DEBUG_RESPONDER_REST_API) || defined(DEBUG_RESPONDER_REST_API_NON_MULTIPART_DATA) || defined(DEBUG_RESPONDER_REST_API_MULTIPART_DATA) || defined(DEBUG_MULTIPART_EVENTS) || defined(DEBUG_RESPONDER_REST_API) || defined(DEBUG_MULTIPART_DATA) || defined(DEBUG_RESPONDER_API_START_END)
 static const char *MODULE_PREFIX = "RaftWebRespREST";
 #endif
 
@@ -40,9 +45,13 @@ RaftWebResponderRestAPI::RaftWebResponderRestAPI(const RaftWebServerRestEndpoint
     _headerExtract = headerExtract;
     _respStrPos = 0;
     _sendStartMs = millis();
+    _numBytesReceived = 0;
 #ifdef APPLY_MIN_GAP_BETWEEN_API_CALLS_MS    
     _lastFileReqMs = 0;
 #endif
+
+    // Record as live
+    _liveResponders.push_back(this);
 
     // Hook up callbacks
     _multipartParser.onEvent = std::bind(&RaftWebResponderRestAPI::multipartOnEvent, this, 
@@ -67,6 +76,107 @@ RaftWebResponderRestAPI::RaftWebResponderRestAPI(const RaftWebServerRestEndpoint
 
 RaftWebResponderRestAPI::~RaftWebResponderRestAPI()
 {
+    // No longer live - a deferred response completed after this point is discarded
+    for (auto it = _liveResponders.begin(); it != _liveResponders.end(); ++it)
+    {
+        if (*it == this)
+        {
+            _liveResponders.erase(it);
+            break;
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Service the responder
+/// @note GET requests are handled here, before the response headers are sent, so that the endpoint can defer
+///       its response (the headers, which include the content length, are then sent when the response is complete)
+void RaftWebResponderRestAPI::loop()
+{
+    if (_endpointCalled || (_connStatus != CONN_ACTIVE) || (_headerExtract.method != WEB_METHOD_GET))
+        return;
+    callEndpoint(true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Call the endpoint's main function
+/// @param allowDefer true if the endpoint may defer its response
+void RaftWebResponderRestAPI::callEndpoint(bool allowDefer)
+{
+    // Endpoint now called (whatever the outcome)
+    _endpointCalled = true;
+
+    // Deferral requires the hooks to the deferred response registry
+    allowDefer = allowDefer && _endpoint.restApiDeferAllocToken && _endpoint.restApiDeferBind;
+    if (allowDefer)
+    {
+        _apiSourceInfo.canDefer = true;
+        _apiSourceInfo.deferToken = _endpoint.restApiDeferAllocToken();
+    }
+
+    // Call endpoint
+    RaftRetCode retc = _endpoint.restApiFn ? _endpoint.restApiFn(_requestStr, _respStr, _apiSourceInfo) : RAFT_NOT_IMPLEMENTED;
+    if (retc != RAFT_RESP_DEFERRED)
+        return;
+
+    // Response deferred - mark as pending before binding as binding delivers immediately if the endpoint has
+    // already completed the request
+    uint32_t deferToken = _apiSourceInfo.deferToken;
+    _deferToken = deferToken;
+    _deferPending = true;
+    bool isBound = allowDefer && _endpoint.restApiDeferBind(deferToken, [deferToken](const String& respStr) {
+                RaftWebResponderRestAPI::completeDeferredResponse(deferToken, respStr);
+            });
+    if (!isBound && _deferPending)
+    {
+        // The endpoint reported a deferred response without having deferred it - respond with an error now
+        _deferPending = false;
+        _respStr = R"({"req":")" + _requestStr + R"(","rslt":"fail","error":"deferFailed"})";
+    }
+#ifdef DEBUG_RESPONDER_REST_API_DEFERRED
+    LOG_I(MODULE_PREFIX, "callEndpoint deferred token %d bound %d req %s", deferToken, isBound, _requestStr.c_str());
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Complete a deferred response (main task only)
+/// @param deferToken token of the request
+/// @param respStr response
+/// @return true if a responder with a pending deferred response for this token was found
+bool RaftWebResponderRestAPI::completeDeferredResponse(uint32_t deferToken, const String& respStr)
+{
+    for (RaftWebResponderRestAPI* pResponder : _liveResponders)
+    {
+        if (pResponder->_deferPending && (pResponder->_deferToken == deferToken))
+        {
+            pResponder->_respStr = respStr;
+            pResponder->_respStrPos = 0;
+            pResponder->_deferPending = false;
+#ifdef DEBUG_RESPONDER_REST_API_DEFERRED
+            LOG_I(MODULE_PREFIX, "completeDeferredResponse token %d resp %s", deferToken, respStr.c_str());
+#endif
+            return true;
+        }
+    }
+#ifdef DEBUG_RESPONDER_REST_API_DEFERRED
+    LOG_I(MODULE_PREFIX, "completeDeferredResponse token %d no responder (client gone)", deferToken);
+#endif
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if a response is available (not while a deferred response is pending)
+bool RaftWebResponderRestAPI::responseAvailable()
+{
+    return (_connStatus == CONN_ACTIVE) && !_deferPending;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if the standard headers are required now (they are held back while a deferred response is pending
+///        as they include the content length)
+bool RaftWebResponderRestAPI::isStdHeaderRequired()
+{
+    return !_deferPending;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -142,17 +252,14 @@ uint32_t RaftWebResponderRestAPI::getResponseNext(uint8_t*& pBuf, uint32_t bufMa
                     bufMaxLen, _endpointCalled, _isActive);
 #endif
 
+    // Nothing to send while a deferred response is pending
+    if (_deferPending)
+        return 0;
+
     // Check if we need to call API
     uint32_t respLen = 0;
     if (!_endpointCalled)
-    {
-        // Call endpoint
-        if (_endpoint.restApiFn)
-            _endpoint.restApiFn(_requestStr, _respStr, _apiSourceInfo);
-
-        // Endpoint done
-        _endpointCalled = true;
-    }
+        callEndpoint(false);
 
     // Check how much of buffer to send
     uint32_t respRemain = _respStr.length() - _respStrPos;
@@ -206,6 +313,10 @@ bool RaftWebResponderRestAPI::leaveConnOpen()
 
 bool RaftWebResponderRestAPI::readyToReceiveData()
 {
+    // While a deferred response is pending keep receiving so that a client disconnect is detected
+    if (_deferPending)
+        return true;
+
 #ifdef APPLY_MIN_GAP_BETWEEN_API_CALLS_MS
     if (!Raft::isTimeout(millis(), _lastFileReqMs, APPLY_MIN_GAP_BETWEEN_API_CALLS_MS))
         return false;
@@ -265,15 +376,8 @@ int RaftWebResponderRestAPI::getContentLength()
     if (_headerExtract.method != WEB_METHOD_GET)
         return -1;
 
-    // Get length by calling API
+    // Get length by calling API (normally already called from loop())
     if (!_endpointCalled)
-    {
-        // Call endpoint
-        if (_endpoint.restApiFn)
-            _endpoint.restApiFn(_requestStr, _respStr, _apiSourceInfo);
-
-        // Endpoint done
-        _endpointCalled = true;
-    }
+        callEndpoint(false);
     return _respStr.length();
 }

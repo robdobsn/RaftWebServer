@@ -428,6 +428,15 @@ bool WebServer::restAPIMatchEndpoint(const char* url, RaftWebServerMethod method
         endpoint.restApiFnBody = pEndpointDef->_callbackBody;
         endpoint.restApiFnChunk = pEndpointDef->_callbackChunk;
         endpoint.restApiFnIsReady = pEndpointDef->_callbackIsReady;
+
+        // Deferred response support (the endpoint may respond after its handler has returned)
+        RestAPIEndpointManager* pRestAPIEndpointManager = getRestAPIEndpointManager();
+        endpoint.restApiDeferAllocToken = [pRestAPIEndpointManager]() {
+            return pRestAPIEndpointManager->getDeferredResponses().allocToken();
+        };
+        endpoint.restApiDeferBind = [pRestAPIEndpointManager](uint32_t deferToken, RaftWebAPIDeferDeliveryFn deliveryFn) {
+            return pRestAPIEndpointManager->getDeferredResponses().bindDelivery(deferToken, deliveryFn);
+        };
         return true;
     }
     return false;
