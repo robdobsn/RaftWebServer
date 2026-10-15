@@ -87,7 +87,17 @@ public:
 private:
     // New connection queue
     ThreadSafeQueue<RaftClientConnBase*> _newConnQueue;
-    static const int _newConnQueueMaxLen = 10;
+
+    // Connections rejected as there was no free slot (they are sent a 503 response)
+    uint32_t _connsRejected = 0;
+    uint32_t _connRejectWarnLastMs = 0;
+    static const uint32_t CONN_REJECT_WARN_INTERVAL_MS = 10000;
+    static const uint32_t BUSY_RESPONSE_SEND_MAX_MS = 10;
+    static const uint32_t MAX_NEW_CONNS_PER_SERVICE = 8;
+
+    // Estimate of the lwIP sockets used other than by connections (listeners, mDNS, SNTP, NetBIOS, DNS, application)
+    static const uint32_t OTHER_SOCKETS_ESTIMATE = 8;
+    static const int _newConnQueueMaxLen = 16;
 
     // Web server settings
     RaftWebServerSettings _webServerSettings;

@@ -16,6 +16,9 @@
 #include "RaftWebResponder.h"
 #include "RaftUtils.h"
 #include "RaftMainTask.h"
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 #include "esp_heap_caps.h"
 
 const static char* MODULE_PREFIX = "WebConnMgr";
@@ -72,6 +75,19 @@ void RaftWebConnManager::setup(const RaftWebServerSettings &settings)
 
     // Create slots
     _webConnections.resize(_webServerSettings.numConnSlots);
+
+    // Each connection uses an lwIP socket and other sockets are also needed (listeners, mDNS, SNTP, NetBIOS, DNS
+    // and any used by the application). If lwIP runs out of sockets new connections are reset before they reach
+    // the web server, so warn if the configured number is likely to be too small
+#if defined(ESP_PLATFORM) && defined(CONFIG_LWIP_MAX_SOCKETS)
+    if (_webServerSettings.numConnSlots + OTHER_SOCKETS_ESTIMATE > CONFIG_LWIP_MAX_SOCKETS)
+    {
+        LOG_W(MODULE_PREFIX, "setup %d connection slots + about %d other sockets exceeds CONFIG_LWIP_MAX_SOCKETS %d - "
+                    "new connections may be reset (set CONFIG_LWIP_MAX_SOCKETS to %d or more, or reduce numConnSlots)",
+                    (int)_webServerSettings.numConnSlots, (int)OTHER_SOCKETS_ESTIMATE, (int)CONFIG_LWIP_MAX_SOCKETS,
+                    (int)(_webServerSettings.numConnSlots + OTHER_SOCKETS_ESTIMATE));
+    }
+#endif
 
     // Core for listener task (an invalid core would assert in xTaskCreatePinnedToCore so fall back to core 0)
     uint32_t taskCore = settings.taskCore;
@@ -159,8 +175,10 @@ void RaftWebConnManager::serviceConnections()
     _debugTimerNewConns.started();
 #endif
 
+    // Accept several new connections per pass so that a burst of connections doesn't fill the queue (the listener
+    // then has to turn connections away)
     RaftClientConnBase* pClientConn = nullptr;
-    if (_newConnQueue.get(pClientConn, 0))
+    for (uint32_t newConnIdx = 0; (newConnIdx < MAX_NEW_CONNS_PER_SERVICE) && _newConnQueue.get(pClientConn, 0); newConnIdx++)
     {
 #ifdef DEBUG_TRACE_HEAP_USAGE_WEB_CONN
         heap_trace_start(HEAP_TRACE_LEAKS);
@@ -168,8 +186,22 @@ void RaftWebConnManager::serviceConnections()
         // Put the connection into our connection list if we can
         if (!accommodateConnection(pClientConn))
         {
-            // Debug
-            LOG_W(MODULE_PREFIX, "serviceConn can't handle connClient %d", pClientConn->getClientId());
+            // Rate-limited warning
+            _connsRejected++;
+            if (Raft::isTimeout(millis(), _connRejectWarnLastMs, CONN_REJECT_WARN_INTERVAL_MS))
+            {
+                LOG_W(MODULE_PREFIX, "serviceConn no free slot for connClient %d - responded 503 (%d rejected)",
+                            pClientConn->getClientId(), (int)_connsRejected);
+                _connRejectWarnLastMs = millis();
+            }
+
+            // Tell the client the server is busy (rather than just closing, which the client sees as a reset)
+            pClientConn->setup(false);
+            static const char BUSY_RESPONSE[] = "HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\n"
+                        "Connection: close\r\nContent-Length: 0\r\n\r\n";
+            uint32_t bytesWritten = 0;
+            pClientConn->sendDataBuffer((const uint8_t*)BUSY_RESPONSE, sizeof(BUSY_RESPONSE) - 1, 
+                        BUSY_RESPONSE_SEND_MAX_MS, bytesWritten);
 
             // Delete client (which closes any connection)
             delete pClientConn;

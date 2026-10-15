@@ -229,7 +229,11 @@ void RaftClientListener::listenForClients(int port, uint32_t numConnSlots)
                     LOG_I(MODULE_PREFIX, "listen (listenId %d port %d) NEW CONN REJECTED connId %d pClient %p", 
                         listenerSocketId, port, sockClient, pClientConn);
     #endif
-                    // No room so delete (which closes the connection)
+                    // No room so tell the client the server is busy (rather than just closing, which the client sees
+                    // as a reset) and delete (which closes the connection)
+                    static const char BUSY_RESPONSE[] = "HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\n"
+                                "Connection: close\r\nContent-Length: 0\r\n\r\n";
+                    send(sockClient, BUSY_RESPONSE, sizeof(BUSY_RESPONSE) - 1, MSG_DONTWAIT);
                     delete pClientConn;
                 }
                 else

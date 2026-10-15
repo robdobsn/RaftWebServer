@@ -15,6 +15,11 @@
 #include "RaftWebRequestParams.h"
 #include "FileSystemChunker.h"
 
+// Maximum size of a chunk of a file read and sent in one go (override in the build if required)
+#ifndef RAFT_WEB_FILE_CHUNK_MAX_BYTES
+#define RAFT_WEB_FILE_CHUNK_MAX_BYTES 4096
+#endif
+
 class RaftWebHandler;
 class RaftWebRequestHeader;
 
