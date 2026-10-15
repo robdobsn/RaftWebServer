@@ -133,6 +133,11 @@ uint32_t RaftWebResponderFile::getResponseNext(uint8_t*& pBuf, uint32_t bufMaxLe
     uint64_t debugStartUs = micros();
 #endif
 
+    // Limit the chunk size - each chunk is read from the file system in one go on the main task (so a large chunk
+    // stalls the main loop) and the chunk buffer and any unsent data it leaves queued are held per connection
+    if (bufMaxLen > RAFT_WEB_FILE_CHUNK_MAX_BYTES)
+        bufMaxLen = RAFT_WEB_FILE_CHUNK_MAX_BYTES;
+
     // Limit the chunk to what can be allocated (a failed allocation aborts) leaving a margin for the network stack
 #ifdef ESP_PLATFORM
     if (bufMaxLen > _lastChunkData.capacity())
