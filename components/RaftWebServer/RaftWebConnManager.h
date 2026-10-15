@@ -17,6 +17,7 @@
 #include "ExecTimer.h"
 #include "RaftThreading.h"
 #include "ThreadSafeQueue.h"
+#include "SpiramAwareAllocator.h"
 
 // #define DEBUG_WEBCONN_SERVICE_TIMING
 
@@ -106,7 +107,8 @@ private:
     std::list<RaftWebHandler*> _webHandlers;
 
     // Connections
-    std::vector<RaftWebConnection> _webConnections;
+    // Connection slots (held in PSRAM where available - only used by the web server tasks)
+    std::vector<RaftWebConnection, SpiramAwareAllocator<RaftWebConnection>> _webConnections;
 
     // Client Connection Listener
     RaftClientListener _connClientListener;
