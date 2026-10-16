@@ -73,8 +73,9 @@ public:
         URL.clear();
         params.clear();
         versStr.clear();
+        // Capacity is kept (clear() doesn't release it) so a connection slot that has handled a request
+        // doesn't reallocate for later ones - but nothing is reserved up front so idle slots hold no memory
         nameValues.clear();
-        nameValues.reserve(MAX_WEB_HEADERS/2);
         isContinue = false;
         reqConnType = REQ_CONN_TYPE_HTTP;
         extract.clear();
