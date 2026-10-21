@@ -66,6 +66,12 @@ public:
     virtual bool responseAvailable() override final;
     virtual bool isStdHeaderRequired() override final;
 
+    // Waiting for a deferred response (the connection isn't idle meanwhile)
+    virtual bool isAwaitingResponse() override final
+    {
+        return _deferPending;
+    }
+
     // Complete a deferred response (main task only)
     // @return true if a responder with a pending deferred response for this token was found
     static bool completeDeferredResponse(uint32_t deferToken, const String& respStr);
