@@ -143,6 +143,12 @@ public:
         return false;
     }
 
+    // Waiting for the server to produce the response (e.g. a deferred REST API response): the connection isn't idle
+    virtual bool isAwaitingResponse()
+    {
+        return false;
+    }
+
 protected:
     // Connection status
     RaftWebConnStatus _connStatus;

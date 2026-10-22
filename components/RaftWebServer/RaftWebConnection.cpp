@@ -304,6 +304,8 @@ void RaftWebConnection::loop()
     _lastLoopServiceMs = nowMs;
 
 #ifdef DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS
+    // (the connection may be cleared below, so its ID is kept for the report)
+    int debugClientId = _pClientConn->getClientId();
     uint64_t debugServiceStartUs = micros();
     uint64_t debugHandleTxStartUs = micros();
 #endif
@@ -365,7 +367,9 @@ void RaftWebConnection::loop()
         // server being busy, NOT an idle client, so refresh the inactivity marker to
         // prevent the idle timeout from aborting an in-progress upload. The overall
         // connection duration cap (_timeoutDurationMs) still applies as a backstop.
-        if (!checkForNewData)
+        // The same applies while the responder waits for the server to produce its response (a deferred REST API
+        // response can take up to a minute - it has its own timeout)
+        if (!checkForNewData || _pResponder->isAwaitingResponse())
             _timeoutLastActivityMs = millis();
     }
 
@@ -516,7 +520,7 @@ void RaftWebConnection::loop()
     if (debugServiceElapsedUs > DEBUG_WEB_CONN_SERVICE_TIME_THRESH_MS*1000)
     {
         LOG_I(MODULE_PREFIX, "loop connId %d %s SLOW total %dus dataLen %d tx %dus clear %dus responder %dus getData %dus updateRx %dus serviceHdr %dus dataResp %dus dataEnd %dus errorHdlr %dus closeHdlr %dus", 
-                _pClientConn->getClientId(),
+                debugClientId,
                 responderStr.c_str(),
                 debugServiceElapsedUs,
                 debugGetDataLen,
@@ -543,14 +547,14 @@ void RaftWebConnection::loop()
                 }
             }
             String str(rxData.data(), idx);
-            LOG_I(MODULE_PREFIX, "loop connId %d %s", _pClientConn->getClientId(), str.c_str());
+            LOG_I(MODULE_PREFIX, "loop connId %d %s", debugClientId, str.c_str());
         }
 #endif
 #ifdef DEBUG_WEB_CONN_SERVICE_SLOW_STR_DATA_ALL_DETAIL
         if (dataAvailable)
         {
             String str(rxData.data(), rxData.size());
-            LOG_I(MODULE_PREFIX, "loop connId %d %s", _pClientConn->getClientId(), str.c_str());
+            LOG_I(MODULE_PREFIX, "loop connId %d %s", debugClientId, str.c_str());
         }
 #endif
     }
