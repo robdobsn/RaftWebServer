@@ -36,6 +36,10 @@ public:
     {
         return _maxConnections;
     }
+    uint32_t getPktMaxBytes() const
+    {
+        return _pktMaxBytes;
+    }
 
     // Setup websocket channel ID
     void setupWebSocketChannelID(uint32_t wsConnIdx, uint32_t chanID)
