@@ -13,6 +13,7 @@
 #include "RaftArduino.h"
 #include "RaftWebSocketDefs.h"
 #include "RaftWebConnDefs.h"
+#include "SpiramAwareAllocator.h"
 
 class RaftWebSocketLink
 {
@@ -29,6 +30,12 @@ public:
 
     // Service - called frequently
     void loop();
+
+    // Largest message to receive (0 for the default) - longer messages are dropped
+    void setMaxRxMsgLen(uint32_t maxRxMsgLen)
+    {
+        _maxRxMsgLen = maxRxMsgLen != 0 ? maxRxMsgLen : MAX_WS_MESSAGE_SIZE;
+    }
 
     // Upgrade the link
     void upgradeReceived(const String& wsKey, const String& wsVersion);
@@ -87,11 +94,11 @@ private:
     String _wsVersion;
 
     // Data to be sent to callback when complete
-    std::vector<uint8_t> _callbackData;
+    SpiramAwareUint8Vector _callbackData;
     RaftWebSocketCB _webSocketCB = nullptr;
 
     // Received data not yet processed
-    std::vector<uint8_t> _rxDataToProcess;
+    SpiramAwareUint8Vector _rxDataToProcess;
 
     // Raw send on the connection
     RaftWebConnSendFn _rawConnSendFn = nullptr;
@@ -107,6 +114,11 @@ private:
 
     // Max message size
     static const uint32_t MAX_WS_MESSAGE_SIZE = 500000;
+    uint32_t _maxRxMsgLen = MAX_WS_MESSAGE_SIZE;
+
+    // Memory left free when growing a receive buffer (for the network stack etc)
+    static const uint32_t RX_BUFFER_HEAP_MARGIN_BYTES = 8192;
+    bool canGrowRxBuffer(const SpiramAwareUint8Vector& buf, uint32_t newSize);
 
     // Retry on EAGAIN - set to 0 to avoid blocking the main loop;
     // relies on _socketTxQueuedBuffer (sized via sendMax) to absorb EAGAIN overflow

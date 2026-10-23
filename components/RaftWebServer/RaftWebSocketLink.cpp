@@ -105,6 +105,18 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Check a receive buffer can grow to newSize - an allocation failure can't be detected afterwards (exceptions
+// are disabled) and would crash, so a message that doesn't fit in memory is dropped instead
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebSocketLink::canGrowRxBuffer(const SpiramAwareUint8Vector& buf, uint32_t newSize)
+{
+    if (newSize <= buf.capacity())
+        return true;
+    return newSize + RX_BUFFER_HEAP_MARGIN_BYTES <= SpiramAwareAllocator<uint8_t>::max_allocatable();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Service the web socket
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -198,11 +210,12 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
     // Check if any data already received
     if (_rxDataToProcess.size() > 0)
     {
-        if (_rxDataToProcess.size() + bufLen > MAX_WS_MESSAGE_SIZE + 50)
+        if ((_rxDataToProcess.size() + bufLen > _maxRxMsgLen + 50) ||
+                !canGrowRxBuffer(_rxDataToProcess, _rxDataToProcess.size() + bufLen))
         {
 #ifdef WARN_WEBSOCKET_DATA_DISCARD_AS_EXCEEDS_MSG_SIZE
         LOG_W(MODULE_PREFIX, "handleRxData discard as exceeds max stashed %d len %d max %d", 
-                (int)_rxDataToProcess.size(), bufLen, MAX_WS_MESSAGE_SIZE);
+                (int)_rxDataToProcess.size(), bufLen, _maxRxMsgLen);
 #endif
             _rxDataToProcess.clear();
         }
@@ -223,6 +236,8 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 #endif
             //_rxDataToProcess.insert(_rxDataToProcess.end(), pBuf, pBuf+bufLen);
             uint32_t curSize = _rxDataToProcess.size();
+            // Grow to the exact size checked by canGrowRxBuffer
+            _rxDataToProcess.reserve(curSize + bufLen);
             _rxDataToProcess.resize(curSize + bufLen);
             memcpy(_rxDataToProcess.data()+curSize, pBuf, bufLen);
             pBuf = _rxDataToProcess.data();
@@ -249,7 +264,7 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
         if (dataConsumed == 0)
         {
             // Store residual data (needs to use temp store as it may be copying part of itself)
-            std::vector<uint8_t> tmpData;
+            SpiramAwareUint8Vector tmpData;
             tmpData.assign(pBuf, pBuf+bufLen);
             _rxDataToProcess.assign(tmpData.data(), tmpData.data()+tmpData.size());
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING
@@ -579,14 +594,23 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
                 curBufSize = _callbackData.size();
 
             // Check we don't try to store too much
-            if (curBufSize + copyLen > MAX_WS_MESSAGE_SIZE)
+            if (curBufSize + copyLen > _maxRxMsgLen)
             {
-                LOG_W(MODULE_PREFIX, "handleRxPacketData msg > max %d", MAX_WS_MESSAGE_SIZE);
+                LOG_W(MODULE_PREFIX, "handleRxPacketData msg > max %d", _maxRxMsgLen);
+                _callbackData.clear();
+                _wsHeader.ignoreUntilFinal = true;
+                return _wsHeader.dataPos + _wsHeader.len;             
+            }
+            if (!canGrowRxBuffer(_callbackData, curBufSize + copyLen))
+            {
+                LOG_W(MODULE_PREFIX, "handleRxPacketData msg len %d dropped - not enough memory (largest free block %d)",
+                        curBufSize + copyLen, SpiramAwareAllocator<uint8_t>::max_allocatable());
                 _callbackData.clear();
                 _wsHeader.ignoreUntilFinal = true;
                 return _wsHeader.dataPos + _wsHeader.len;             
             }
             // Add the data to any existing
+            _callbackData.reserve(curBufSize + copyLen);
             _callbackData.resize(curBufSize + copyLen);
             memcpy(_callbackData.data(), pBuf + _wsHeader.dataPos, copyLen);
             if (_wsHeader.fin)

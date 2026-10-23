@@ -67,6 +67,7 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
     _webSocketLink.setup(std::bind(&RaftWebResponderWS::onWebSocketEvent, this, 
                             std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 params.getWebConnRawSend(), pingIntervalMs, true, disconnIfNoPongMs, isBinary);
+    _webSocketLink.setMaxRxMsgLen(_packetMaxBytes);
 }
 
 RaftWebResponderWS::~RaftWebResponderWS()
