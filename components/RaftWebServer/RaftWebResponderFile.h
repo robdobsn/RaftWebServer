@@ -14,6 +14,9 @@
 #include "RaftWebResponder.h"
 #include "RaftWebRequestParams.h"
 #include "FileSystemChunker.h"
+#include "SpiramAwareAllocator.h"
+#include <memory>
+#include <atomic>
 
 // Maximum size of a chunk of a file read and sent in one go (override in the build if required)
 #ifndef RAFT_WEB_FILE_CHUNK_MAX_BYTES
@@ -57,11 +60,26 @@ public:
 private:
     String _filePath;
     RaftWebHandler* _pWebHandler = nullptr;
-    FileSystemChunker _fileChunker;
     RaftWebRequestParams _reqParams;
     uint32_t _fileLength = 0;
     uint32_t _fileSendStartMs = 0;
-    std::vector<uint8_t> _lastChunkData;
+
+    // The file is read on the file system worker, a chunk ahead of the one being sent. The responder and the read job
+    // share this (the connection can close while a read is in progress). The job writes the chunk then sets
+    // chunkReady; getResponseNext() takes it (swapping buffers with _lastChunkData, which holds the chunk being sent)
+    struct ReadState
+    {
+        FileSystemChunker fileChunker;
+        SpiramAwareUint8Vector chunkData;
+        uint32_t readLen = 0;
+        bool isFinalChunk = false;
+        bool readOk = false;
+        std::atomic<bool> readInProgress{false};
+        std::atomic<bool> chunkReady{false};
+    };
+    std::shared_ptr<ReadState> _pReadState;
+    SpiramAwareUint8Vector _lastChunkData;
+    bool startRead(uint32_t readLen);
 
     // Heap to leave free (for the network stack) when allocating the chunk buffer and minimum chunk size
     static const uint32_t CHUNK_HEAP_MARGIN_BYTES = 8192;
