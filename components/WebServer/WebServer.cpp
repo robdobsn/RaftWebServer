@@ -21,6 +21,8 @@
 #include "RaftWebHandlerStaticFiles.h"
 #include "RaftWebHandlerRestAPI.h"
 #include "RaftWebHandlerWS.h"
+#include "PlatformUtils.h"
+#include <algorithm>
 
 // This define enables checking of channel connection state for websockets
 // Comment the following to use canSendBufferOnChannel (which gets actual busy state of channel but
@@ -31,6 +33,9 @@
 #define DEBUG_API_WEB_CERTS
 
 static const char* MODULE_PREFIX = "WebServer";
+
+// WebSocket channel inbound block length when there is PSRAM (file upload blocks of up to 16000 bytes)
+static const uint32_t WS_INBOUND_BLOCK_LEN_PSRAM = 24000;
 
 // Singleton
 WebServer* WebServer::_pThisWebServer = nullptr;
@@ -317,9 +322,6 @@ void WebServer::sendServerSideEvent(const char* eventContent, const char* eventG
 
 void WebServer::webSocketSetup()
 {
-    // Comms channel
-    static const CommsChannelSettings commsChannelSettings;
-
     // Add websocket handler
 #ifdef DEBUG_WEBSERVER_WEBSOCKETS
     LOG_I(MODULE_PREFIX, "webSocketSetup num websocket configs %d", _webSocketConfigs.size());
@@ -343,6 +345,16 @@ void WebServer::webSocketSetup()
                 );
         if (!pHandler)
             continue;
+
+        // Comms channel settings - inboundBlockLen sets the largest file upload block (2/3 of it) the channel
+        // takes. With PSRAM, blocks of 16KB are fine (uploads to an SD card are about twice as fast as with the
+        // default 800 byte blocks) as long as the websocket takes packets that big; without PSRAM the default
+        // is kept
+        uint32_t inboundBlockLenDefault = 0;
+        if (utilsGetSPIRAMSize() > 0)
+            inboundBlockLenDefault = std::min(WS_INBOUND_BLOCK_LEN_PSRAM, pHandler->getPktMaxBytes());
+        uint32_t inboundBlockLen = jsonConfig.getLong("inboundBlockLen", inboundBlockLenDefault);
+        const CommsChannelSettings commsChannelSettings(inboundBlockLen);
 
         // Add handler
         if (!_raftWebServer.addHandler(pHandler))
