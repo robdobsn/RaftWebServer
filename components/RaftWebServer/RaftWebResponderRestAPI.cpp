@@ -89,11 +89,15 @@ RaftWebResponderRestAPI::~RaftWebResponderRestAPI()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Service the responder
-/// @note GET requests are handled here, before the response headers are sent, so that the endpoint can defer
-///       its response (the headers, which include the content length, are then sent when the response is complete)
+/// @note The endpoint is called here so that it can defer its response: GET requests before the response headers
+///       are sent (the headers, which include the content length, are then sent when the response is complete),
+///       other requests once the whole request body has been received (e.g. a file upload, whose reply waits until
+///       the file is written)
 void RaftWebResponderRestAPI::loop()
 {
-    if (_endpointCalled || (_connStatus != CONN_ACTIVE) || (_headerExtract.method != WEB_METHOD_GET))
+    if (_endpointCalled || (_connStatus != CONN_ACTIVE))
+        return;
+    if ((_headerExtract.method != WEB_METHOD_GET) && (_numBytesReceived != _headerExtract.contentLength))
         return;
     callEndpoint(true);
 }
