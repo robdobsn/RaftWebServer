@@ -118,7 +118,11 @@ private:
 
     // Memory left free when growing a receive buffer (for the network stack etc)
     static const uint32_t RX_BUFFER_HEAP_MARGIN_BYTES = 8192;
-    bool canGrowRxBuffer(const SpiramAwareUint8Vector& buf, uint32_t newSize);
+
+    // Longest frame header, and longest control frame payload (RFC 6455)
+    static const uint32_t WEBSOCKET_MAX_HEADER_LEN = 14;
+    static const uint32_t WEBSOCKET_MAX_CONTROL_PAYLOAD_LEN = 125;
+    bool reserveRxBuffer(SpiramAwareUint8Vector& buf, uint32_t newSize);
 
     // Retry on EAGAIN - set to 0 to avoid blocking the main loop;
     // relies on _socketTxQueuedBuffer (sized via sendMax) to absorb EAGAIN overflow
@@ -161,7 +165,8 @@ private:
         // Returns length of block (0 indicates header not long enough)
         uint32_t extract(const uint8_t* pBuf, uint32_t bufLen)
         {
-            // First two bytes
+            // First two bytes (dataPos stays 0 until the header is complete)
+            dataPos = 0;
             uint32_t pos = 0;
             if (bufLen < pos + 2)
                 return 0;
@@ -197,7 +202,7 @@ private:
             // Check for mask
             if (mask)
             {
-                if (bufLen < pos + 2)
+                if (bufLen < pos + WEB_SOCKET_MASK_KEY_BYTES)
                     return 0;
                 maskKey[0] = pBuf[pos++];
                 maskKey[1] = pBuf[pos++];
@@ -234,7 +239,7 @@ private:
     // Helpers
     uint32_t handleRxPacketData(const uint8_t* pBuf, uint32_t bufLen);
     uint32_t extractWSHeaderInfo(const uint8_t* pBuf, uint32_t bufLen);
-    void unmaskData();
+    void unmaskData(const uint8_t* pSrc, uint8_t* pDest, uint32_t len);
 
     // Form response to upgrade connection
     String formUpgradeResponse(const String& wsKey, const String& wsVersion, uint32_t bufMaxLen);

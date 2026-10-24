@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <algorithm>
 #include "Logger.h"
 #include "RaftWebSocketLink.h"
 #include "RaftArduino.h"
@@ -105,15 +106,24 @@ void RaftWebSocketLink::setup(RaftWebSocketCB webSocketCB, RaftWebConnSendFn raw
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Check a receive buffer can grow to newSize - an allocation failure can't be detected afterwards (exceptions
-// are disabled) and would crash, so a message that doesn't fit in memory is dropped instead
+// Make room in a receive buffer for newSize bytes - an allocation failure can't be detected afterwards (exceptions
+// are disabled) and would crash, so returns false if there isn't the memory (the message is then dropped). The
+// buffer grows geometrically (so a long message isn't copied again for every packet), up to the longest message,
+// or to just what is needed when memory is short
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool RaftWebSocketLink::canGrowRxBuffer(const SpiramAwareUint8Vector& buf, uint32_t newSize)
+bool RaftWebSocketLink::reserveRxBuffer(SpiramAwareUint8Vector& buf, uint32_t newSize)
 {
     if (newSize <= buf.capacity())
         return true;
-    return newSize + RX_BUFFER_HEAP_MARGIN_BYTES <= SpiramAwareAllocator<uint8_t>::max_allocatable();
+    uint32_t maxAllocatable = SpiramAwareAllocator<uint8_t>::max_allocatable();
+    uint32_t newCapacity = std::max(newSize, std::min((uint32_t)buf.capacity() * 2, _maxRxMsgLen + WEBSOCKET_MAX_HEADER_LEN));
+    if (newCapacity + RX_BUFFER_HEAP_MARGIN_BYTES > maxAllocatable)
+        newCapacity = newSize;
+    if (newCapacity + RX_BUFFER_HEAP_MARGIN_BYTES > maxAllocatable)
+        return false;
+    buf.reserve(newCapacity);
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -210,8 +220,9 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
     // Check if any data already received
     if (_rxDataToProcess.size() > 0)
     {
-        if ((_rxDataToProcess.size() + bufLen > _maxRxMsgLen + 50) ||
-                !canGrowRxBuffer(_rxDataToProcess, _rxDataToProcess.size() + bufLen))
+        // The data stashed is at most one frame (a longer frame closes the link) and what has arrived since
+        if ((_rxDataToProcess.size() > _maxRxMsgLen + WEBSOCKET_MAX_HEADER_LEN) ||
+                !reserveRxBuffer(_rxDataToProcess, _rxDataToProcess.size() + bufLen))
         {
 #ifdef WARN_WEBSOCKET_DATA_DISCARD_AS_EXCEEDS_MSG_SIZE
         LOG_W(MODULE_PREFIX, "handleRxData discard as exceeds max stashed %d len %d max %d", 
@@ -236,8 +247,6 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 #endif
             //_rxDataToProcess.insert(_rxDataToProcess.end(), pBuf, pBuf+bufLen);
             uint32_t curSize = _rxDataToProcess.size();
-            // Grow to the exact size checked by canGrowRxBuffer
-            _rxDataToProcess.reserve(curSize + bufLen);
             _rxDataToProcess.resize(curSize + bufLen);
             memcpy(_rxDataToProcess.data()+curSize, pBuf, bufLen);
             pBuf = _rxDataToProcess.data();
@@ -263,10 +272,13 @@ void RaftWebSocketLink::handleRxData(const uint8_t *pBuf, uint32_t bufLen)
 #endif
         if (dataConsumed == 0)
         {
-            // Store residual data (needs to use temp store as it may be copying part of itself)
-            SpiramAwareUint8Vector tmpData;
-            tmpData.assign(pBuf, pBuf+bufLen);
-            _rxDataToProcess.assign(tmpData.data(), tmpData.data()+tmpData.size());
+            // Store residual data - if it is already in the stash, the data processed is removed from the front
+            // (without copying it all to a temporary, which could be a large allocation)
+            const uint8_t* pStash = _rxDataToProcess.data();
+            if (!_rxDataToProcess.empty() && (pBuf >= pStash) && (pBuf < pStash + _rxDataToProcess.size()))
+                _rxDataToProcess.erase(_rxDataToProcess.begin(), _rxDataToProcess.begin() + (pBuf - pStash));
+            else
+                _rxDataToProcess.assign(pBuf, pBuf+bufLen);
 #ifdef DEBUG_WEBSOCKET_DATA_BUFFERING
             LOG_I(MODULE_PREFIX, "handleRxData storing residual now stashed %d", _rxDataToProcess.size());
 #endif
@@ -555,6 +567,10 @@ String RaftWebSocketLink::genMagicResponse(const String &wsKey, const String &ws
 
 uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t bufLen)
 {
+    // Nothing more is taken once the link is closed
+    if (!_isActive)
+        return bufLen;
+
     // Extract header
     extractWSHeaderInfo(pBuf, bufLen);
 #ifdef DEBUG_WEBSOCKET_RX_DETAIL
@@ -563,72 +579,99 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
     LOG_I(MODULE_PREFIX, "handleRxPacketData header len %lld dataPos %d bufLen %d data %s", 
                 _wsHeader.len, _wsHeader.dataPos, bufLen, outStr.c_str());
 #endif
-    if (_wsHeader.dataPos + _wsHeader.len > bufLen)
-        return 0;
+    bool isControlFrame = (_wsHeader.opcode & 0x08) != 0;
 
-    // Check if we are ignoring (because a frame was too big)
-    if (_wsHeader.ignoreUntilFinal && _wsHeader.fin)
+    // A data frame longer than the largest message can't be taken, and the stream can't be followed past it
+    // without storing it, so close the link (status 1009 - message too big)
+    if ((_wsHeader.dataPos > 0) && !isControlFrame && (_wsHeader.len > _maxRxMsgLen))
     {
-        _wsHeader.ignoreUntilFinal = false;
-        return _wsHeader.dataPos + _wsHeader.len;
+        LOG_W(MODULE_PREFIX, "handleRxPacketData frame len %lld > max %d - closing", _wsHeader.len, _maxRxMsgLen);
+        uint8_t respCode[2] = {0x03, 0xf1};
+        sendMsg(WEBSOCKET_OPCODE_CLOSE, respCode, sizeof(respCode));
+        _isActive = false;
+        _callbackData.clear();
+        if (_webSocketCB)
+            _webSocketCB(WEBSOCKET_EVENT_DISCONNECT_INTERNAL, nullptr, 0);
+        return bufLen;
+    }
+
+    // Wait for the whole frame
+    if ((_wsHeader.dataPos == 0) || (_wsHeader.dataPos + _wsHeader.len > bufLen))
+        return 0;
+    uint32_t frameLen = _wsHeader.len;
+    uint32_t consumed = _wsHeader.dataPos + frameLen;
+
+    // Data frames of a message being dropped (too big) are skipped up to its final frame - control frames can come
+    // between them and are still handled
+    if (_wsHeader.ignoreUntilFinal && !isControlFrame)
+    {
+        if (_wsHeader.fin)
+            _wsHeader.ignoreUntilFinal = false;
+        return consumed;
     }
 
     // Handle payload
     RaftWebSocketEventCode callbackEventCode = WEBSOCKET_EVENT_NONE;
+    const uint8_t* pCallbackData = nullptr;
+    uint32_t callbackDataLen = 0;
+    uint8_t controlPayload[WEBSOCKET_MAX_CONTROL_PAYLOAD_LEN];
     switch (_wsHeader.opcode)
     {
         case WEBSOCKET_OPCODE_CONTINUE:
         case WEBSOCKET_OPCODE_BINARY:
         case WEBSOCKET_OPCODE_TEXT:
         {
-            // Get length of data to copy
-            uint32_t copyLen = bufLen - _wsHeader.dataPos;
-            if (copyLen > _wsHeader.len)
-                copyLen = _wsHeader.len;
-            else
-                _callbackData.clear();
-
-            // Handle continuation
+            // A continuation adds to the message so far; any other data frame starts a new message
             uint32_t curBufSize = 0;
             if (_wsHeader.opcode == WEBSOCKET_OPCODE_CONTINUE)
                 curBufSize = _callbackData.size();
+            else
+                _callbackData.clear();
 
             // Check we don't try to store too much
-            if (curBufSize + copyLen > _maxRxMsgLen)
+            bool tooLong = curBufSize + frameLen > _maxRxMsgLen;
+            if (tooLong || !reserveRxBuffer(_callbackData, curBufSize + frameLen))
             {
-                LOG_W(MODULE_PREFIX, "handleRxPacketData msg > max %d", _maxRxMsgLen);
+                if (tooLong)
+                {
+                    LOG_W(MODULE_PREFIX, "handleRxPacketData msg > max %d", _maxRxMsgLen);
+                }
+                else
+                {
+                    LOG_W(MODULE_PREFIX, "handleRxPacketData msg len %d dropped - not enough memory (largest free block %d)",
+                            curBufSize + frameLen, SpiramAwareAllocator<uint8_t>::max_allocatable());
+                }
                 _callbackData.clear();
-                _wsHeader.ignoreUntilFinal = true;
-                return _wsHeader.dataPos + _wsHeader.len;             
+                _wsHeader.ignoreUntilFinal = !_wsHeader.fin;
+                return consumed;
             }
-            if (!canGrowRxBuffer(_callbackData, curBufSize + copyLen))
-            {
-                LOG_W(MODULE_PREFIX, "handleRxPacketData msg len %d dropped - not enough memory (largest free block %d)",
-                        curBufSize + copyLen, SpiramAwareAllocator<uint8_t>::max_allocatable());
-                _callbackData.clear();
-                _wsHeader.ignoreUntilFinal = true;
-                return _wsHeader.dataPos + _wsHeader.len;             
-            }
-            // Add the data to any existing
-            _callbackData.reserve(curBufSize + copyLen);
-            _callbackData.resize(curBufSize + copyLen);
-            memcpy(_callbackData.data(), pBuf + _wsHeader.dataPos, copyLen);
+
+            // Add the frame's data to the message (each frame has its own mask key)
+            _callbackData.resize(curBufSize + frameLen);
+            unmaskData(pBuf + _wsHeader.dataPos, _callbackData.data() + curBufSize, frameLen);
             if (_wsHeader.fin)
+            {
                 callbackEventCode = _wsHeader.firstFrameOpcode == WEBSOCKET_OPCODE_TEXT ? WEBSOCKET_EVENT_TEXT : WEBSOCKET_EVENT_BINARY;
+                pCallbackData = _callbackData.data();
+                callbackDataLen = _callbackData.size();
+            }
             break;
         }
         case WEBSOCKET_OPCODE_PING:
         {
-            callbackEventCode = WEBSOCKET_EVENT_PING;
-            uint32_t copyLen = bufLen - _wsHeader.dataPos;
-            if (copyLen > MAX_WS_MESSAGE_SIZE)
+            // Control frame payloads are at most 125 bytes
+            if (frameLen > sizeof(controlPayload))
                 break;
+            unmaskData(pBuf + _wsHeader.dataPos, controlPayload, frameLen);
+            callbackEventCode = WEBSOCKET_EVENT_PING;
+            pCallbackData = controlPayload;
+            callbackDataLen = frameLen;
 
             // Send PONG
-            sendMsg(WEBSOCKET_OPCODE_PONG, pBuf + _wsHeader.dataPos, _wsHeader.len);
+            sendMsg(WEBSOCKET_OPCODE_PONG, controlPayload, frameLen);
 
 #ifdef DEBUG_WEBSOCKET_PING_PONG
-            LOG_I(MODULE_PREFIX, "handleRxPacketData Rx PING Tx PONG %lld", _wsHeader.len);
+            LOG_I(MODULE_PREFIX, "handleRxPacketData Rx PING Tx PONG %d", frameLen);
 #endif
 
             break;
@@ -651,6 +694,7 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
             sendMsg(WEBSOCKET_OPCODE_CLOSE, respCode, sizeof(respCode));
             callbackEventCode = WEBSOCKET_EVENT_DISCONNECT_EXTERNAL;
             _isActive = false;
+            _callbackData.clear();
 #ifdef DEBUG_WEBSOCKET_CLOSE_COMMAND
             LOG_W(MODULE_PREFIX, "handleRxPacketData rx CLOSE - now INACTIVE");
 #endif
@@ -663,34 +707,33 @@ uint32_t RaftWebSocketLink::handleRxPacketData(const uint8_t *pBuf, uint32_t buf
     {
 #ifdef DEBUG_WEBSOCKET_LINK_EVENTS
         // Debug
-        LOG_I(MODULE_PREFIX, "handleRxPacketData callback eventCode %s len %d", getEventStr(callbackEventCode), _callbackData.size());
+        LOG_I(MODULE_PREFIX, "handleRxPacketData callback eventCode %s len %d", getEventStr(callbackEventCode), callbackDataLen);
 #endif
 
         // Callback
         if (_webSocketCB)
         {
-            // Unmask the data
-            unmaskData();
-
 #ifdef DEBUG_WEBSOCKET_LINK_DATA_STR
-            String cbStr(_callbackData.data(), 
-                        _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? _callbackData.size() : MAX_DEBUG_TEXT_STR_LEN);
+            String cbStr((const char*)pCallbackData, 
+                        callbackDataLen < MAX_DEBUG_TEXT_STR_LEN ? callbackDataLen : MAX_DEBUG_TEXT_STR_LEN);
             LOG_I(MODULE_PREFIX, "handleRxPacketData %s%s", cbStr.c_str(),
-                        _callbackData.size() < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
+                        callbackDataLen < MAX_DEBUG_TEXT_STR_LEN ? "" : " ...");
 #endif
 #ifdef DEBUG_WEBSOCKET_LINK_DATA_BINARY
-            Raft::logHexBuf(_callbackData.data(), 
-                        _callbackData.size() < MAX_DEBUG_BIN_HEX_LEN ? _callbackData.size() : MAX_DEBUG_BIN_HEX_LEN, 
-                        MODULE_PREFIX, "handleRxPacketData");
+            if (pCallbackData)
+                Raft::logHexBuf(pCallbackData, 
+                            callbackDataLen < MAX_DEBUG_BIN_HEX_LEN ? callbackDataLen : MAX_DEBUG_BIN_HEX_LEN, 
+                            MODULE_PREFIX, "handleRxPacketData");
 #endif
             // Perform callback
-            _webSocketCB(callbackEventCode, _callbackData.data(), _callbackData.size());
+            _webSocketCB(callbackEventCode, pCallbackData, callbackDataLen);
         }
 
-        // Clear compiled data
-        _callbackData.clear();
+        // Clear a completed message (control frames can come between the frames of a message, which is kept)
+        if (pCallbackData == _callbackData.data())
+            _callbackData.clear();
     }
-    return _wsHeader.dataPos + _wsHeader.len;
+    return consumed;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -717,13 +760,13 @@ uint32_t RaftWebSocketLink::extractWSHeaderInfo(const uint8_t *pBuf, uint32_t bu
 // Unmask
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RaftWebSocketLink::unmaskData()
+void RaftWebSocketLink::unmaskData(const uint8_t* pSrc, uint8_t* pDest, uint32_t len)
 {
-    if (_wsHeader.mask)
+    if (!_wsHeader.mask)
     {
-        for (uint32_t i = 0; i < _callbackData.size(); i++)
-        {
-            _callbackData[i] ^= _wsHeader.maskKey[i % WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
-        }
+        memcpy(pDest, pSrc, len);
+        return;
     }
+    for (uint32_t i = 0; i < len; i++)
+        pDest[i] = pSrc[i] ^ _wsHeader.maskKey[i % WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
 }
