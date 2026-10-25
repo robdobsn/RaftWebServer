@@ -381,6 +381,10 @@ void WebServer::webSocketSetup()
                     interfaceName.c_str(),
                     wsName.c_str(),
                     [this](CommsChannelMsg& msg) { 
+                        // A message just encoded for sending (e.g. a publish) can have its buffer taken by the
+                        // connection, rather than copied, for what can't be sent at once
+                        if (msg.isBufTakeable())
+                            return _raftWebServer.sendBufferOnChannel(msg.getCmdVector(), msg.getChannelID());
                         return _raftWebServer.sendBufferOnChannel(msg.getBuf(), msg.getBufLen(), 
                                 msg.getChannelID());
                     },

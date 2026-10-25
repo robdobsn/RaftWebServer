@@ -67,6 +67,7 @@ RaftWebResponderWS::RaftWebResponderWS(RaftWebHandlerWS* pWebHandler, const Raft
     _webSocketLink.setup(std::bind(&RaftWebResponderWS::onWebSocketEvent, this, 
                             std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 params.getWebConnRawSend(), pingIntervalMs, true, disconnIfNoPongMs, isBinary);
+    _webSocketLink.setRawConnSendTakeFn(params.getWebConnRawSendTake());
     _webSocketLink.setMaxRxMsgLen(_packetMaxBytes);
 }
 
@@ -411,6 +412,16 @@ bool RaftWebResponderWS::isReadyToSend()
 
 bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
 {
+    return encodeAndSendDataImpl(pBuf, bufLen, nullptr);
+}
+
+bool RaftWebResponderWS::encodeAndSendData(SpiramAwareUint8Vector& buf)
+{
+    return encodeAndSendDataImpl(buf.data(), buf.size(), &buf);
+}
+
+bool RaftWebResponderWS::encodeAndSendDataImpl(const uint8_t* pBuf, uint32_t bufLen, SpiramAwareUint8Vector* pTakeBuf)
+{
 #ifdef DEBUG_WS_SEND_APP_DATA
     LOG_I(MODULE_PREFIX, "encodeAndSendData connId %d len=%d status=%d", 
             _reqParams.connId, bufLen, _connStatus);
@@ -467,7 +478,9 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     return putRslt;
 #else
     // Send
-    RaftWebConnSendRetVal retVal = _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), pBuf, bufLen);
+    RaftWebConnSendRetVal retVal = pTakeBuf ?
+                _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), *pTakeBuf) :
+                _webSocketLink.sendMsg(_webSocketLink.msgOpCodeDefault(), pBuf, bufLen);
 
 #ifdef DEBUG_WS_SEND_APP_DATA
     LOG_W(MODULE_PREFIX, "encodeAndSendData connId %d sent len %d retc %d",

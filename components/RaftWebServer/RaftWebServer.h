@@ -50,6 +50,12 @@ public:
         return _connManager.sendBufOnChannel(pBuf, bufLen, channelID);
     }
 
+    // Send a buffer on a channel, which may be taken (leaving it empty) rather than copied (main task only)
+    bool sendBufferOnChannel(SpiramAwareUint8Vector& buf, uint32_t channelID)
+    {
+        return _connManager.sendBufOnChannel(buf, channelID);
+    }
+
     // Send to all server-side events (main task only)
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 

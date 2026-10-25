@@ -51,6 +51,16 @@ public:
     // Send message
     RaftWebConnSendRetVal sendMsg(RaftWebSocketOpCodes opCode, const uint8_t* pBuf, uint32_t bufLen);
 
+    // Send a message whose buffer may be taken (leaving it empty) rather than copied, if the connection can take it
+    // (see setRawConnSendTakeFn)
+    RaftWebConnSendRetVal sendMsg(RaftWebSocketOpCodes opCode, SpiramAwareUint8Vector& buf);
+
+    // Raw send on the connection which may take the buffer (optional)
+    void setRawConnSendTakeFn(RaftWebConnSendTakeFn rawConnSendTakeFn)
+    {
+        _rawConnSendTakeFn = rawConnSendTakeFn;
+    }
+
     // Check active
     bool isActive()
     {
@@ -100,8 +110,13 @@ private:
     // Received data not yet processed
     SpiramAwareUint8Vector _rxDataToProcess;
 
-    // Raw send on the connection
+    // Raw send on the connection, and one which may take the buffer
     RaftWebConnSendFn _rawConnSendFn = nullptr;
+    RaftWebConnSendTakeFn _rawConnSendTakeFn = nullptr;
+
+    // Send a message (pTakeBuf, if not null, is the buffer holding it, which may be taken)
+    RaftWebConnSendRetVal sendMsgImpl(RaftWebSocketOpCodes opCode, const uint8_t* pBuf, uint32_t bufLen,
+                SpiramAwareUint8Vector* pTakeBuf);
 
     // Data to be sent
     String _wsUpgradeResponse;

@@ -108,8 +108,19 @@ private:
     // Max send buffer size
     uint32_t _maxSendBufferBytes;
 
-    // Queued data to send
+    // Queued data to send, from _socketTxQueuedPos (data before it has been sent - it is only removed when more is
+    // added, so sending from the queue doesn't move what is left each time)
     std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> _socketTxQueuedBuffer;
+    uint32_t _socketTxQueuedPos = 0;
+    uint32_t txQueuedLen() const
+    {
+        return _socketTxQueuedBuffer.size() - _socketTxQueuedPos;
+    }
+    void txQueueClear()
+    {
+        _socketTxQueuedBuffer.clear();
+        _socketTxQueuedPos = 0;
+    }
 
     // Heap to leave free (for the network stack) when growing the send buffer
     static const uint32_t SEND_BUFFER_HEAP_MARGIN_BYTES = 8192;
@@ -147,7 +158,10 @@ private:
     void setHTTPResponseStatus(RaftHttpStatusCode reponseCode);
 
     // Raw send on connection - used by websockets, etc
-    RaftWebConnSendRetVal rawSendOnConn(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs);    
+    RaftWebConnSendRetVal rawSendOnConn(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs);
+    RaftWebConnSendRetVal rawSendOnConnTake(SpiramAwareUint8Vector& buf, uint32_t maxRetryMs);
+    RaftWebConnSendRetVal rawSendOnConnImpl(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs,
+                SpiramAwareUint8Vector* pTakeBuf);    
 
     // Header handling
     bool getStandardHeaders(String& headerStr);

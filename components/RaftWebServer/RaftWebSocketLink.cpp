@@ -368,6 +368,17 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 
 RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen)
 {
+    return sendMsgImpl(opCode, pBuf, bufLen, nullptr);
+}
+
+RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, SpiramAwareUint8Vector& buf)
+{
+    return sendMsgImpl(opCode, buf.data(), buf.size(), &buf);
+}
+
+RaftWebConnSendRetVal RaftWebSocketLink::sendMsgImpl(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen,
+            SpiramAwareUint8Vector* pTakeBuf)
+{
 #ifdef DEBUG_WEBSOCKET_SEND
     // Log all sends to debug reconnection issue
     static const char* opCodeNames[] = {"CONT", "TEXT", "BIN", "?", "?", "?", "?", "?", "CLOSE", "PING", "PONG"};
@@ -467,7 +478,12 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
             sendRetc = _rawConnSendFn(header, pos, MAX_WS_SEND_RETRY_MS);
             if ((sendRetc == RaftWebConnSendRetVal::WEB_CONN_SEND_OK) && (bufLen > 0))
             {
-                sendRetc = _rawConnSendFn(pBuf, bufLen, MAX_WS_SEND_RETRY_MS);
+                // The data's buffer is taken by the connection (rather than what it can't send at once copied) if
+                // it may be
+                if (pTakeBuf && _rawConnSendTakeFn)
+                    sendRetc = _rawConnSendTakeFn(*pTakeBuf, MAX_WS_SEND_RETRY_MS);
+                else
+                    sendRetc = _rawConnSendFn(pBuf, bufLen, MAX_WS_SEND_RETRY_MS);
 
                 // The header has gone, so the frame must be completed or the connection closed
                 if (sendRetc != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)

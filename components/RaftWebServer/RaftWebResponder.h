@@ -114,6 +114,13 @@ public:
         return false;
     }
 
+    // Encode and send data whose buffer may be taken (leaving it empty) rather than copied - by default it is sent
+    // as above
+    virtual bool encodeAndSendData(SpiramAwareUint8Vector& buf)
+    {
+        return encodeAndSendData(buf.data(), buf.size());
+    }
+
     // Send event content and group
     virtual void sendEvent(const char* eventContent, const char* eventGroup)
     {
