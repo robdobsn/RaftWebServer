@@ -16,6 +16,7 @@
 #ifndef WEB_CONN_USE_LWIP
 #include <sys/socket.h>
 #include <sys/select.h>
+#include "lwip/sockets.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <netinet/in.h>
@@ -127,7 +128,9 @@ RaftWebConnSendRetVal RaftClientConnSockets::canSend()
     uint64_t beforeSelectUs = micros();
 #endif
 
-    int rslt = select(_client + 1, NULL, &writefds, NULL, &tv);
+    // lwIP's select directly: select() goes through the VFS, which sets up semaphores and checks every VFS driver
+    // on each call - about 0.5 ms on an ESP32-S3, against 50 us (this is called before each response and publish)
+    int rslt = lwip_select(_client + 1, NULL, &writefds, NULL, &tv);
 
 #ifdef DEBUG_CAN_SEND_SELECT_TIMING
     uint64_t afterSelectUs = micros();
