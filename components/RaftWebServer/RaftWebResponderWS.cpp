@@ -449,7 +449,7 @@ bool RaftWebResponderWS::encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen)
     }
     // Add to queue - don't block if full
     RaftWebDataFrame frame(_channelID, pBuf, bufLen, millis());
-    bool putRslt = _txQueue.put(frame, MAX_WAIT_FOR_TX_QUEUE_MS);
+    bool putRslt = _txQueue.put(std::move(frame), MAX_WAIT_FOR_TX_QUEUE_MS);
     if (!putRslt)
     {
 #ifdef WARN_WS_SEND_APP_DATA_FAIL

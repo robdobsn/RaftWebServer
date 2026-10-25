@@ -407,25 +407,24 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
         return WEB_CONN_SEND_TOO_LONG;
     }
 
-    // Buffer
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frameBuffer(frameLen);
-
-    // Setup header
-    frameBuffer[0] = 0x80 | opCode;
-    frameBuffer[1] = (_maskSentData ? 0x80 : 0) | hdrLenCode;
+    // Header (at most 2 + 8 length + 4 mask bytes)
+    uint8_t header[2 + 8 + WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
+    header[0] = 0x80 | opCode;
+    header[1] = (_maskSentData ? 0x80 : 0) | hdrLenCode;
 
     // Length
     uint32_t pos = 2;
     if (hdrLenCode == 126)
     {
-        frameBuffer[pos++] = bufLen / 256;
-        frameBuffer[pos++] = bufLen % 256;
+        header[pos++] = bufLen / 256;
+        header[pos++] = bufLen % 256;
     }
     else if (hdrLenCode == 127)
     {
-        pos += 4;
+        for (int i = 0; i < 4; i++)
+            header[pos++] = 0;
         for (int i = 3; i >= 0; i--)
-            frameBuffer[pos++] = (bufLen >> (i * 8)) & 0xff;
+            header[pos++] = (bufLen >> (i * 8)) & 0xff;
     }
 
     // Generate a random mask if required
@@ -438,20 +437,24 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
         for (int i = 0; i < WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES; i++)
         {
             maskBytes[i] = (maskKey >> ((3 - i) * 8)) & 0xff;
-            frameBuffer[pos++] = maskBytes[i];
+            header[pos++] = maskBytes[i];
         }
     }
 
     // Sanity check
-    if (pos + bufLen != frameBuffer.size())
+    if (pos + bufLen != frameLen)
     {
         LOG_W(MODULE_PREFIX, "sendMsg something awry with frameLen %d + %d != %d", 
-                    (int)pos, (int)bufLen, (int)frameBuffer.size());
+                    (int)pos, (int)bufLen, (int)frameLen);
         return WEB_CONN_SEND_FRAME_ERROR;
     }
 
-    // Copy the data
-    memcpy(frameBuffer.data() + pos, pBuf, bufLen);
+    // Frame: header then data, appended to reserved space (it isn't zero-filled first, so large messages are
+    // written once rather than twice)
+    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frameBuffer;
+    frameBuffer.reserve(frameLen);
+    frameBuffer.insert(frameBuffer.end(), header, header + pos);
+    frameBuffer.insert(frameBuffer.end(), pBuf, pBuf + bufLen);
 
     // Mask the data
     if (_maskSentData)
