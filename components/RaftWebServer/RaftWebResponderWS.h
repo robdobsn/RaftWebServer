@@ -70,6 +70,7 @@ public:
 
     // Send a frame of data
     virtual bool encodeAndSendData(const uint8_t* pBuf, uint32_t bufLen) override final;
+    virtual bool encodeAndSendData(SpiramAwareUint8Vector& buf) override final;
 
     // Get responder type
     virtual const char* getResponderType() override final
@@ -91,6 +92,9 @@ public:
     }
 
 private:
+    // Encode and send data (pTakeBuf, if not null, is the buffer holding it, which may be taken)
+    bool encodeAndSendDataImpl(const uint8_t* pBuf, uint32_t bufLen, SpiramAwareUint8Vector* pTakeBuf);
+
     // Handler
     RaftWebHandlerWS* _pWebHandler;
 

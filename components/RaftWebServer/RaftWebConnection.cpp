@@ -209,12 +209,12 @@ void RaftWebConnection::clear()
     _debugDataRxCount = 0;
     _maxSendBufferBytes = 0;
 #ifdef DEBUG_RESPONDER_CLEAR
-    if (_socketTxQueuedBuffer.size() > 0)
+    if (txQueuedLen() > 0)
     {
-        LOG_I(MODULE_PREFIX, "clear() clearing _socketTxQueuedBuffer with %d bytes", _socketTxQueuedBuffer.size());
+        LOG_I(MODULE_PREFIX, "clear() clearing _socketTxQueuedBuffer with %d bytes", txQueuedLen());
     }
 #endif
-    _socketTxQueuedBuffer.clear();
+    txQueueClear();
     _header.clear();
 }
 
@@ -657,6 +657,8 @@ bool RaftWebConnection::serviceConnHeader(const uint8_t* pRxData, uint32_t dataL
                 std::bind(&RaftWebConnection::canSendOnConn, this),
                 std::bind(&RaftWebConnection::rawSendOnConn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                 _pClientConn->getClientId());
+    params.setWebConnRawSendTake(
+                std::bind(&RaftWebConnection::rawSendOnConnTake, this, std::placeholders::_1, std::placeholders::_2));
     _pResponder = _pConnManager->getNewResponder(_header, params, statusCode);
 #ifdef DEBUG_RESPONDER_CREATE_DELETE
     if (_pResponder) 
@@ -811,7 +813,7 @@ bool RaftWebConnection::responderHandleData(const uint8_t* pRxData, uint32_t dat
 
     // Return indication of more to come - keep processing if not inactive
     connStatus = _pResponder->getConnStatus();
-    if ((connStatus == CONN_INACTIVE) && (_socketTxQueuedBuffer.size() != 0))
+    if ((connStatus == CONN_INACTIVE) && (txQueuedLen() != 0))
     {
         return true;
     }
@@ -1113,7 +1115,7 @@ RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
 #endif
 
     // Don't accept any more data while the buffer is not empty
-    if (_socketTxQueuedBuffer.size() != 0)
+    if (txQueuedLen() != 0)
     {
         return WEB_CONN_SEND_EAGAIN;
     }
@@ -1135,7 +1137,7 @@ RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
     {
         LOG_I(MODULE_PREFIX, "canSendOnConn connId %d totalUs %d clientCanSendUs %d bufSize %d result %d",
                     _pClientConn->getClientId(), totalUs, clientCanSendUs, 
-                    (int)_socketTxQueuedBuffer.size(), result);
+                    (int)txQueuedLen(), result);
     }
 #endif
 
@@ -1147,6 +1149,19 @@ RaftWebConnSendRetVal RaftWebConnection::canSendOnConn()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs)
+{
+    return rawSendOnConnImpl(pBuf, bufLen, maxRetryMs, nullptr);
+}
+
+// As rawSendOnConn, but if what can't be sent at once is to be queued and the queue is empty, the queue takes the
+// buffer (leaving it empty) rather than copying it
+RaftWebConnSendRetVal RaftWebConnection::rawSendOnConnTake(SpiramAwareUint8Vector& buf, uint32_t maxRetryMs)
+{
+    return rawSendOnConnImpl(buf.data(), buf.size(), maxRetryMs, &buf);
+}
+
+RaftWebConnSendRetVal RaftWebConnection::rawSendOnConnImpl(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxRetryMs,
+            SpiramAwareUint8Vector* pTakeBuf)
 {
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
     static uint64_t totalCycles = 0;
@@ -1223,7 +1238,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 #endif
 
     // Check if data can be sent immediately
-        if (_socketTxQueuedBuffer.size() == 0)
+        if (txQueuedLen() == 0)
         {
             // Queue is currently empty so try to send
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
@@ -1266,7 +1281,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
             retFinal = WEB_CONN_SEND_FAIL;
             break;
         }
-    uint32_t curSize = _socketTxQueuedBuffer.size();
+    uint32_t curSize = txQueuedLen();
         if (curSize + bytesToAddToQueue > _maxSendBufferBytes)
         {
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
@@ -1281,6 +1296,23 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 #if defined(ESP_PLATFORM) && defined(DEBUG_RAW_SEND_ON_CONN_TIMING)
     uint32_t queueStartCycles = esp_cpu_get_cycle_count();
 #endif
+        // If the queue is empty and the buffer may be taken, the queue takes it rather than copying what is left of it
+        if (pTakeBuf && (curSize == 0))
+        {
+            _socketTxQueuedBuffer.swap(*pTakeBuf);
+            _socketTxQueuedPos = bytesWritten;
+            pTakeBuf->clear();
+            retFinal = WEB_CONN_SEND_OK;
+            break;
+        }
+
+        // Remove what has been sent from the queue before adding to it
+        if (_socketTxQueuedPos > 0)
+        {
+            _socketTxQueuedBuffer.erase(_socketTxQueuedBuffer.begin(), _socketTxQueuedBuffer.begin() + _socketTxQueuedPos);
+            _socketTxQueuedPos = 0;
+        }
+
         // Check the larger buffer can be allocated - an allocation failure can't be detected afterwards (exceptions
         // are disabled) and would crash. This happens when several connections queue data at once while the link 
         // drains slowly (e.g. weak WiFi) and the heap is fragmented. The buffer is grown to the exact size needed
@@ -1309,7 +1341,7 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConn(const uint8_t* pBuf, uint
 
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
     LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d added %d bytes to send buffer newLen %d", 
-                _pClientConn->getClientId(), bytesToAddToQueue, _socketTxQueuedBuffer.size());
+                _pClientConn->getClientId(), bytesToAddToQueue, txQueuedLen());
 #endif
 
         // The data has been queued for sending (WEB_CONN_SEND_OK)
@@ -1544,7 +1576,7 @@ bool RaftWebConnection::handleResponseChunk()
 #endif
 
     // Check if data waiting to be sent
-    if (_socketTxQueuedBuffer.size() == 0)
+    if (txQueuedLen() == 0)
     {
         // Get next chunk of response
         uint8_t* pRespBuffer = nullptr;
@@ -1622,33 +1654,35 @@ bool RaftWebConnection::handleResponseChunk()
 bool RaftWebConnection::handleTxQueuedData()
 {
     // Check if data in the queue to send
-    if (_socketTxQueuedBuffer.size() > 0)
+    if (txQueuedLen() > 0)
     {
 #ifdef DEBUG_WEB_CONN_OPEN_CLOSE
         LOG_I(MODULE_PREFIX, "handleTxQueuedData connId %d HAS DATA: %d bytes queued", 
-                        _pClientConn ? _pClientConn->getClientId() : -1, _socketTxQueuedBuffer.size());
+                        _pClientConn ? _pClientConn->getClientId() : -1, txQueuedLen());
 #endif
         // Try to send
         uint32_t bytesWritten = 0;
-        uint32_t bytesToSend = _socketTxQueuedBuffer.size();
-        RaftWebConnSendRetVal retVal = _pClientConn->sendDataBuffer(_socketTxQueuedBuffer.data(), bytesToSend, 
+        uint32_t bytesToSend = txQueuedLen();
+        RaftWebConnSendRetVal retVal = _pClientConn->sendDataBuffer(_socketTxQueuedBuffer.data() + _socketTxQueuedPos, bytesToSend, 
                         MAX_CONTENT_SEND_RETRY_MS, bytesWritten);
         if (retVal == WEB_CONN_SEND_EAGAIN)
             return true;
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
         LOG_I(MODULE_PREFIX, "handleTxQueuedData connId %d result %s bytesWritten %d remaining %d", 
                         _pClientConn->getClientId(), RaftWebConnDefs::getSendRetValStr(retVal), bytesWritten, 
-                        _socketTxQueuedBuffer.size()-bytesWritten);
+                        txQueuedLen()-bytesWritten);
 #endif
         if (retVal == WEB_CONN_SEND_FAIL)
         {
             // Clear the send buffer
-            _socketTxQueuedBuffer.clear();
+            txQueueClear();
             return false;
         }
         
-        // Sent ok so clear items from the queue that were sent
-        _socketTxQueuedBuffer.erase(_socketTxQueuedBuffer.begin(), _socketTxQueuedBuffer.begin() + bytesWritten);
+        // Sent ok so move past what was sent (emptying the queue when all is sent)
+        _socketTxQueuedPos += bytesWritten;
+        if (_socketTxQueuedPos >= _socketTxQueuedBuffer.size())
+            txQueueClear();
     }
     return true;
 }

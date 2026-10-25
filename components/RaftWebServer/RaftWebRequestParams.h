@@ -31,10 +31,21 @@ public:
         return _webConnReadyToSend;
     }
 
+    // Send that may take the buffer (see RaftWebConnSendTakeFn) - not set for every connection
+    void setWebConnRawSendTake(RaftWebConnSendTakeFn webConnRawSendTake)
+    {
+        _webConnRawSendTake = webConnRawSendTake;
+    }
+    RaftWebConnSendTakeFn getWebConnRawSendTake() const
+    {
+        return _webConnRawSendTake;
+    }
+
     // Connection ID (for debugging)
     uint32_t connId = 0;
     
 private:
     RaftWebConnSendFn _webConnRawSend;
+    RaftWebConnSendTakeFn _webConnRawSendTake = nullptr;
     RaftWebConnReadyToSendFn _webConnReadyToSend;
 };

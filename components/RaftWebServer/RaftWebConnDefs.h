@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <functional>
+#include "SpiramAwareAllocator.h"
 
 // Callback function for any endpoint
 enum RaftWebConnSendRetVal
@@ -43,4 +44,8 @@ typedef std::function<RaftWebConnSendRetVal()> RaftWebConnReadyToSendFn;
 
 // Function to send on a connection
 typedef std::function<RaftWebConnSendRetVal(const uint8_t* pBuf, uint32_t bufLen, uint32_t maxSendRetryMs)> RaftWebConnSendFn;
+
+// Function to send a buffer on a connection, which may take the buffer's contents (leaving it empty) rather than
+// copy what it can't send at once
+typedef std::function<RaftWebConnSendRetVal(SpiramAwareUint8Vector& buf, uint32_t maxSendRetryMs)> RaftWebConnSendTakeFn;
 

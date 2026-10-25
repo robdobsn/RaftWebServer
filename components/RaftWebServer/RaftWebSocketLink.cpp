@@ -368,6 +368,17 @@ uint32_t RaftWebSocketLink::getTxData(uint8_t*& pBuf, uint32_t bufMaxLen)
 
 RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen)
 {
+    return sendMsgImpl(opCode, pBuf, bufLen, nullptr);
+}
+
+RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, SpiramAwareUint8Vector& buf)
+{
+    return sendMsgImpl(opCode, buf.data(), buf.size(), &buf);
+}
+
+RaftWebConnSendRetVal RaftWebSocketLink::sendMsgImpl(RaftWebSocketOpCodes opCode, const uint8_t *pBuf, uint32_t bufLen,
+            SpiramAwareUint8Vector* pTakeBuf)
+{
 #ifdef DEBUG_WEBSOCKET_SEND
     // Log all sends to debug reconnection issue
     static const char* opCodeNames[] = {"CONT", "TEXT", "BIN", "?", "?", "?", "?", "?", "CLOSE", "PING", "PONG"};
@@ -449,32 +460,55 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
         return WEB_CONN_SEND_FRAME_ERROR;
     }
 
-    // Frame: header then data, appended to reserved space (it isn't zero-filled first, so large messages are
-    // written once rather than twice)
-    std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frameBuffer;
-    frameBuffer.reserve(frameLen);
-    frameBuffer.insert(frameBuffer.end(), header, header + pos);
-    frameBuffer.insert(frameBuffer.end(), pBuf, pBuf + bufLen);
-
-    // Mask the data
-    if (_maskSentData)
-    {
-        for (uint32_t i = 0; i < bufLen; i++)
-            frameBuffer[pos + i] ^= maskBytes[i % WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
-    }
-
-#ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
-    framePrepareUs += (micros() - startUs);
-    startUs = micros();
-#endif
-
-    // Send
+    // Unmasked data (sent by a server) is sent as it is, after the header - without copying it into a frame first.
+    // If the connection can't take all of it, what is left is queued in order by the connection, and if it can't be
+    // queued the send fails and the connection is closed, so a frame is never sent in part
 #ifdef DEBUG_WEBSOCKET_LINK_SEND
     uint64_t timeNowUs = micros();
 #endif
     RaftWebConnSendRetVal sendRetc = RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
-    if (_rawConnSendFn)
-        sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
+    if (!_maskSentData)
+    {
+#ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
+        framePrepareUs += (micros() - startUs);
+        startUs = micros();
+#endif
+        if (_rawConnSendFn)
+        {
+            sendRetc = _rawConnSendFn(header, pos, MAX_WS_SEND_RETRY_MS);
+            if ((sendRetc == RaftWebConnSendRetVal::WEB_CONN_SEND_OK) && (bufLen > 0))
+            {
+                // The data's buffer is taken by the connection (rather than what it can't send at once copied) if
+                // it may be
+                if (pTakeBuf && _rawConnSendTakeFn)
+                    sendRetc = _rawConnSendTakeFn(*pTakeBuf, MAX_WS_SEND_RETRY_MS);
+                else
+                    sendRetc = _rawConnSendFn(pBuf, bufLen, MAX_WS_SEND_RETRY_MS);
+
+                // The header has gone, so the frame must be completed or the connection closed
+                if (sendRetc != RaftWebConnSendRetVal::WEB_CONN_SEND_OK)
+                    sendRetc = RaftWebConnSendRetVal::WEB_CONN_SEND_FAIL;
+            }
+        }
+    }
+    else
+    {
+        // Masked data (sent by a client): header then data, appended to reserved space (it isn't zero-filled first,
+        // so large messages are written once rather than twice)
+        std::vector<uint8_t, SpiramAwareAllocator<uint8_t>> frameBuffer;
+        frameBuffer.reserve(frameLen);
+        frameBuffer.insert(frameBuffer.end(), header, header + pos);
+        frameBuffer.insert(frameBuffer.end(), pBuf, pBuf + bufLen);
+        for (uint32_t i = 0; i < bufLen; i++)
+            frameBuffer[pos + i] ^= maskBytes[i % WSHeaderInfo::WEB_SOCKET_MASK_KEY_BYTES];
+
+#ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
+        framePrepareUs += (micros() - startUs);
+        startUs = micros();
+#endif
+        if (_rawConnSendFn)
+            sendRetc = _rawConnSendFn(frameBuffer.data(), frameBuffer.size(), MAX_WS_SEND_RETRY_MS);
+    }
 
 #ifdef DEBUG_WEBSOCKET_TIME_SEND_MSG
     rawConnSendUs += (micros() - startUs);
@@ -498,7 +532,7 @@ RaftWebConnSendRetVal RaftWebSocketLink::sendMsg(RaftWebSocketOpCodes opCode, co
     uint64_t timeTakenUs = micros() - timeNowUs;
     LOG_I(MODULE_PREFIX, "sendMsg result %s send %d bytes took %dus", 
             RaftWebConnDefs::getSendRetValStr(sendRetc), 
-            frameBuffer.size(), (int)timeTakenUs);
+            frameLen, (int)timeTakenUs);
 #endif
 
     return sendRetc;

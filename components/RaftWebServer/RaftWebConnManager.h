@@ -76,6 +76,9 @@ public:
     // Send a buffer on a channel (main task only)
     bool sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, uint32_t channelID);
 
+    // Send a buffer on a channel, which may be taken (leaving it empty) rather than copied
+    bool sendBufOnChannel(SpiramAwareUint8Vector& buf, uint32_t channelID);
+
     // Send to all server-side events (main task only)
     void serverSideEventsSendMsg(const char* eventContent, const char* eventGroup);
 

@@ -523,6 +523,34 @@ bool RaftWebConnManager::sendBufOnChannel(const uint8_t* pBuf, uint32_t bufLen, 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Send a buffer on a channel, which may be taken rather than copied
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool RaftWebConnManager::sendBufOnChannel(SpiramAwareUint8Vector& buf, uint32_t channelID)
+{
+    // Main task only (the send path is not protected by locks)
+    RAFT_CHECK_MAIN_TASK(MODULE_PREFIX, "sendBufOnChannel");
+
+    // The buffer can only be taken by the responder if it is the only one on the channel
+    RaftWebResponder* pChannelResponder = nullptr;
+    uint32_t numOnChannel = 0;
+    for (uint32_t i = 0; i < _webConnections.size(); i++)
+    {
+        if (!_webConnections[i].isActive())
+            continue;
+        RaftWebResponder *pResponder = _webConnections[i].getResponder();
+        uint32_t usedChannelID = 0;
+        if (!pResponder || !pResponder->getChannelID(usedChannelID) || (usedChannelID != channelID))
+            continue;
+        pChannelResponder = pResponder;
+        numOnChannel++;
+    }
+    if (numOnChannel != 1)
+        return sendBufOnChannel(buf.data(), buf.size(), channelID);
+    return pChannelResponder->encodeAndSendData(buf);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Send to all server-side events
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
