@@ -1281,8 +1281,12 @@ RaftWebConnSendRetVal RaftWebConnection::rawSendOnConnImpl(const uint8_t* pBuf, 
             retFinal = WEB_CONN_SEND_FAIL;
             break;
         }
+    // The limit is on adding to what is already queued. With nothing queued a message of any size is accepted (what
+    // the socket didn't take is held until it does): senders that check canSendOnConn don't add to it meanwhile,
+    // and refusing it would only lose the message (a WebSocket connection is closed when a send fails), since the
+    // same message can't be sent in any other way
     uint32_t curSize = txQueuedLen();
-        if (curSize + bytesToAddToQueue > _maxSendBufferBytes)
+        if ((curSize > 0) && (curSize + bytesToAddToQueue > _maxSendBufferBytes))
         {
 #ifdef DEBUG_WEB_CONNECTION_DATA_PACKETS
             LOG_I(MODULE_PREFIX, "rawSendOnConn connId %d send buffer overflow was %d trying to add %d max %d", 
