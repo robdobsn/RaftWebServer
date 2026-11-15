@@ -24,11 +24,6 @@
 #include "PlatformUtils.h"
 #include <algorithm>
 
-// This define enables checking of channel connection state for websockets
-// Comment the following to use canSendBufferOnChannel (which gets actual busy state of channel but
-// may be more expensive to call)
-#define USE_IS_CHANNEL_CONNECTED_FOR_WEBSOCKETS
-
 // #define DEBUG_WEBSERVER_WEBSOCKETS
 #define DEBUG_API_WEB_CERTS
 
@@ -389,22 +384,16 @@ void WebServer::webSocketSetup()
                                 msg.getChannelID());
                     },
                     [this](uint32_t channelID, CommsMsgTypeCode msgType, bool& noConn) {
-#ifdef USE_IS_CHANNEL_CONNECTED_FOR_WEBSOCKETS
-                        // For publish messages (e.g. high-rate camera frames) check the actual
-                        // send-readiness of the connection so publishers back off (drop frames)
-                        // when the socket TX path is congested - otherwise the send queue
-                        // overflows and the connection is closed
-                        // Note: high-rate publishers must still publish from the main task (not
-                        // from their own task) - see note above
-                        if (msgType == MSG_TYPE_PUBLISH)
-                            return _raftWebServer.canSendBufferOnChannel(channelID, msgType, noConn);
-                        // Use isChannelConnected to check if there is a connection (less expensive)
-                        noConn = ! _raftWebServer.isChannelConnected(channelID);
-                        return !noConn;
-#else
-                        // Use canSendBufferOnChannel to check if we can send
-                        return _raftWebServer.canSendBufferOnChannel(channelID, msgType, noConn); 
-#endif
+                        // The connection's actual send-readiness (it isn't ready while data it couldn't send at
+                        // once is still queued), for every type of message:
+                        // - publishers (e.g. high-rate camera frames) back off (drop frames) while the socket's
+                        //   TX path is congested
+                        // - other messages wait in the channel's queue, and a sender of many (a file download)
+                        //   goes at the rate the connection takes them. Sent regardless, a burst larger than the
+                        //   connection's send buffer (sendBufMaxLen) fails, and the connection is closed
+                        // Note: high-rate publishers must still publish from the main task (not from their own
+                        // task) - see note above
+                        return _raftWebServer.canSendBufferOnChannel(channelID, msgType, noConn);
                     },
                     &commsChannelSettings);
 
